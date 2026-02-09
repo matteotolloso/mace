@@ -716,8 +716,11 @@ def run(args) -> None:
         f"Number of gradient updates: {int(args.max_num_epochs*len(train_set)/args.batch_size)}"
     )
     logging.info(f"Learning rate: {args.lr}, weight decay: {args.weight_decay}")
+    # print the argument loss
+    logging.info(f"Using loss: {args.loss}")
     logging.info(loss_fn)
-
+    logging.info(f"Using MVE: {args.predict_mve}")
+    
     # Cueq and OEQ conversion
     if args.enable_cueq and args.enable_oeq:
         logging.warning(

@@ -79,6 +79,7 @@ class MACE(torch.nn.Module):
         oeq_config: Optional[Dict[str, Any]] = None,
         lammps_mliap: Optional[bool] = False,
         readout_cls: Optional[Type[NonLinearReadoutBlock]] = NonLinearReadoutBlock,
+        predict_mve: bool = False,
     ):
         super().__init__()
         self.register_buffer(
@@ -103,6 +104,8 @@ class MACE(torch.nn.Module):
         self.use_so3 = use_so3
         self.use_last_readout_only = use_last_readout_only
         self.use_edge_irreps_first = use_edge_irreps_first
+        self.predict_mve = predict_mve
+        self.mve_head_multiplier = 2 if predict_mve else 1
 
         # Embedding
         node_attr_irreps = o3.Irreps([(num_elements, (0, 1))])
@@ -251,17 +254,24 @@ class MACE(torch.nn.Module):
             )
             self.products.append(prod)
             if i == num_interactions - 2:
+                ### MVE ###
+                # hidden MLP irreps become: 2 × len(heads) × MLP_irreps
+                hidden_irreps_mid = (len(heads) * self.mve_head_multiplier * MLP_irreps).simplify()
+                # output irreps become: (2 × len(heads)) x 0e (mean and log-variance per head)
+                out_irreps = o3.Irreps(f"{len(heads) * self.mve_head_multiplier}x0e")
+                # num_heads remains len(heads), so gating continues to separate heads
                 self.readouts.append(
                     readout_cls(
                         hidden_irreps_out,
-                        (len(heads) * MLP_irreps).simplify(),
+                        hidden_irreps_mid,
                         gate,
-                        o3.Irreps(f"{len(heads)}x0e"),
+                        out_irreps,
                         len(heads),
                         cueq_config,
                         oeq_config,
                     )
                 )
+                ### /MVE ###
             elif not use_last_readout_only:
                 self.readouts.append(
                     LinearReadoutBlock(
@@ -357,6 +367,16 @@ class MACE(torch.nn.Module):
         # Interactions
         energies = [e0, pair_energy]
         node_energies_list = [node_e0, pair_node_energy]
+        
+        ### MVE ###
+        eps = 1e-16
+        # log-variance contributions; deterministic terms start at 0
+        energies_logvar = [torch.zeros_like(e0), torch.zeros_like(pair_energy)]
+        node_energies_logvar_list = [torch.zeros_like(node_e0), torch.zeros_like(pair_node_energy)]
+        # optional: store which readout is the last (where we output mean+logvar)
+        last_readout_idx = len(self.readouts) - 1
+        ### /MVE ###
+        
         node_feats_concat: List[torch.Tensor] = []
 
         for i, (interaction, product) in enumerate(
@@ -385,18 +405,55 @@ class MACE(torch.nn.Module):
 
         for i, readout in enumerate(self.readouts):
             feat_idx = -1 if len(self.readouts) == 1 else i
-            node_es = readout(node_feats_concat[feat_idx], node_heads)[
-                num_atoms_arange, node_heads
-            ]
-            energy = scatter_sum(node_es, data["batch"], dim=0, dim_size=num_graphs)
-            energies.append(energy)
-            node_energies_list.append(node_es)
+            ### MVE ###
+            raw = readout(node_feats_concat[feat_idx], node_heads)
+            # raw shape:
+            #   - normal: [n_atoms, n_heads]
+            #   - MVE only on last readout: [n_atoms, 2*n_heads]
+            if self.predict_mve and (i == last_readout_idx):
+                n_heads = len(self.heads)
+                # reshape into [n_atoms, n_heads, 2]
+                raw = raw.view(raw.shape[0], n_heads, 2)
+
+                node_es_mean = raw[:, :, 0][num_atoms_arange, node_heads]
+                node_es_logvar = raw[:, :, 1][num_atoms_arange, node_heads]
+            else:
+                node_es_mean = raw[num_atoms_arange, node_heads]
+                node_es_logvar = torch.zeros_like(node_es_mean)
+
+            energy_mean = scatter_sum(node_es_mean, data["batch"], dim=0, dim_size=num_graphs)
+            energy_logvar = scatter_sum(node_es_logvar, data["batch"], dim=0, dim_size=num_graphs)
+
+            energies.append(energy_mean)
+            node_energies_list.append(node_es_mean)
+
+            energies_logvar.append(energy_logvar)
+            node_energies_logvar_list.append(node_es_logvar)
+            ### /MVE ###
 
         contributions = torch.stack(energies, dim=-1)
         total_energy = torch.sum(contributions, dim=-1)
         node_energy = torch.sum(torch.stack(node_energies_list, dim=-1), dim=-1)
         node_feats_out = torch.cat(node_feats_concat, dim=-1)
+        
+        ### MVE ###
+        # Total logvar: sum variances then log
+        if self.predict_mve:
+            # graph-level
+            contributions_logvar = torch.stack(energies_logvar, dim=-1)            # [n_graphs, ..., n_contrib]
+            total_var = torch.sum(torch.exp(contributions_logvar), dim=-1)         # [n_graphs, ...]
+            total_logvar = torch.log(total_var + eps)                              # [n_graphs, ...]
 
+            # node-level
+            node_contrib_logvar = torch.stack(node_energies_logvar_list, dim=-1)   # [n_atoms, n_contrib]
+            node_var = torch.sum(torch.exp(node_contrib_logvar), dim=-1)           # [n_atoms]
+            node_logvar = torch.log(node_var + eps)                                # [n_atoms]
+        else:
+            contributions_logvar = None
+            total_logvar = None
+            node_logvar = None
+        ### /MVE ###
+        
         forces, virials, stress, hessian, edge_forces = get_outputs(
             energy=total_energy,
             positions=positions,
@@ -422,7 +479,8 @@ class MACE(torch.nn.Module):
                 batch=data["batch"],
                 cell=cell,
             )
-        return {
+        
+        out = {
             "energy": total_energy,
             "node_energy": node_energy,
             "contributions": contributions,
@@ -436,6 +494,23 @@ class MACE(torch.nn.Module):
             "hessian": hessian,
             "node_feats": node_feats_out,
         }
+
+        ### MVE ###
+        if self.predict_mve:
+            out.update(
+                {
+                    "energy_mean": total_energy,
+                    "energy_logvar": total_logvar,
+                    "energy_var": torch.exp(total_logvar),
+                    "node_energy_mean": node_energy,
+                    "node_energy_logvar": node_logvar,
+                    "node_energy_var": torch.exp(node_logvar),
+                    "contributions_logvar": contributions_logvar,
+                }
+            )
+        ### /MVE ###
+
+        return out
 
 
 @compile_mode("script")
@@ -486,7 +561,7 @@ class ScaleShiftMACE(MACE):
         lammps_natoms = interaction_kwargs.lammps_natoms
         lammps_class = interaction_kwargs.lammps_class
 
-        # Atomic energies
+        # --- Atomic baseline energies (deterministic) ---
         node_e0 = self.atomic_energies_fn(data["node_attrs"])[
             num_atoms_arange, node_heads
         ]
@@ -494,15 +569,16 @@ class ScaleShiftMACE(MACE):
             src=node_e0, index=data["batch"], dim=0, dim_size=num_graphs
         ).to(
             vectors.dtype
-        )  # [n_graphs, num_heads]
+        )  # [B]
 
-        # Embeddings
+        # --- Embeddings ---
         node_feats = self.node_embedding(data["node_attrs"])
         edge_attrs = self.spherical_harmonics(vectors)
         edge_feats, cutoff = self.radial_embedding(
             lengths, data["node_attrs"], data["edge_index"], self.atomic_numbers
         )
 
+        # Pair repulsion (deterministic)
         if hasattr(self, "pair_repulsion"):
             pair_node_energy = self.pair_repulsion_fn(
                 lengths, data["node_attrs"], data["edge_index"], self.atomic_numbers
@@ -512,7 +588,7 @@ class ScaleShiftMACE(MACE):
         else:
             pair_node_energy = torch.zeros_like(node_e0)
 
-        # Embeddings of additional features
+        # Embeddings of additional features (optional)
         if hasattr(self, "joint_embedding"):
             embedding_features: Dict[str, torch.Tensor] = {}
             for name, _ in self.embedding_specs.items():
@@ -534,11 +610,10 @@ class ScaleShiftMACE(MACE):
                     dim_size=num_graphs,
                 )
                 e0 += embedding_energy
+                node_e0 = node_e0 + embedding_node_energy  # keep node-level baseline consistent
 
-        # Interactions
-        node_es_list = [pair_node_energy]
+        # --- Interactions (message passing) ---
         node_feats_list: List[torch.Tensor] = []
-
         for i, (interaction, product) in enumerate(
             zip(self.interactions, self.products)
         ):
@@ -563,24 +638,86 @@ class ScaleShiftMACE(MACE):
             )
             node_feats_list.append(node_feats)
 
+        # --- Readouts and assemble per-atom contributions ---
+        # Original: node_es_list = [pair_node_energy] and then appended readouts (all deterministic)
+        # MVE: we will keep two parallel lists: per-atom means and per-atom variances
+        ### MVE ###
+        predict_mve = bool(getattr(self, "predict_mve", False))
+        eps = 1e-16
+        n_heads = len(self.heads) if hasattr(self, "heads") else int(torch.max(node_heads).item() + 1)
+        last_readout_idx = len(self.readouts) - 1
+
+        node_es_mean_list = [pair_node_energy]  # each entry shape: [N]
+        node_es_var_list = [torch.zeros_like(pair_node_energy)]  # deterministic contribution -> var=0
+        ### /MVE ###
+
         for i, readout in enumerate(self.readouts):
             feat_idx = -1 if len(self.readouts) == 1 else i
-            node_es_list.append(
-                readout(node_feats_list[feat_idx], node_heads)[
-                    num_atoms_arange, node_heads
-                ]
-            )
+            raw = readout(node_feats_list[feat_idx], node_heads)  # raw: [N, H] normally
+
+            ### MVE ###
+            if predict_mve and (i == last_readout_idx):
+                # last readout provides both mean and logvar: raw shape [N, 2*H]
+                # reshape to [N, H, 2] and pick active head per atom
+                raw = raw.view(raw.shape[0], n_heads, 2)
+                node_es_mean = raw[:, :, 0][num_atoms_arange, node_heads]  # [N]
+                node_es_logvar = raw[:, :, 1][num_atoms_arange, node_heads]  # [N]
+                node_es_var = torch.exp(node_es_logvar)  # [N]
+            else:
+                # deterministic readout: raw shape [N, H], select head -> [N]
+                node_es_mean = raw[num_atoms_arange, node_heads]
+                node_es_var = torch.zeros_like(node_es_mean)
+            node_es_mean_list.append(node_es_mean)
+            node_es_var_list.append(node_es_var)
+            ### /MVE ###
 
         node_feats_out = torch.cat(node_feats_list, dim=-1)
-        node_inter_es = torch.sum(torch.stack(node_es_list, dim=0), dim=0)
-        node_inter_es = self.scale_shift(node_inter_es, node_heads)
-        inter_e = scatter_sum(node_inter_es, data["batch"], dim=-1, dim_size=num_graphs)
 
-        total_energy = e0 + inter_e
-        node_energy = node_e0.clone().double() + node_inter_es.clone().double()
+        # --- Combine per-atom contributions (means and variances) ---
+        ### MVE ###
+        # Sum means and variances at node level
+        node_inter_mean = torch.sum(torch.stack(node_es_mean_list, dim=0), dim=0)  # [N]
+        node_inter_var = torch.sum(torch.stack(node_es_var_list, dim=0), dim=0)    # [N]
+        ### /MVE ###
 
+        # --- Apply scale_shift (affine) to node-level interaction mean (and variance) ---
+        # mean: y = s * x + b
+        node_inter_mean_scaled = self.scale_shift(node_inter_mean, node_heads)  # [N]
+
+        ### MVE ###
+        if predict_mve:
+            # Extract per-atom scale; ScaleShiftBlock stores scale as a buffer which can be scalar or per-head
+            scale_param = torch.atleast_1d(self.scale_shift.scale)  # 1D tensor or scalar
+            # make per-atom scale: index by head
+            scale_per_atom = scale_param[node_heads]  # [N]
+            # variance scales as s^2 * var
+            node_inter_var_scaled = (scale_per_atom ** 2) * node_inter_var  # [N]
+        else:
+            node_inter_var_scaled = None
+        ### /MVE ###
+
+        # --- Aggregate to graph level (interaction energy mean and var) ---
+        inter_e_mean = scatter_sum(node_inter_mean_scaled, data["batch"], dim=-1, dim_size=num_graphs)  # [B]
+
+        ### MVE ###
+        if predict_mve:
+            inter_e_var = scatter_sum(node_inter_var_scaled, data["batch"], dim=0, dim_size=num_graphs)  # [B]
+            inter_e_logvar = torch.log(inter_e_var + eps)  # [B]
+        else:
+            inter_e_var = None
+            inter_e_logvar = None
+        ### /MVE ###
+
+        # --- Total energy (mean) and node energy (mean) ---
+        total_energy_mean = e0 + inter_e_mean  # [B]
+        node_energy_mean = node_e0.clone().double() + node_inter_mean_scaled.clone().double()  # [N]
+
+        # Keep backward-compatible "energy" key as mean
+        total_energy = total_energy_mean
+
+        # --- Outputs (forces etc) computed from interaction mean as before ---
         forces, virials, stress, hessian, edge_forces = get_outputs(
-            energy=inter_e,
+            energy=inter_e_mean,
             positions=positions,
             displacement=displacement,
             vectors=vectors,
@@ -604,10 +741,12 @@ class ScaleShiftMACE(MACE):
                 batch=data["batch"],
                 cell=cell,
             )
-        return {
-            "energy": total_energy,
-            "node_energy": node_energy,
-            "interaction_energy": inter_e,
+
+        # --- Build output dict ---
+        out: Dict[str, Optional[torch.Tensor]] = {
+            "energy": total_energy,  # backward compatible: mean
+            "node_energy": node_energy_mean,  # per-atom mean
+            "interaction_energy": inter_e_mean,
             "forces": forces,
             "edge_forces": edge_forces,
             "virials": virials,
@@ -618,6 +757,26 @@ class ScaleShiftMACE(MACE):
             "displacement": displacement,
             "node_feats": node_feats_out,
         }
+
+        ### MVE ###
+        if predict_mve:
+            out.update(
+                {
+                    "energy_mean": total_energy_mean,
+                    "energy_logvar": inter_e_logvar,  # since baseline e0 deterministic, total logvar == interaction logvar
+                    "energy_var": torch.exp(inter_e_logvar),
+                    "interaction_energy_mean": inter_e_mean,
+                    "interaction_energy_logvar": inter_e_logvar,
+                    "interaction_energy_var": torch.exp(inter_e_logvar),
+                    "node_energy_mean": node_energy_mean,
+                    "node_energy_logvar": node_inter_var_scaled.log(),  # node_inter_var_scaled is var -> log gives logvar
+                    "node_energy_var": node_inter_var_scaled,
+                }
+            )
+        ### /MVE ###
+
+        return out
+
 
 
 @compile_mode("script")

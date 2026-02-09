@@ -623,3 +623,111 @@ class WeightedEnergyForcesL1L2Loss(torch.nn.Module):
             f"{self.__class__.__name__}(energy_weight={self.energy_weight:.3f}, "
             f"forces_weight={self.forces_weight:.3f})"
         )
+
+### MVE ###
+def weighted_gaussian_nll_energy(
+    ref: Batch,
+    pred: TensorDict,
+    ddp: Optional[bool] = None,
+) -> torch.Tensor:
+    num_atoms = ref.ptr[1:] - ref.ptr[:-1]  # [B]
+
+    # Mean: fall back to "energy" for robustness
+    mu = pred.get("energy_mean", pred["energy"])
+
+    logvar = pred.get("energy_logvar", None)
+    if logvar is None:
+        raise KeyError(
+            "energy_logvar is required for Gaussian NLL loss. "
+            "Did you enable predict_mve?"
+        )
+
+    se = (ref["energy"] - mu) ** 2
+    raw_loss = (
+        ref.weight
+        * ref.energy_weight
+        * (se * torch.exp(-logvar) + logvar)
+        / num_atoms
+    )
+    return reduce_loss(raw_loss, ddp)
+
+
+class WeightedGaussianNLLLoss(torch.nn.Module):
+    def __init__(
+        self,
+        energy_weight=1.0,
+        forces_weight=1.0,
+        virials_weight=0.0,  
+        stress_weight=0.0,  
+    ):
+        super().__init__()
+        self.register_buffer(
+            "energy_weight",
+            torch.tensor(energy_weight, dtype=torch.get_default_dtype()),
+        )
+        self.register_buffer(
+            "forces_weight",
+            torch.tensor(forces_weight, dtype=torch.get_default_dtype()),
+        )
+        self.register_buffer(
+            "virials_weight",
+            torch.tensor(virials_weight, dtype=torch.get_default_dtype()),
+        )
+        self.register_buffer(
+            "stress_weight",
+            torch.tensor(stress_weight, dtype=torch.get_default_dtype()),
+        )
+
+    def forward(
+        self,
+        ref: Batch,
+        pred: TensorDict,
+        ddp: Optional[bool] = None,
+    ) -> torch.Tensor:
+
+        # --- Energy (always on) ---
+        loss_energy = weighted_gaussian_nll_energy(ref, pred, ddp)
+
+        # --- Forces (optional but usually on) ---
+        if self.forces_weight > 0.0 and pred.get("forces") is not None:
+            loss_forces = mean_squared_error_forces(ref, pred, ddp)
+        else:
+            loss_forces = loss_energy.new_zeros(())
+
+        # --- Virials (OFF by default) ---
+        if (
+            self.virials_weight > 0.0
+            and getattr(ref, "virials", None) is not None
+            and pred.get("virials") is not None
+        ):
+            loss_virials = weighted_mean_squared_virials(ref, pred, ddp)
+        else:
+            loss_virials = loss_energy.new_zeros(())
+
+        # --- Stress (OFF by default) ---
+        if (
+            self.stress_weight > 0.0
+            and getattr(ref, "stress", None) is not None
+            and pred.get("stress") is not None
+        ):
+            loss_stress = weighted_mean_squared_stress(ref, pred, ddp)
+        else:
+            loss_stress = loss_energy.new_zeros(())
+
+        return (
+            self.energy_weight * loss_energy
+            + self.forces_weight * loss_forces
+            + self.virials_weight * loss_virials
+            + self.stress_weight * loss_stress
+        )
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}(energy_weight={self.energy_weight:.3f}, "
+            f"forces_weight={self.forces_weight:.3f}, "
+            f"virials_weight={self.virials_weight:.3f}, "
+            f"stress_weight={self.stress_weight:.3f})"
+        )
+
+
+### /MVE ###

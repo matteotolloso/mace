@@ -21,6 +21,7 @@ from torch.optim.swa_utils import SWALR, AveragedModel
 
 from mace import data, modules, tools
 from mace.data import KeySpecification
+from mace.modules.loss import WeightedGaussianNLLLoss
 from mace.tools.train import SWAContainer
 
 
@@ -631,7 +632,24 @@ def get_loss_fn(
     dipole_only: bool,
     compute_dipole: bool,
 ) -> torch.nn.Module:
-    if args.loss == "weighted":
+
+    ### MVE ###
+    if args.predict_mve and args.loss != "gaussian_nll":
+        raise ValueError("MVE prediction can only be used with Gaussian NLL loss")
+    
+    if args.loss == "gaussian_nll":
+        loss_fn = WeightedGaussianNLLLoss(
+            energy_weight=args.energy_weight,
+            forces_weight=args.forces_weight,
+            virials_weight=args.virials_weight,
+            stress_weight=args.stress_weight,
+        )
+
+        if  not args.predict_mve:
+            raise ValueError("Gaussian NLL loss can only be used with MVE prediction")
+    ### /MVE ###
+
+    elif args.loss == "weighted":
         loss_fn = modules.WeightedEnergyForcesLoss(
             energy_weight=args.energy_weight, forces_weight=args.forces_weight
         )

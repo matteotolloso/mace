@@ -29,6 +29,13 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         parser = argparse.ArgumentParser(
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         )
+    
+    ### MVE ###
+    parser.add_argument(
+        "--predict_mve", action="store_true",
+        help="If set, the model predicts mean and variance (logvar) per head."
+    )
+    ### /MVE ###
 
     # Name and seed
     parser.add_argument("--name", help="experiment name", required=True)
@@ -638,6 +645,9 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         help="type of loss",
         default="weighted",
         choices=[
+            ### MVE ###
+            "gaussian_nll",
+            ### /MVE ###
             "ef",
             "weighted",
             "forces_only",

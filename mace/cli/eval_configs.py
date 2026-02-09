@@ -185,13 +185,29 @@ def run(args: argparse.Namespace) -> None:
     bec_list = []
     qs_list = []
     forces_collection = []
+    ### MVE ###
+    energy_logvar_list = []
+    energy_var_list = []
+    node_energy_logvar_list = []
+    node_energy_var_list = []
+    ### /MVE ###
 
     for batch in data_loader:
         batch = batch.to(device)
         output = get_model_output(
             model, batch.to_dict(), args.compute_stress, args.compute_bec
         )
-        energies_list.append(torch_tools.to_numpy(output["energy"]))
+        ### MVE ###
+        # Energy mean: prefer explicit energy_mean, fallback to energy
+        energy_mean = output.get("energy_mean", output["energy"])
+        energies_list.append(torch_tools.to_numpy(energy_mean))
+
+        # Optional graph-level uncertainty
+        if output.get("energy_logvar") is not None:
+            energy_logvar_list.append(torch_tools.to_numpy(output["energy_logvar"]))
+        if output.get("energy_var") is not None:
+            energy_var_list.append(torch_tools.to_numpy(output["energy_var"]))
+        ### /MVE ###
         if args.compute_stress:
             stresses_list.append(torch_tools.to_numpy(output["stress"]))
         if args.compute_bec:
@@ -247,15 +263,36 @@ def run(args: argparse.Namespace) -> None:
             descriptors_list.extend(descriptors[:-1])  # drop last as its empty
 
         if args.return_node_energies:
+            # mean node energy (backward compatible)
+            node_energy_mean = output.get("node_energy_mean", output["node_energy"])
             node_energies_list.append(
                 np.split(
-                    torch_tools.to_numpy(output["node_energy"]),
+                    torch_tools.to_numpy(node_energy_mean),
                     indices_or_sections=batch.ptr[1:],
                     axis=0,
-                )[
-                    :-1
-                ]  # drop last as its empty
+                )[:-1]
             )
+
+            ### MVE ###
+            # Optional node-level uncertainty
+            if output.get("node_energy_logvar") is not None:
+                node_energy_logvar_list.append(
+                    np.split(
+                        torch_tools.to_numpy(output["node_energy_logvar"]),
+                        indices_or_sections=batch.ptr[1:],
+                        axis=0,
+                    )[:-1]
+                )
+            if output.get("node_energy_var") is not None:
+                node_energy_var_list.append(
+                    np.split(
+                        torch_tools.to_numpy(output["node_energy_var"]),
+                        indices_or_sections=batch.ptr[1:],
+                        axis=0,
+                    )[:-1]
+                )
+                ### /MVE ###
+
 
         forces = np.split(
             torch_tools.to_numpy(output["forces"]),
@@ -265,6 +302,14 @@ def run(args: argparse.Namespace) -> None:
         forces_collection.append(forces[:-1])  # drop last as its empty
 
     energies = np.concatenate(energies_list, axis=0)
+    ### MVE ###
+    energy_logvar = None
+    energy_var = None
+    if len(energy_logvar_list) > 0:
+        energy_logvar = np.concatenate(energy_logvar_list, axis=0)
+    if len(energy_var_list) > 0:
+        energy_var = np.concatenate(energy_var_list, axis=0)
+    ### /MVE ###
     forces_list = [
         forces for forces_list in forces_collection for forces in forces_list
     ]
@@ -288,12 +333,30 @@ def run(args: argparse.Namespace) -> None:
     if args.return_node_energies:
         node_energies = np.concatenate(node_energies_list, axis=0)
         assert len(atoms_list) == node_energies.shape[0]
+    ### MVE ###
+    node_energy_logvar = None
+    node_energy_var = None
+    if args.return_node_energies and len(node_energy_logvar_list) > 0:
+        node_energy_logvar = np.concatenate(node_energy_logvar_list, axis=0)
+    if args.return_node_energies and len(node_energy_var_list) > 0:
+        node_energy_var = np.concatenate(node_energy_var_list, axis=0)
+    ### /MVE ###
+
 
     # Store data in atoms objects
     for i, (atoms, energy, forces) in enumerate(zip(atoms_list, energies, forces_list)):
         atoms.calc = None  # crucial
         atoms.info[args.info_prefix + "energy"] = energy
         atoms.arrays[args.info_prefix + "forces"] = forces
+        ### MVE ###
+        # store energy uncertainty if available
+        if energy_logvar is not None:
+            atoms.info[args.info_prefix + "energy_logvar"] = float(energy_logvar[i])
+        if energy_var is not None:
+            atoms.info[args.info_prefix + "energy_var"] = float(energy_var[i])
+            atoms.info[args.info_prefix + "energy_std"] = float(np.sqrt(energy_var[i]))
+        ### /MVE ###
+
 
         if args.compute_stress:
             atoms.info[args.info_prefix + "stress"] = stresses[i]
@@ -324,6 +387,14 @@ def run(args: argparse.Namespace) -> None:
 
         if args.return_node_energies:
             atoms.arrays[args.info_prefix + "node_energies"] = node_energies[i]
+            
+            ### MVE ###
+            if node_energy_logvar is not None:
+                atoms.arrays[args.info_prefix + "node_energy_logvar"] = node_energy_logvar[i]
+            if node_energy_var is not None:
+                atoms.arrays[args.info_prefix + "node_energy_var"] = node_energy_var[i]
+                atoms.arrays[args.info_prefix + "node_energy_std"] = np.sqrt(node_energy_var[i])
+            ### /MVE ###
 
     # Write atoms to output path
     ase.io.write(args.output, images=atoms_list, format="extxyz")
