@@ -717,9 +717,9 @@ def run(args) -> None:
     )
     logging.info(f"Learning rate: {args.lr}, weight decay: {args.weight_decay}")
     # print the argument loss
+    logging.info(f"Using Mean Variance Estimation (MVE): {args.predict_mve}")
     logging.info(f"Using loss: {args.loss}")
     logging.info(loss_fn)
-    logging.info(f"Using MVE: {args.predict_mve}")
     
     # Cueq and OEQ conversion
     if args.enable_cueq and args.enable_oeq:

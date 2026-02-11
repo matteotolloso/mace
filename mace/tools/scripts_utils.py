@@ -774,6 +774,16 @@ def get_swa(
         logging.info(
             f"Stage Two (after {args.start_swa} epochs) with loss function: {loss_fn_energy}, with energy weight : {args.swa_energy_weight}, forces weight : {args.swa_forces_weight}, stress weight : {args.swa_stress_weight} and learning rate : {args.swa_lr}"
         )
+    elif args.loss == "gaussian_nll":
+        loss_fn_energy = modules.WeightedGaussianNLLLoss(
+            energy_weight=args.swa_energy_weight,
+            forces_weight=args.swa_forces_weight,
+            virials_weight=args.swa_virials_weight,
+            stress_weight=args.swa_stress_weight,
+        )
+        logging.info(
+            f"Stage Two (after {args.start_swa} epochs) with loss function: {loss_fn_energy}, with energy weight : {args.swa_energy_weight}, forces weight : {args.swa_forces_weight}, virials weight : {args.swa_virials_weight}, stress weight : {args.swa_stress_weight} and learning rate : {args.swa_lr}"
+        )
     else:
         loss_fn_energy = modules.WeightedEnergyForcesLoss(
             energy_weight=args.swa_energy_weight,

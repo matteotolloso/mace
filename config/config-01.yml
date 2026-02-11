@@ -1,7 +1,7 @@
 
 model: "MACE"
 num_channels: 128
-max_L: 0
+max_L: 2
 r_max: 5.0
 name: "mace01"
 model_dir: "MACE_models"
@@ -14,9 +14,12 @@ test_file: "test_data/solvent_xtb_test.xyz"
 energy_key: "energy_xtb"
 forces_key: "forces_xtb"
 device: cuda
-batch_size: 10
-max_num_epochs: 10
+batch_size: 20
+max_num_epochs: 1000
 swa: True
 seed: 123
 predict_mve: True
 loss: "gaussian_nll"
+patience: 20
+lr: 0.001
+weight_decay: 1e-5
