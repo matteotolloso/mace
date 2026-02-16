@@ -35,6 +35,7 @@ from .loss import (
     WeightedForcesLoss,
     WeightedHuberEnergyForcesStressLoss,
     WeightedGaussianNLLLoss,
+    WeightedEnergyOnlyLoss,
 )
 from .models import (
     MACE,
@@ -116,6 +117,7 @@ __all__ = [
     "WeightedEnergyForcesDipoleLoss",
     "WeightedHuberEnergyForcesStressLoss",
     "WeightedGaussianNLLLoss",
+    "WeightedEnergyOnlyLoss",
     "UniversalLoss",
     "WeightedEnergyForcesL1L2Loss",
     "SymmetricContraction",

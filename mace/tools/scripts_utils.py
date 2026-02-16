@@ -655,6 +655,8 @@ def get_loss_fn(
         )
     elif args.loss == "forces_only":
         loss_fn = modules.WeightedForcesLoss(forces_weight=args.forces_weight)
+    elif args.loss == "energy_only":
+        loss_fn = modules.WeightedEnergyOnlyLoss(energy_weight=args.energy_weight)
     elif args.loss == "virials":
         loss_fn = modules.WeightedEnergyForcesVirialsLoss(
             energy_weight=args.energy_weight,
@@ -763,6 +765,11 @@ def get_swa(
         )
         logging.info(
             f"Stage Two (after {args.start_swa} epochs) with loss function: {loss_fn_energy}, with energy weight : {args.swa_energy_weight}, forces weight : {args.swa_forces_weight}, dipole weight : {args.swa_dipole_weight} and learning rate : {args.swa_lr}"
+        )
+    elif args.loss == "energy_only":
+        loss_fn_energy = modules.WeightedEnergyOnlyLoss(energy_weight=args.swa_energy_weight)
+        logging.info(
+            f"Stage Two (after {args.start_swa} epochs) with loss function: {loss_fn_energy}, with energy weight : {args.swa_energy_weight} and learning rate : {args.swa_lr}"
         )
     elif args.loss == "universal":
         loss_fn_energy = modules.UniversalLoss(

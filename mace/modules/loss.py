@@ -731,3 +731,17 @@ class WeightedGaussianNLLLoss(torch.nn.Module):
 
 
 ### /MVE ###
+
+
+class WeightedEnergyOnlyLoss(torch.nn.Module):
+    def __init__(self, energy_weight=1.0):
+        super().__init__()
+        self.register_buffer("energy_weight", torch.tensor(energy_weight, dtype=torch.get_default_dtype()))
+
+    def forward(self, ref, pred, ddp=None):
+        # use the repo’s standard energy MSE term
+        loss_energy = weighted_mean_squared_error_energy(ref, pred, ddp)
+        return self.energy_weight * loss_energy
+    
+    def __repr__(self):
+        return f"{self.__class__.__name__}(energy_weight={self.energy_weight:.3f})"

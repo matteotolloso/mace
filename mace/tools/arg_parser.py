@@ -651,6 +651,7 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
             "ef",
             "weighted",
             "forces_only",
+            "energy_only",
             "virials",
             "stress",
             "dipole",
