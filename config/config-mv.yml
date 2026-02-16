@@ -19,9 +19,9 @@ max_num_epochs: 1000
 swa: False
 compute_forces: False
 E0s: "average"
-seed: 123
+seed: 0
 predict_mve: True
 loss: "gaussian_nll"
-patience: 20
+patience: 100
 # enable_cueq: True
 

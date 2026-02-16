@@ -20,9 +20,9 @@ max_num_epochs: 1000
 swa: False
 compute_forces: False
 E0s: "average"
-seed: 123
+seed: 0
 predict_mve: False
 loss: "energy_only"
-patience: 20
+patience: 100
 # enable_cueq: True
 

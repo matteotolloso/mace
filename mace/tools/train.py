@@ -206,6 +206,7 @@ def train(
 
     # variable used for broadcast by rank == 0 if epoch loop is exited early, e.g. patience
     exit_now = torch.zeros(1, device=device) if distributed else None
+    # this is a bugfix of the original code. This allows to use the patient stopping mechanism even when not using distributed training. Before, if distributed was False, exit_now would be None and the check `if exit_now is not None` would fail, meaning that the loop would never break based on patience. 
     while epoch < max_num_epochs:
         # LR scheduler and SWA update
         if swa is None or epoch < swa.start:
@@ -310,6 +311,8 @@ def train(
                             )
                             if exit_now is not None:
                                 exit_now.fill_(1)
+                            else: # not distributed case
+                                exit_now_single = True
                     if save_all_checkpoints:
                         param_context = (
                             ema.average_parameters()
@@ -340,6 +343,9 @@ def train(
         if exit_now is not None:
             torch.distributed.broadcast(exit_now, src=0)
             if exit_now == 1:
+                break
+        else: # not distributed case
+            if exit_now_single:
                 break
 
         epoch += 1
