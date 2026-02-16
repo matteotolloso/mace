@@ -23,6 +23,7 @@ E0s: "average"
 seed: 0
 predict_mve: False
 loss: "energy_only"
-patience: 100
+patience: 100 # patience is not about the epoch but about the number of evaluations
+eval_interval: 1
 # enable_cueq: True
 

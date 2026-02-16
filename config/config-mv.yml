@@ -23,5 +23,6 @@ seed: 0
 predict_mve: True
 loss: "gaussian_nll"
 patience: 100
+eval_interval: 1
 # enable_cueq: True
 
