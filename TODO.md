@@ -1,0 +1,1 @@
+controlla che le unità di misura delle energie siano coerenti tra ani e mace
