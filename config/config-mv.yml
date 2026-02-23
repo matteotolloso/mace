@@ -14,12 +14,12 @@ test_file: "dataset/ani1x-processed/test.xyz"
 energy_key: "wb97x_dz.energy"
 forces_weight: 0.0
 device: cuda
-batch_size: 20
+batch_size: 30
 max_num_epochs: 1000
 swa: False
 compute_forces: False
 E0s: "average"
-seed: 0
+seed: 2
 predict_mve: True
 loss: "gaussian_nll"
 patience: 100

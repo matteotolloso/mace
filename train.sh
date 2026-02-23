@@ -1,11 +1,11 @@
 #!/bin/bash
 
-rm -rf outputs/*
+# rm -rf outputs/*
 
 # Store PIDs of background processes
-CUDA_VISIBLE_DEVICES=4 python mace/cli/run_train.py --config config/config-mv.yml &
+CUDA_VISIBLE_DEVICES=0 python mace/cli/run_train.py --config config/config-mv.yml &
 PID1=$!
-CUDA_VISIBLE_DEVICES=5 python mace/cli/run_train.py --config config/config-default.yml &
+CUDA_VISIBLE_DEVICES=1 python mace/cli/run_train.py --config config/config-default.yml &
 PID2=$!
 
 # Kill both processes on Ctrl+C
