@@ -172,6 +172,10 @@ def train(
     distributed_model: Optional[DistributedDataParallel] = None,
     train_sampler: Optional[DistributedSampler] = None,
     rank: Optional[int] = 0,
+    epoch_train_loaders: Optional[Dict[str, DataLoader]] = None,
+    epoch_test_loaders: Optional[Dict[str, DataLoader]] = None,
+    log_epoch_outputs: bool = False,
+    epoch_logger: Optional[MetricsLogger] = None,
 ):
     lowest_loss = np.inf
     valid_loss = np.inf
@@ -188,6 +192,10 @@ def train(
     logging.info("===========TRAINING===========")
     logging.info("Started training, reporting errors on validation set")
     logging.info("Loss metrics on validation set")
+    if log_epoch_outputs and distributed and rank == 0:
+        logging.warning(
+            "Per-configuration epoch outputs are disabled in distributed mode; only split summaries will be logged."
+        )
     epoch = start_epoch
 
     # log validation loss before _any_ training
@@ -339,6 +347,103 @@ def train(
                             keep_last=keep_last,
                         )
                         keep_last = False or save_all_checkpoints
+
+        if log_epoch_outputs:
+            model_to_evaluate = model if distributed_model is None else distributed_model
+            param_context = (
+                ema.average_parameters() if ema is not None else nullcontext()
+            )
+            if "ScheduleFree" in type(optimizer).__name__:
+                optimizer.eval()
+            with param_context:
+                if epoch_train_loaders:
+                    for train_loader_name, train_loader_eval in epoch_train_loaders.items():
+                        train_loss_head, train_metrics = evaluate(
+                            model=model_to_evaluate,
+                            loss_fn=loss_fn,
+                            data_loader=train_loader_eval,
+                            output_args=output_args,
+                            device=device,
+                        )
+                        train_metrics["mode"] = "epoch_outputs"
+                        train_metrics["split"] = "train"
+                        train_metrics["loader"] = train_loader_name
+                        train_metrics["epoch"] = epoch
+                        train_metrics["head"] = train_loader_name
+                        train_metrics["split_loss"] = train_loss_head
+                        if rank == 0 and epoch_logger is not None:
+                            epoch_logger.log(train_metrics)
+                        if not distributed and rank == 0 and epoch_logger is not None:
+                            for row in collect_config_predictions(
+                                model=model_to_evaluate,
+                                data_loader=train_loader_eval,
+                                output_args=output_args,
+                                device=device,
+                                split="train",
+                                loader_name=train_loader_name,
+                                epoch=epoch,
+                                rank=rank,
+                            ):
+                                epoch_logger.log(row)
+
+                for valid_loader_name, valid_loader_eval in valid_loaders.items():
+                    valid_loss_head_ep, valid_metrics_ep = evaluate(
+                        model=model_to_evaluate,
+                        loss_fn=loss_fn,
+                        data_loader=valid_loader_eval,
+                        output_args=output_args,
+                        device=device,
+                    )
+                    valid_metrics_ep["mode"] = "epoch_outputs"
+                    valid_metrics_ep["split"] = "valid"
+                    valid_metrics_ep["loader"] = valid_loader_name
+                    valid_metrics_ep["epoch"] = epoch
+                    valid_metrics_ep["head"] = valid_loader_name
+                    valid_metrics_ep["split_loss"] = valid_loss_head_ep
+                    if rank == 0 and epoch_logger is not None:
+                        epoch_logger.log(valid_metrics_ep)
+                    if not distributed and rank == 0 and epoch_logger is not None:
+                        for row in collect_config_predictions(
+                            model=model_to_evaluate,
+                            data_loader=valid_loader_eval,
+                            output_args=output_args,
+                            device=device,
+                            split="valid",
+                            loader_name=valid_loader_name,
+                            epoch=epoch,
+                            rank=rank,
+                        ):
+                            epoch_logger.log(row)
+
+                if epoch_test_loaders:
+                    for test_loader_name, test_loader in epoch_test_loaders.items():
+                        test_loss_head, test_metrics = evaluate(
+                            model=model_to_evaluate,
+                            loss_fn=loss_fn,
+                            data_loader=test_loader,
+                            output_args=output_args,
+                            device=device,
+                        )
+                        test_metrics["mode"] = "epoch_outputs"
+                        test_metrics["split"] = "test"
+                        test_metrics["loader"] = test_loader_name
+                        test_metrics["epoch"] = epoch
+                        test_metrics["head"] = test_loader_name
+                        test_metrics["split_loss"] = test_loss_head
+                        if rank == 0 and epoch_logger is not None:
+                            epoch_logger.log(test_metrics)
+                        if not distributed and rank == 0 and epoch_logger is not None:
+                            for row in collect_config_predictions(
+                                model=model_to_evaluate,
+                                data_loader=test_loader,
+                                output_args=output_args,
+                                device=device,
+                                split="test",
+                                loader_name=test_loader_name,
+                                epoch=epoch,
+                                rank=rank,
+                            ):
+                                epoch_logger.log(row)
         if distributed:
             torch.distributed.barrier()
         if exit_now is not None:
@@ -352,6 +457,103 @@ def train(
         epoch += 1
 
     logging.info("Training complete")
+
+
+def collect_config_predictions(
+    model: torch.nn.Module,
+    data_loader: DataLoader,
+    output_args: Dict[str, bool],
+    device: torch.device,
+    split: str,
+    loader_name: str,
+    epoch: int,
+    rank: int,
+) -> List[Dict[str, Any]]:
+    rows: List[Dict[str, Any]] = []
+    running_index = 0
+    
+    def _batch_field(b, key: str):
+        return getattr(b, key) if key in b.keys else None
+
+    with torch.no_grad():
+        for batch in data_loader:
+            batch = batch.to(device)
+            batch_dict = batch.to_dict()
+            output = model(
+                batch_dict,
+                training=False,
+                compute_force=output_args["forces"],
+                compute_virials=output_args["virials"],
+                compute_stress=output_args["stress"],
+            )
+
+            ptr = batch.ptr
+            num_graphs = int(batch.num_graphs)
+            heads_batch = _batch_field(batch, "head")
+
+            pred_energy = output.get("energy_mean", output.get("energy"))
+            if pred_energy is not None and pred_energy.ndim >= 2 and heads_batch is not None:
+                graph_idx = torch.arange(num_graphs, device=pred_energy.device)
+                pred_energy = pred_energy[graph_idx, heads_batch.long()]
+
+            pred_energy_var = output.get("energy_var", None)
+            if pred_energy_var is None and output.get("energy_logvar", None) is not None:
+                pred_energy_var = torch.exp(output["energy_logvar"])
+            if (
+                pred_energy_var is not None
+                and pred_energy_var.ndim >= 2
+                and heads_batch is not None
+            ):
+                graph_idx = torch.arange(num_graphs, device=pred_energy_var.device)
+                pred_energy_var = pred_energy_var[graph_idx, heads_batch.long()]
+
+            for i in range(num_graphs):
+                start = int(ptr[i].item())
+                end = int(ptr[i + 1].item())
+                n_atoms = end - start
+
+                row: Dict[str, Any] = {
+                    "mode": "epoch_outputs_config",
+                    "split": split,
+                    "loader": loader_name,
+                    "epoch": epoch,
+                    "rank": rank,
+                    "config_index": running_index + i,
+                    "num_atoms": n_atoms,
+                }
+
+                if heads_batch is not None:
+                    row["head_index"] = int(heads_batch[i].item())
+
+                if pred_energy is not None:
+                    row["pred_energy"] = float(pred_energy[i].detach().cpu().item())
+                if pred_energy_var is not None:
+                    row["pred_energy_var"] = float(
+                        pred_energy_var[i].detach().cpu().item()
+                    )
+                if _batch_field(batch, "energy") is not None:
+                    ref_e = float(batch.energy[i].detach().cpu().item())
+                    row["ref_energy"] = ref_e
+                    if pred_energy is not None:
+                        row["delta_energy"] = float(
+                            pred_energy[i].detach().cpu().item() - ref_e
+                        )
+                        if n_atoms > 0:
+                            row["delta_energy_per_atom"] = row["delta_energy"] / n_atoms
+
+                if output.get("forces", None) is not None and _batch_field(batch, "forces") is not None:
+                    f_ref = batch.forces[start:end]
+                    f_pred = output["forces"][start:end]
+                    row["mae_f"] = float(torch.mean(torch.abs(f_ref - f_pred)).detach().cpu().item())
+                    row["rmse_f"] = float(
+                        torch.sqrt(torch.mean((f_ref - f_pred) ** 2)).detach().cpu().item()
+                    )
+
+                rows.append(row)
+
+            running_index += num_graphs
+
+    return rows
 
 
 def train_one_epoch(

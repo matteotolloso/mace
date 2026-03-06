@@ -64,6 +64,12 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         "--results_dir", help="directory for results", type=str, default=None
     )
     parser.add_argument(
+        "--log_epoch_outputs",
+        help="if True, write epoch-end train/valid/test evaluation metrics to an additional results file",
+        type=str2bool,
+        default=False,
+    )
+    parser.add_argument(
         "--downloads_dir", help="directory for downloads", type=str, default=None
     )
 

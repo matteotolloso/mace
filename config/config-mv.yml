@@ -1,8 +1,8 @@
 
 model: "MACE"
-num_channels: 128
-max_L: 2
-r_max: 6.0
+num_channels: 64
+max_L: 1
+r_max: 5.0
 name: "mace-mv"
 model_dir: "outputs/models"
 log_dir: "outputs/logs"
@@ -14,15 +14,15 @@ test_file: "dataset/ani1x-processed/test.xyz"
 energy_key: "wb97x_dz.energy"
 forces_weight: 0.0
 device: cuda
-batch_size: 30
-max_num_epochs: 1000
+batch_size: 40
+max_num_epochs: 500
 swa: False
 compute_forces: False
 E0s: "average"
-seed: 2
 predict_mve: True
 loss: "gaussian_nll"
-patience: 100
+# patience: 20
 eval_interval: 1
-# enable_cueq: True
+save_all_checkpoints: False
+log_epoch_outputs: True
 
