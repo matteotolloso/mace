@@ -119,6 +119,7 @@ def load_member_file(
                 if "pred_energy_var" in row
                 else np.nan,
                 "num_atoms": int(row["num_atoms"]) if "num_atoms" in row else np.nan,
+                "ref_energy": float(row["ref_energy"]) if "ref_energy" in row else np.nan,
             }
     return data
 
@@ -128,6 +129,7 @@ def compute_epoch_uncertainty(
 ) -> List[Tuple[int, float, float, int, int]]:
     common_epochs = sorted(set.intersection(*(set(m.keys()) for m in members)))
     results: List[Tuple[int, float, float, int, int]] = []
+    align_tol = 1e-8
 
     for epoch in common_epochs:
         common_configs = set.intersection(*(set(m[epoch].keys()) for m in members))
@@ -140,6 +142,25 @@ def compute_epoch_uncertainty(
         for key in common_configs:
             pred_energies = np.array([m[epoch][key]["pred_energy"] for m in members], dtype=float)
             pred_vars = np.array([m[epoch][key]["pred_energy_var"] for m in members], dtype=float)
+            ref_energies = np.array([m[epoch][key]["ref_energy"] for m in members], dtype=float)
+            num_atoms_vals = np.array([m[epoch][key]["num_atoms"] for m in members], dtype=float)
+
+            # Guard against mismatched config ordering across ensemble members.
+            # For the same (loader, config_index), ref energy and num_atoms should match.
+            finite_ref = np.isfinite(ref_energies)
+            if np.any(finite_ref) and np.ptp(ref_energies[finite_ref]) > align_tol:
+                raise RuntimeError(
+                    f"Detected misaligned members at epoch={epoch}, key={key}: "
+                    "ref_energy differs across input files. "
+                    "Ensure deterministic ordering and identical dataset split across members."
+                )
+            finite_n = np.isfinite(num_atoms_vals)
+            if np.any(finite_n) and np.ptp(num_atoms_vals[finite_n]) > 0:
+                raise RuntimeError(
+                    f"Detected misaligned members at epoch={epoch}, key={key}: "
+                    "num_atoms differs across input files. "
+                    "Ensure deterministic ordering and identical dataset split across members."
+                )
 
             if per_atom:
                 n_atoms = members[0][epoch][key]["num_atoms"]

@@ -148,7 +148,7 @@ def build_test_data_loaders(
             test_loader = torch_geometric.dataloader.DataLoader(
                 test_set,
                 batch_size=args.valid_batch_size,
-                shuffle=(test_sampler is None),
+                shuffle=False,
                 drop_last=drop_last,
                 num_workers=args.num_workers,
                 pin_memory=args.pin_memory,

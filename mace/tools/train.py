@@ -491,14 +491,12 @@ def collect_config_predictions(
             num_graphs = int(batch.num_graphs)
             heads_batch = _batch_field(batch, "head")
 
-            pred_energy = output.get("energy_mean", output.get("energy"))
+            pred_energy = output.get("energy")
             if pred_energy is not None and pred_energy.ndim >= 2 and heads_batch is not None:
                 graph_idx = torch.arange(num_graphs, device=pred_energy.device)
                 pred_energy = pred_energy[graph_idx, heads_batch.long()]
 
             pred_energy_var = output.get("energy_var", None)
-            if pred_energy_var is None and output.get("energy_logvar", None) is not None:
-                pred_energy_var = torch.exp(output["energy_logvar"])
             if (
                 pred_energy_var is not None
                 and pred_energy_var.ndim >= 2
@@ -540,6 +538,9 @@ def collect_config_predictions(
                         )
                         if n_atoms > 0:
                             row["delta_energy_per_atom"] = row["delta_energy"] / n_atoms
+                            # for a single configuration, RMSE is the absolute error
+                            row["rmse_e_per_atom"] = abs(row["delta_energy_per_atom"])
+                            row["rmse_e_per_atom_meV"] = 1e3 * row["rmse_e_per_atom"]
 
                 if output.get("forces", None) is not None and _batch_field(batch, "forces") is not None:
                     f_ref = batch.forces[start:end]
@@ -825,12 +826,7 @@ class MACELoss(Metric):
         self.num_data += batch.num_graphs
 
         ### MVE ###
-        # Use energy_mean if present (MVE) otherwise fall back to energy for backward compat
-        pred_energy = None
-        if output.get("energy_mean") is not None:
-            pred_energy = output["energy_mean"]
-        elif output.get("energy") is not None:
-            pred_energy = output["energy"]
+        pred_energy = output.get("energy")
 
         if pred_energy is not None and batch.energy is not None:
             # graph-level delta and per-atom delta
@@ -842,12 +838,7 @@ class MACELoss(Metric):
                 batch, self.delta_es, batch.weight, batch.energy_weight
             )
         # collect predicted variance (if model provides it) for logging/calibration
-        # prefer `energy_var` (variance), else compute from `energy_logvar` if available
-        pred_var = None
-        if output.get("energy_var") is not None:
-            pred_var = output["energy_var"]
-        elif output.get("energy_logvar") is not None:
-            pred_var = torch.exp(output["energy_logvar"])
+        pred_var = output.get("energy_var")
 
         if pred_var is not None:
             # pred_var is a per-graph tensor with same batch size; append for later stats

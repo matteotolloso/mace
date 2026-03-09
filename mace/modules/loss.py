@@ -4,6 +4,7 @@
 # This program is distributed under the MIT License (see MIT.md)
 ###########################################################################################
 
+import math
 from typing import Optional
 
 import torch
@@ -627,26 +628,32 @@ class WeightedEnergyForcesL1L2Loss(torch.nn.Module):
 ### MVE ###
 def weighted_gaussian_nll_energy(
     ref: Batch,
-    pred: TensorDict,
+    pred_dict: TensorDict,
     ddp: Optional[bool] = None,
 ) -> torch.Tensor:
     num_atoms = ref.ptr[1:] - ref.ptr[:-1]  # [B]
+    eps = 1e-16
 
-    # Mean: fall back to "energy" for robustness
-    mu = pred.get("energy_mean", pred["energy"])
+    # Predicted total energy
+    pred = pred_dict["energy"]
 
-    logvar = pred.get("energy_logvar", None)
+    logvar = pred_dict.get("energy_logvar", None)
     if logvar is None:
-        raise KeyError(
-            "energy_logvar is required for Gaussian NLL loss. "
-            "Did you enable predict_mve?"
-        )
+        energy_var = pred_dict.get("energy_var", None)
+        if energy_var is None:
+            raise KeyError(
+                "energy_var (or energy_logvar) is required for Gaussian NLL loss. "
+                "Did you enable predict_mve?"
+            )
+        logvar = torch.log(energy_var + eps)
 
-    se = (ref["energy"] - mu) ** 2
+    err2 = (ref["energy"] - pred) ** 2
+    log_2pi = math.log(2.0 * math.pi)
     raw_loss = (
         ref.weight
         * ref.energy_weight
-        * (se * torch.exp(-logvar) + logvar)
+        * 0.5
+        * (err2 * torch.exp(-logvar) + logvar + log_2pi)
         / num_atoms
     )
     return reduce_loss(raw_loss, ddp)

@@ -640,14 +640,13 @@ class ScaleShiftMACE(MACE):
 
         # --- Readouts and assemble per-atom contributions ---
         # Original: node_es_list = [pair_node_energy] and then appended readouts (all deterministic)
-        # MVE: we will keep two parallel lists: per-atom means and per-atom variances
+        # MVE: we keep per-atom energy contributions and per-atom variances
         ### MVE ###
         predict_mve = bool(getattr(self, "predict_mve", False))
-        eps = 1e-16
         n_heads = len(self.heads) if hasattr(self, "heads") else int(torch.max(node_heads).item() + 1)
         last_readout_idx = len(self.readouts) - 1
 
-        node_es_mean_list = [pair_node_energy]  # each entry shape: [N]
+        node_es_list = [pair_node_energy]  # each entry shape: [N]
         node_es_var_list = [torch.zeros_like(pair_node_energy)]  # deterministic contribution -> var=0
         ### /MVE ###
 
@@ -660,29 +659,27 @@ class ScaleShiftMACE(MACE):
                 # last readout provides both mean and logvar: raw shape [N, 2*H]
                 # reshape to [N, H, 2] and pick active head per atom
                 raw = raw.view(raw.shape[0], n_heads, 2)
-                node_es_mean = raw[:, :, 0][num_atoms_arange, node_heads]  # [N]
-                node_es_logvar = raw[:, :, 1][num_atoms_arange, node_heads]  # [N]
+                node_es = raw[:, :, 0][num_atoms_arange, node_heads]  # [N]
+                node_es_logvar = raw[:, :, 1][num_atoms_arange, node_heads]  # [N] # the model predicts atom-level log-variances
                 node_es_var = torch.exp(node_es_logvar)  # [N]
             else:
                 # deterministic readout: raw shape [N, H], select head -> [N]
-                node_es_mean = raw[num_atoms_arange, node_heads]
-                node_es_var = torch.zeros_like(node_es_mean)
-            node_es_mean_list.append(node_es_mean)
+                node_es = raw[num_atoms_arange, node_heads]
+                node_es_var = torch.zeros_like(node_es)
+            node_es_list.append(node_es)
             node_es_var_list.append(node_es_var)
             ### /MVE ###
 
         node_feats_out = torch.cat(node_feats_list, dim=-1)
 
-        # --- Combine per-atom contributions (means and variances) ---
+        # --- Combine per-atom contributions (energy and variance) ---
         ### MVE ###
-        # Sum means and variances at node level
-        node_inter_mean = torch.sum(torch.stack(node_es_mean_list, dim=0), dim=0)  # [N]
+        node_inter_e = torch.sum(torch.stack(node_es_list, dim=0), dim=0)  # [N]
         node_inter_var = torch.sum(torch.stack(node_es_var_list, dim=0), dim=0)    # [N]
         ### /MVE ###
 
-        # --- Apply scale_shift (affine) to node-level interaction mean (and variance) ---
-        # mean: y = s * x + b
-        node_inter_mean_scaled = self.scale_shift(node_inter_mean, node_heads)  # [N]
+        # --- Apply scale_shift (affine) to node-level interaction energy (and variance) ---
+        node_inter_e_scaled = self.scale_shift(node_inter_e, node_heads)  # [N]
 
         ### MVE ###
         if predict_mve:
@@ -696,28 +693,23 @@ class ScaleShiftMACE(MACE):
             node_inter_var_scaled = None
         ### /MVE ###
 
-        # --- Aggregate to graph level (interaction energy mean and var) ---
-        inter_e_mean = scatter_sum(node_inter_mean_scaled, data["batch"], dim=-1, dim_size=num_graphs)  # [B]
+        # --- Aggregate to graph level (interaction energy and var) ---
+        inter_e = scatter_sum(node_inter_e_scaled, data["batch"], dim=-1, dim_size=num_graphs)  # [B]
 
         ### MVE ###
         if predict_mve:
             inter_e_var = scatter_sum(node_inter_var_scaled, data["batch"], dim=0, dim_size=num_graphs)  # [B]
-            inter_e_logvar = torch.log(inter_e_var + eps)  # [B]
         else:
             inter_e_var = None
-            inter_e_logvar = None
         ### /MVE ###
 
-        # --- Total energy (mean) and node energy (mean) ---
-        total_energy_mean = e0 + inter_e_mean  # [B]
-        node_energy_mean = node_e0.clone().double() + node_inter_mean_scaled.clone().double()  # [N]
+        # --- Total and node energies ---
+        total_energy = e0 + inter_e  # [B]
+        node_energy = node_e0.clone().double() + node_inter_e_scaled.clone().double()  # [N]
 
-        # Keep backward-compatible "energy" key as mean
-        total_energy = total_energy_mean
-
-        # --- Outputs (forces etc) computed from interaction mean as before ---
+        # --- Outputs (forces etc) computed from interaction energy as before ---
         forces, virials, stress, hessian, edge_forces = get_outputs(
-            energy=inter_e_mean,
+            energy=inter_e,
             positions=positions,
             displacement=displacement,
             vectors=vectors,
@@ -744,9 +736,9 @@ class ScaleShiftMACE(MACE):
 
         # --- Build output dict ---
         out: Dict[str, Optional[torch.Tensor]] = {
-            "energy": total_energy,  # backward compatible: mean
-            "node_energy": node_energy_mean,  # per-atom mean
-            "interaction_energy": inter_e_mean,
+            "energy": total_energy,
+            "node_energy": node_energy,
+            "interaction_energy": inter_e,
             "forces": forces,
             "edge_forces": edge_forces,
             "virials": virials,
@@ -762,14 +754,8 @@ class ScaleShiftMACE(MACE):
         if predict_mve:
             out.update(
                 {
-                    "energy_mean": total_energy_mean,
-                    "energy_logvar": inter_e_logvar,  # since baseline e0 deterministic, total logvar == interaction logvar
-                    "energy_var": torch.exp(inter_e_logvar),
-                    "interaction_energy_mean": inter_e_mean,
-                    "interaction_energy_logvar": inter_e_logvar,
-                    "interaction_energy_var": torch.exp(inter_e_logvar),
-                    "node_energy_mean": node_energy_mean,
-                    "node_energy_logvar": node_inter_var_scaled.log(),  # node_inter_var_scaled is var -> log gives logvar
+                    # baseline e0 is deterministic, so total variance equals interaction variance
+                    "energy_var": inter_e_var,
                     "node_energy_var": node_inter_var_scaled,
                 }
             )
