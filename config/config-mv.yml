@@ -14,8 +14,8 @@ test_file: "dataset/ani1x-processed/test.xyz"
 energy_key: "wb97x_dz.energy"
 forces_weight: 0.0
 device: cuda
-batch_size: 40
-max_num_epochs: 500
+batch_size: 100
+max_num_epochs: 200
 swa: False
 compute_forces: False
 E0s: "average"

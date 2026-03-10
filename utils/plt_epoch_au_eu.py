@@ -6,6 +6,12 @@ Input files are expected to be the per-model logs produced by training with
     mode == "epoch_outputs_config"
 and fields including:
     epoch, split, loader, config_index, pred_energy, pred_energy_var
+
+Per-sample decomposition:
+    EU(x) = (1/(M-1)) * sum_m (y_m(x) - y_bar(x))^2
+    AU(x) = (1/M) * sum_m sigma_m^2(x)
+
+Per-epoch values are the mean over all common samples in that epoch.
 """
 
 import argparse
@@ -126,9 +132,14 @@ def load_member_file(
 
 def compute_epoch_uncertainty(
     members: List[Dict[int, Dict[ConfigKey, Dict[str, float]]]], per_atom: bool = False
-) -> List[Tuple[int, float, float, int, int]]:
+) -> List[Tuple[int, float, float, float]]:
+    if len(members) < 2:
+        raise RuntimeError(
+            "At least 2 ensemble members are required to estimate epistemic uncertainty."
+        )
+
     common_epochs = sorted(set.intersection(*(set(m.keys()) for m in members)))
-    results: List[Tuple[int, float, float, int, int]] = []
+    results: List[Tuple[int, float, float, float]] = []
     align_tol = 1e-8
 
     for epoch in common_epochs:
@@ -138,6 +149,7 @@ def compute_epoch_uncertainty(
 
         aleatoric_per_config = []
         epistemic_per_config = []
+        err2_e_per_atom_per_config = []
 
         for key in common_configs:
             pred_energies = np.array([m[epoch][key]["pred_energy"] for m in members], dtype=float)
@@ -162,6 +174,16 @@ def compute_epoch_uncertainty(
                     "Ensure deterministic ordering and identical dataset split across members."
                 )
 
+            # RMSE_E_per_atom uses ensemble mean prediction against reference energy.
+            # This follows the standard MACE error metric scale (later converted to meV).
+            if np.any(finite_ref):
+                ref_e = float(ref_energies[finite_ref][0])
+                n_atoms_rmse = float(num_atoms_vals[finite_n][0]) if np.any(finite_n) else np.nan
+                if np.isfinite(n_atoms_rmse) and n_atoms_rmse > 0:
+                    y_bar_total = float(np.mean(pred_energies))
+                    err_e_per_atom = (y_bar_total - ref_e) / n_atoms_rmse
+                    err2_e_per_atom_per_config.append(err_e_per_atom ** 2)
+
             if per_atom:
                 n_atoms = members[0][epoch][key]["num_atoms"]
                 if (not np.isfinite(n_atoms)) or n_atoms <= 0:
@@ -172,7 +194,13 @@ def compute_epoch_uncertainty(
                 pred_energies = pred_energies / n_atoms
                 pred_vars = pred_vars / (n_atoms**2)
 
-            epistemic_per_config.append(float(np.var(pred_energies, ddof=0)))
+            # EU(x) = (1/(M-1)) * sum_m (y_m(x) - y_bar(x))^2
+            # AU(x) = (1/M) * sum_m sigma_m^2(x)
+            y_bar = float(np.mean(pred_energies))
+            epistemic = float(
+                np.sum((pred_energies - y_bar) ** 2) / (len(pred_energies) - 1)
+            )
+            epistemic_per_config.append(epistemic)
             if np.any(np.isfinite(pred_vars)):
                 aleatoric_per_config.append(float(np.nanmean(pred_vars)))
 
@@ -185,32 +213,55 @@ def compute_epoch_uncertainty(
             else float("nan")
         )
         epistemic_mean = float(np.mean(epistemic_per_config))
+        rmse_e_per_atom_meV = (
+            float(np.sqrt(np.mean(err2_e_per_atom_per_config)) * 1e3)
+            if len(err2_e_per_atom_per_config) > 0
+            else float("nan")
+        )
         results.append(
-            (epoch, aleatoric_mean, epistemic_mean, len(common_configs), len(members))
+            (
+                epoch,
+                aleatoric_mean,
+                epistemic_mean,
+                rmse_e_per_atom_meV,
+            )
         )
 
     return results
 
 
-def write_csv(path: Path, rows: List[Tuple[int, float, float, int, int]]) -> None:
+def write_csv(path: Path, rows: List[Tuple[int, float, float, float]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(
             [
                 "epoch",
-                "aleatoric_mean",
-                "epistemic_mean",
-                "num_common_configs",
-                "ensemble_size",
+                "au_e_per_atom2",
+                "eu_e_per_atom2",
+                "rmse_e_per_atom_meV",
             ]
         )
         writer.writerows(rows)
 
 
+def read_csv(path: Path) -> List[Tuple[int, float, float, float]]:
+    rows: List[Tuple[int, float, float, float]] = []
+    with path.open("r", newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            epoch = int(row["epoch"])
+            au = float(row["au_e_per_atom2"])
+            eu = float(row["eu_e_per_atom2"])
+            rmse_meV = float(row["rmse_e_per_atom_meV"])
+            rows.append((epoch, au, eu, rmse_meV))
+    rows.sort(key=lambda x: x[0])
+    return rows
+
+
 def write_plot(
     path: Path,
-    rows: List[Tuple[int, float, float, int, int]],
+    rows: List[Tuple[int, float, float, float]],
     clip_percentile: float,
     drop_first_k_epochs: int,
     per_atom: bool,
@@ -229,6 +280,7 @@ def write_plot(
     epochs = [r[0] for r in rows_plot]
     ale = np.array([r[1] for r in rows_plot], dtype=float)
     epi = np.array([r[2] for r in rows_plot], dtype=float)
+    rmse_meV = np.array([r[3] for r in rows_plot], dtype=float)
 
     finite_ale = ale[np.isfinite(ale)]
     finite_epi = epi[np.isfinite(epi)]
@@ -248,21 +300,21 @@ def write_plot(
         ale_plot = np.log(np.maximum(ale_plot, log_eps))
         epi_plot = np.log(np.maximum(epi_plot, log_eps))
 
-    plt.figure(figsize=(9, 5))
-    plt.plot(
+    fig, ax1 = plt.subplots(figsize=(9, 5))
+    ax1.plot(
         epochs,
         ale_plot,
         marker="o",
         label=f"Aleatoric (clipped at p{clip_percentile:g})",
     )
-    plt.plot(
+    ax1.plot(
         epochs,
         epi_plot,
         marker="o",
         label=f"Epistemic (clipped at p{clip_percentile:g})",
     )
     if np.any(ale_is_clipped):
-        plt.scatter(
+        ax1.scatter(
             np.array(epochs)[ale_is_clipped],
             ale_plot[ale_is_clipped],
             marker="^",
@@ -270,14 +322,14 @@ def write_plot(
             label="Aleatoric outlier (clipped)",
         )
     if np.any(epi_is_clipped):
-        plt.scatter(
+        ax1.scatter(
             np.array(epochs)[epi_is_clipped],
             epi_plot[epi_is_clipped],
             marker="^",
             s=60,
             label="Epistemic outlier (clipped)",
         )
-    plt.xlabel("Epoch")
+    ax1.set_xlabel("Epoch")
     if per_atom:
         ylabel = "Uncertainty per atom^2"
     else:
@@ -292,32 +344,57 @@ def write_plot(
     )
     if plot_log_variance:
         title = "Log " + title
-    plt.ylabel(ylabel)
-    plt.title(title)
-    plt.grid(alpha=0.3)
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(path, dpi=200)
-    plt.close()
+    ax1.set_ylabel(ylabel)
+    ax1.set_title(title)
+    ax1.grid(alpha=0.3)
+
+    handles, labels = ax1.get_legend_handles_labels()
+    finite_rmse = np.isfinite(rmse_meV)
+    if np.any(finite_rmse):
+        ax2 = ax1.twinx()
+        (rmse_line,) = ax2.plot(
+            np.array(epochs)[finite_rmse],
+            rmse_meV[finite_rmse],
+            color="black",
+            linestyle="--",
+            marker="s",
+            label="RMSE_E_per_atom (meV)",
+        )
+        ax2.set_ylabel("RMSE_E_per_atom (meV)")
+        handles.append(rmse_line)
+        labels.append("RMSE_E_per_atom (meV)")
+
+    ax1.legend(handles, labels)
+    fig.tight_layout()
+    fig.savefig(path, dpi=200)
+    plt.close(fig)
 
 
 def main() -> None:
     args = parse_args()
-    member_maps = [
-        load_member_file(Path(p), split=args.split, loader=args.loader)
-        for p in args.inputs
-    ]
-    if any(len(m) == 0 for m in member_maps):
-        raise RuntimeError(
-            "At least one input file has no matching 'epoch_outputs_config' rows "
-            f"for split='{args.split}' and loader='{args.loader}'."
-        )
+    output_csv = Path(args.output_csv)
+    if output_csv.exists():
+        rows = read_csv(output_csv)
+        if len(rows) == 0:
+            raise RuntimeError(f"Existing CSV is empty: {output_csv}")
+        print(f"Using existing CSV: {output_csv}")
+    else:
+        member_maps = [
+            load_member_file(Path(p), split=args.split, loader=args.loader)
+            for p in args.inputs
+        ]
+        if any(len(m) == 0 for m in member_maps):
+            raise RuntimeError(
+                "At least one input file has no matching 'epoch_outputs_config' rows "
+                f"for split='{args.split}' and loader='{args.loader}'."
+            )
 
-    rows = compute_epoch_uncertainty(member_maps, per_atom=args.per_atom)
-    if len(rows) == 0:
-        raise RuntimeError("No common epochs/configurations found across ensemble files.")
+        rows = compute_epoch_uncertainty(member_maps, per_atom=args.per_atom)
+        if len(rows) == 0:
+            raise RuntimeError("No common epochs/configurations found across ensemble files.")
+        write_csv(output_csv, rows)
+        print(f"Saved CSV: {args.output_csv}")
 
-    write_csv(Path(args.output_csv), rows)
     write_plot(
         Path(args.output_plot),
         rows,
@@ -327,7 +404,6 @@ def main() -> None:
         plot_log_variance=args.plot_log_variance,
         log_eps=args.log_eps,
     )
-    print(f"Saved CSV: {args.output_csv}")
     print(f"Saved plot: {args.output_plot}")
 
 
