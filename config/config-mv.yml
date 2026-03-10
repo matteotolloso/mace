@@ -3,12 +3,12 @@ model: "MACE"
 num_channels: 64
 max_L: 1
 r_max: 5.0
-name: "mace-mv"
+name: "mace-mv-sp"
 model_dir: "outputs/models"
 log_dir: "outputs/logs"
 checkpoints_dir: "outputs/checkpoints"
 results_dir: "outputs/results"
-train_file: "dataset/ani1x-processed/test.xyz"
+train_file: "dataset/ani1x-processed/test.xyz" # TODO change to train.xyz
 valid_file: "dataset/ani1x-processed/val.xyz"
 test_file: "dataset/ani1x-processed/test.xyz"
 energy_key: "wb97x_dz.energy"

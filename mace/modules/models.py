@@ -643,6 +643,7 @@ class ScaleShiftMACE(MACE):
         # MVE: we keep per-atom energy contributions and per-atom variances
         ### MVE ###
         predict_mve = bool(getattr(self, "predict_mve", False))
+        eps = 1e-12
         n_heads = len(self.heads) if hasattr(self, "heads") else int(torch.max(node_heads).item() + 1)
         last_readout_idx = len(self.readouts) - 1
 
@@ -656,12 +657,13 @@ class ScaleShiftMACE(MACE):
 
             ### MVE ###
             if predict_mve and (i == last_readout_idx):
-                # last readout provides both mean and logvar: raw shape [N, 2*H]
+                # last readout provides both energy and a raw variance parameter: raw shape [N, 2*H]
                 # reshape to [N, H, 2] and pick active head per atom
                 raw = raw.view(raw.shape[0], n_heads, 2)
                 node_es = raw[:, :, 0][num_atoms_arange, node_heads]  # [N]
-                node_es_logvar = raw[:, :, 1][num_atoms_arange, node_heads]  # [N] # the model predicts atom-level log-variances
-                node_es_var = torch.exp(node_es_logvar)  # [N]
+                node_es_var_raw = raw[:, :, 1][num_atoms_arange, node_heads]  # [N]
+                # Softplus keeps the variance positive without the extreme growth of exp.
+                node_es_var = torch.nn.functional.softplus(node_es_var_raw) + eps  # [N]
             else:
                 # deterministic readout: raw shape [N, H], select head -> [N]
                 node_es = raw[num_atoms_arange, node_heads]
