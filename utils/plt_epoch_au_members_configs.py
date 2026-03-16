@@ -46,8 +46,15 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--per_atom",
+        dest="per_atom",
         action="store_true",
-        help="Normalize variance by N^2 before aggregation.",
+        help="Normalize variance by N^2 before aggregation (default).",
+    )
+    parser.add_argument(
+        "--total",
+        dest="per_atom",
+        action="store_false",
+        help="Use total-system variance instead of per-atom variance.",
     )
     parser.add_argument(
         "--output_csv",
@@ -72,6 +79,7 @@ def parse_args() -> argparse.Namespace:
         default=1e-30,
         help="Small epsilon added before log when --plot_log_variance is used.",
     )
+    parser.set_defaults(per_atom=True)
     return parser.parse_args()
 
 
