@@ -636,24 +636,21 @@ def weighted_gaussian_nll_energy(
 
     # Predicted total energy
     pred = pred_dict["energy"]
+    var = pred_dict.get("energy_var", None)
+    if var is None:
+        raise KeyError(
+            "energy_var is required for Gaussian NLL loss. "
+            "Did you enable predict_mve?"
+        )
 
-    logvar = pred_dict.get("energy_logvar", None)
-    if logvar is None:
-        energy_var = pred_dict.get("energy_var", None)
-        if energy_var is None:
-            raise KeyError(
-                "energy_var (or energy_logvar) is required for Gaussian NLL loss. "
-                "Did you enable predict_mve?"
-            )
-        logvar = torch.log(energy_var + eps)
-
+    var = var + eps
     err2 = (ref["energy"] - pred) ** 2
     log_2pi = math.log(2.0 * math.pi)
     raw_loss = (
         ref.weight
         * ref.energy_weight
         * 0.5
-        * (err2 * torch.exp(-logvar) + logvar + log_2pi)
+        * (err2 / var + torch.log(var) + log_2pi)
         / num_atoms
     )
     return reduce_loss(raw_loss, ddp)
