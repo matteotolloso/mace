@@ -21,7 +21,6 @@ compute_forces: False
 E0s: "average"
 predict_mve: True
 loss: "gaussian_nll"
-# patience: 20
 eval_interval: 1
 save_all_checkpoints: False
 log_epoch_outputs: True

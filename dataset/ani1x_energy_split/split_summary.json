@@ -1,0 +1,100 @@
+{
+  "cc_available_pool_counts": {
+    "test_id": 41748,
+    "test_ood": 227852,
+    "train": 124824,
+    "val": 42083
+  },
+  "cc_forces_key": null,
+  "cc_key": "ccsd(t)_cbs.energy",
+  "config_pool_counts": {
+    "test_id": 461329,
+    "test_ood": 2077855,
+    "train": 1385629,
+    "val": 462303
+  },
+  "dft_available_pool_counts": {
+    "test_id": 461329,
+    "test_ood": 2077855,
+    "train": 1385629,
+    "val": 462303
+  },
+  "dft_forces_key": null,
+  "dft_key": "wb97x_tz.energy",
+  "discard_middle_band": true,
+  "energy_band_counts": {
+    "high": 2077855,
+    "low": 2309261,
+    "middle": 230113
+  },
+  "energy_key": "wb97x_tz.energy",
+  "input_h5": "/raid/m.tolloso/mace/dataset/ani1x-release.h5",
+  "max_per_system": 64,
+  "num_systems": 3114,
+  "output_dir": "/raid/m.tolloso/mace/dataset/ani1x_energy_split",
+  "output_units": {
+    "energies": "eV",
+    "forces": null,
+    "positions": "Angstrom"
+  },
+  "p_test_id": 0.2,
+  "p_train": 0.6,
+  "p_val": 0.2,
+  "q_high": 0.55,
+  "q_low": 0.5,
+  "requested_targets": {
+    "cc": {
+      "test_id": 5000,
+      "test_ood": 5000,
+      "train": 5000,
+      "val": 1000
+    },
+    "dft": {
+      "test_id": 50000,
+      "test_ood": 50000,
+      "train": 50000,
+      "val": 10000
+    }
+  },
+  "resolved_targets": {
+    "test_id": {
+      "cc_available": 41748,
+      "cc_selected": 5000,
+      "dft_available": 461329,
+      "dft_selected": 50000
+    },
+    "test_ood": {
+      "cc_available": 227852,
+      "cc_selected": 5000,
+      "dft_available": 2077855,
+      "dft_selected": 50000
+    },
+    "train": {
+      "cc_available": 124824,
+      "cc_selected": 5000,
+      "dft_available": 1385629,
+      "dft_selected": 50000
+    },
+    "val": {
+      "cc_available": 42083,
+      "cc_selected": 1000,
+      "dft_available": 462303,
+      "dft_selected": 10000
+    }
+  },
+  "seed": 0,
+  "written_xyz_counts": {
+    "cc": {
+      "test_id": 5000,
+      "test_ood": 5000,
+      "train": 5000,
+      "val": 1000
+    },
+    "dft": {
+      "test_id": 50000,
+      "test_ood": 50000,
+      "train": 50000,
+      "val": 10000
+    }
+  }
+}

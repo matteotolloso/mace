@@ -1,12 +1,13 @@
+
 model: "MACE"
 num_channels: 64
 max_L: 1
 r_max: 5.0
 name: "mace"
-model_dir: "tmp/experiment_A/models"
-log_dir: "tmp/experiment_A/logs"
-checkpoints_dir: "tmp/experiment_A/checkpoints"
-results_dir: "tmp/experiment_A/results"
+model_dir: "experiment_A/models"
+log_dir: "experiment_A/logs"
+checkpoints_dir: "experiment_A/checkpoints"
+results_dir: "experiment_A/results"
 train_file: "dataset/ani1x_system_split/dft_train.xyz"
 valid_file: "dataset/ani1x_system_split/dft_val.xyz"
 test_file: "dataset/ani1x_system_split/dft_test_id.xyz"
@@ -18,8 +19,9 @@ max_num_epochs: 500
 swa: False
 compute_forces: False
 E0s: "average"
-predict_mve: False
-loss: "energy_only"
+predict_mve: True
+loss: "gaussian_nll"
 eval_interval: 1
 save_all_checkpoints: False
-log_epoch_outputs: False
+log_epoch_outputs: True
+
