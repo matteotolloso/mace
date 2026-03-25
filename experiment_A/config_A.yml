@@ -25,3 +25,8 @@ eval_interval: 1
 save_all_checkpoints: False
 log_epoch_outputs: True
 
+wandb: True # TODO aggiusta
+wandb_dir: "wandb"
+wandb_entity: "uq-mf"
+wandb_project: "mace-uncertainty"
+wandb_name: "mace32"

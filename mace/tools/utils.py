@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional, Sequence, Union
 
@@ -132,7 +133,30 @@ class UniversalEncoder(json.JSONEncoder):
             return o.tolist()
         if isinstance(o, torch.Tensor):
             return to_numpy(o)
+        if type(o).__name__ == "NoneMultiply":
+            return None
         return json.JSONEncoder.default(self, o)
+
+
+def sanitize_for_json(value: Any) -> Any:
+    """Convert training metrics into plain JSON-compatible Python objects."""
+    if value is None or isinstance(value, (str, bool, int, float)):
+        return value
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, torch.Tensor):
+        if value.numel() == 1:
+            return value.item()
+        return to_numpy(value).tolist()
+    if isinstance(value, Mapping):
+        return {key: sanitize_for_json(val) for key, val in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [sanitize_for_json(item) for item in value]
+    if type(value).__name__ == "NoneMultiply":
+        return None
+    return str(value)
 
 
 class MetricsLogger:

@@ -5,6 +5,7 @@ import torch
 from prettytable import PrettyTable
 
 from mace.tools import evaluate
+from mace.tools.utils import sanitize_for_json
 
 
 def custom_key(key):
@@ -134,7 +135,7 @@ def create_error_table(
                 name + "_final_rmse_f": metrics["rmse_f"] * 1e3,  # meV / A
                 name + "_final_rel_rmse_f": metrics["rel_rmse_f"],
             }
-            wandb.log(wandb_log_dict)
+            wandb.log(sanitize_for_json(wandb_log_dict))
         if table_type == "TotalRMSE":
             table.add_row(
                 [

@@ -1,30 +1,30 @@
 {
   "cc_available_pool_counts": {
-    "test_id": 41748,
-    "test_ood": 227852,
-    "train": 124824,
-    "val": 42083
+    "test_id": 41690,
+    "test_ood": 227841,
+    "train": 124921,
+    "val": 42019
   },
   "cc_forces_key": null,
   "cc_key": "ccsd(t)_cbs.energy",
   "config_pool_counts": {
-    "test_id": 461329,
-    "test_ood": 2077855,
-    "train": 1385629,
-    "val": 462303
+    "test_id": 461358,
+    "test_ood": 2077712,
+    "train": 1385388,
+    "val": 462260
   },
   "dft_available_pool_counts": {
-    "test_id": 461329,
-    "test_ood": 2077855,
-    "train": 1385629,
-    "val": 462303
+    "test_id": 461358,
+    "test_ood": 2077712,
+    "train": 1385388,
+    "val": 462260
   },
   "dft_forces_key": null,
   "dft_key": "wb97x_tz.energy",
   "discard_middle_band": true,
   "energy_band_counts": {
-    "high": 2077855,
-    "low": 2309261,
+    "high": 2077712,
+    "low": 2309006,
     "middle": 230113
   },
   "energy_key": "wb97x_tz.energy",
@@ -58,31 +58,39 @@
   },
   "resolved_targets": {
     "test_id": {
-      "cc_available": 41748,
+      "cc_available": 41690,
       "cc_selected": 5000,
-      "dft_available": 461329,
+      "dft_available": 461358,
       "dft_selected": 50000
     },
     "test_ood": {
-      "cc_available": 227852,
+      "cc_available": 227841,
       "cc_selected": 5000,
-      "dft_available": 2077855,
+      "dft_available": 2077712,
       "dft_selected": 50000
     },
     "train": {
-      "cc_available": 124824,
+      "cc_available": 124921,
       "cc_selected": 5000,
-      "dft_available": 1385629,
+      "dft_available": 1385388,
       "dft_selected": 50000
     },
     "val": {
-      "cc_available": 42083,
+      "cc_available": 42019,
       "cc_selected": 1000,
-      "dft_available": 462303,
+      "dft_available": 462260,
       "dft_selected": 10000
     }
   },
   "seed": 0,
+  "small_system_counts": {
+    "exactly4_special_case": 29,
+    "excluded_lt4": 937
+  },
+  "small_system_policy": {
+    "exactly4_assignment": "three lowest energies go to train/val/test_id, highest goes to test_ood",
+    "exclude_if_valid_energy_configs_lt": 4
+  },
   "written_xyz_counts": {
     "cc": {
       "test_id": 5000,

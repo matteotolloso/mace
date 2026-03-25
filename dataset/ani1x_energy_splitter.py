@@ -30,11 +30,13 @@ OUTPUT_FORCE_UNITS = "eV/Angstrom"
 
 @dataclass
 class SystemEnergyPartition:
-    """Store energy-band pools and annotation availability for one molecular system."""
+    """Store energy-band pools, split assignments and availability for one molecular system."""
 
     system: str
     n_configs: int
     n_atoms: int
+    valid_energy_configs: int
+    is_energy_split_excluded: bool
     energy_band_pools: Dict[str, np.ndarray]
     config_pools: Dict[str, np.ndarray]
     dft_pools: Dict[str, np.ndarray]
@@ -174,6 +176,35 @@ def _split_low_energy_configurations(
     }
 
 
+def _split_exactly_four_configurations(
+    valid_indices: np.ndarray,
+    relative_energies: np.ndarray,
+    rng: np.random.Generator,
+) -> tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
+    """Assign systems with exactly four valid energies to four disjoint final splits."""
+    order = np.argsort(relative_energies[valid_indices], kind="mergesort")
+    ordered_indices = valid_indices[order]
+
+    if ordered_indices.size != 4:
+        raise ValueError("The exact-four split helper requires exactly four valid configurations.")
+
+    lowest_three = ordered_indices[:3].copy()
+    rng.shuffle(lowest_three)
+
+    energy_band_pools = {
+        "low": ordered_indices[:3].copy(),
+        "middle": _empty_index_array(),
+        "high": ordered_indices[3:].copy(),
+    }
+    config_pools = {
+        "train": np.array([lowest_three[0]], dtype=np.int64),
+        "val": np.array([lowest_three[1]], dtype=np.int64),
+        "test_id": np.array([lowest_three[2]], dtype=np.int64),
+        "test_ood": ordered_indices[3:].copy(),
+    }
+    return energy_band_pools, config_pools
+
+
 
 def _filter_valid_indices(pool_indices: np.ndarray, valid_mask: np.ndarray) -> np.ndarray:
     """Keep only configuration indices that have a valid annotation."""
@@ -309,28 +340,48 @@ def build_energy_partitions(
             dft_energies = _read_energy_array(group, dft_key, n_configs, system_name)
             cc_energies = _read_energy_array(group, cc_key, n_configs, system_name)
 
-            _, quantile_ranks = _compute_relative_energies_and_quantiles(split_energies)
+            relative_energies, quantile_ranks = _compute_relative_energies_and_quantiles(split_energies)
             valid_split_energy = np.isfinite(split_energies)
+            valid_indices = np.flatnonzero(valid_split_energy)
+            valid_energy_configs = int(valid_indices.size)
 
-            low_indices = np.flatnonzero(valid_split_energy & (quantile_ranks <= q_low))
-            high_indices = np.flatnonzero(valid_split_energy & (quantile_ranks >= q_high))
-            middle_indices = np.flatnonzero(
-                valid_split_energy & (quantile_ranks > q_low) & (quantile_ranks < q_high)
-            )
+            if valid_energy_configs < 4:
+                energy_band_pools = {band_name: _empty_index_array() for band_name in ENERGY_BANDS}
+                config_pools = {split_name: _empty_index_array() for split_name in SPLIT_NAMES}
+                is_energy_split_excluded = True
+            elif valid_energy_configs == 4:
+                energy_band_pools, config_pools = _split_exactly_four_configurations(
+                    valid_indices=valid_indices,
+                    relative_energies=relative_energies,
+                    rng=rng,
+                )
+                is_energy_split_excluded = False
+            else:
+                low_indices = np.flatnonzero(valid_split_energy & (quantile_ranks <= q_low))
+                high_indices = np.flatnonzero(valid_split_energy & (quantile_ranks >= q_high))
+                middle_indices = np.flatnonzero(
+                    valid_split_energy & (quantile_ranks > q_low) & (quantile_ranks < q_high)
+                )
 
-            low_split_pools = _split_low_energy_configurations(
-                low_indices=low_indices,
-                p_train=p_train,
-                p_val=p_val,
-                p_test_id=p_test_id,
-                rng=rng,
-            )
-            config_pools = {
-                "train": low_split_pools["train"],
-                "val": low_split_pools["val"],
-                "test_id": low_split_pools["test_id"],
-                "test_ood": high_indices,
-            }
+                low_split_pools = _split_low_energy_configurations(
+                    low_indices=low_indices,
+                    p_train=p_train,
+                    p_val=p_val,
+                    p_test_id=p_test_id,
+                    rng=rng,
+                )
+                energy_band_pools = {
+                    "low": low_indices,
+                    "middle": middle_indices,
+                    "high": high_indices,
+                }
+                config_pools = {
+                    "train": low_split_pools["train"],
+                    "val": low_split_pools["val"],
+                    "test_id": low_split_pools["test_id"],
+                    "test_ood": high_indices,
+                }
+                is_energy_split_excluded = False
 
             dft_valid = np.isfinite(dft_energies)
             cc_valid = np.isfinite(cc_energies)
@@ -347,11 +398,9 @@ def build_energy_partitions(
                 system=system_name,
                 n_configs=n_configs,
                 n_atoms=n_atoms,
-                energy_band_pools={
-                    "low": low_indices,
-                    "middle": middle_indices,
-                    "high": high_indices,
-                },
+                valid_energy_configs=valid_energy_configs,
+                is_energy_split_excluded=is_energy_split_excluded,
+                energy_band_pools=energy_band_pools,
                 config_pools=config_pools,
                 dft_pools=dft_pools,
                 cc_pools=cc_pools,
@@ -784,6 +833,8 @@ def write_system_assignment_file(
         "system",
         "n_atoms",
         "n_configs",
+        "valid_energy_configs",
+        "energy_split_excluded",
         "low_energy_configs",
         "middle_energy_configs",
         "high_energy_configs",
@@ -811,6 +862,8 @@ def write_system_assignment_file(
                     "system": partition.system,
                     "n_atoms": partition.n_atoms,
                     "n_configs": partition.n_configs,
+                    "valid_energy_configs": partition.valid_energy_configs,
+                    "energy_split_excluded": partition.is_energy_split_excluded,
                     "low_energy_configs": int(partition.energy_band_pools["low"].size),
                     "middle_energy_configs": int(partition.energy_band_pools["middle"].size),
                     "high_energy_configs": int(partition.energy_band_pools["high"].size),
@@ -854,6 +907,17 @@ def _energy_band_counts(partitions: Mapping[str, SystemEnergyPartition]) -> Dict
 
 
 
+def _small_system_counts(partitions: Mapping[str, SystemEnergyPartition]) -> Dict[str, int]:
+    """Count systems excluded or handled specially because they have very few valid energies."""
+    excluded = sum(1 for partition in partitions.values() if partition.is_energy_split_excluded)
+    exact_four = sum(1 for partition in partitions.values() if partition.valid_energy_configs == 4)
+    return {
+        "excluded_lt4": excluded,
+        "exactly4_special_case": exact_four,
+    }
+
+
+
 def build_summary(
     args: argparse.Namespace,
     partitions: Mapping[str, SystemEnergyPartition],
@@ -883,6 +947,11 @@ def build_summary(
         "p_test_id": args.p_test_id,
         "max_per_system": args.max_per_system,
         "num_systems": len(partitions),
+        "small_system_policy": {
+            "exclude_if_valid_energy_configs_lt": 4,
+            "exactly4_assignment": "three lowest energies go to train/val/test_id, highest goes to test_ood",
+        },
+        "small_system_counts": _small_system_counts(partitions),
         "energy_band_counts": _energy_band_counts(partitions),
         "config_pool_counts": _pool_counts(partitions, "config_pools"),
         "dft_available_pool_counts": _pool_counts(partitions, "dft_pools"),

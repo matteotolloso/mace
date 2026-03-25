@@ -2,7 +2,7 @@ model: "MACE"
 num_channels: 64
 max_L: 1
 r_max: 5.0
-name: "mace"
+name: "mace32"
 model_dir: "tmp/experiment_A/models"
 log_dir: "tmp/experiment_A/logs"
 checkpoints_dir: "tmp/experiment_A/checkpoints"
@@ -23,3 +23,10 @@ loss: "energy_only"
 eval_interval: 1
 save_all_checkpoints: False
 log_epoch_outputs: False
+default_dtype: "float32"
+
+wandb: True
+wandb_dir: "wandb"
+wandb_entity: "uq-mf"
+wandb_project: "mace-uncertainty"
+wandb_name: "mace32"

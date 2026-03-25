@@ -35,6 +35,7 @@ from .utils import (
     compute_rel_rmse,
     compute_rmse,
     filter_nonzero_weight,
+    sanitize_for_json,
 )
 
 
@@ -304,7 +305,7 @@ def train(
                     valid_loss_head  # consider only the last head for the checkpoint
                 )
             if log_wandb:
-                wandb.log(wandb_log_dict)
+                wandb.log(sanitize_for_json(wandb_log_dict))
             if rank == 0:
                 if valid_loss >= lowest_loss:
                     patience_counter += 1

@@ -1,104 +1,149 @@
 #!/usr/bin/env python3
-"""Plot uncertainty-vs-error reliability diagrams from ensemble epoch logs.
+"""Plot uncertainty-vs-error reliability diagrams from ensemble checkpoints.
 
-Inputs are the ``*_epoch_outputs.txt`` files produced with
-``--log_epoch_outputs=true`` during training. The script reads the
-``mode == "epoch_outputs_config"`` rows, aligns the ensemble members by
-``(split, epoch, loader, config_index)``, and then:
-
-1. Selects the best common epoch on ``--selection_split`` using the RMSE of the
-   ensemble mean prediction.
-2. Builds per-configuration uncertainties on the selected epoch:
+Workflow:
+1. Discover ensemble checkpoints in ``--checkpoints-dir`` matching the pattern
+   ``<experiment_name>_run-<seed>_epoch-<best_epoch>.pt``.
+2. Load the ensemble directly from those checkpoints.
+3. Evaluate the validation and test ``.xyz`` splits using the requested energy
+   keys.
+4. On each configuration, compute:
    - aleatoric variance = mean predicted variance across ensemble members
    - epistemic variance = variance of ensemble member predictions
-   - total variance = aleatoric variance + epistemic variance
-3. Optionally fits isotonic regressors on ``--selection_split`` and applies the
-   calibrated mapping to the uncertainties on ``--plot_split``.
-4. Sorts systems by uncertainty, bins them into equal-count bins, and plots
-   RMSE vs RMV (root mean variance) for aleatoric, epistemic, and total
-   uncertainty on the same parity-style reliability plot.
+   - total variance = aleatoric + epistemic
+5. Optionally fit isotonic regressors on the validation split and apply them to
+   the test split.
+6. Sort test systems independently by aleatoric, epistemic, and total
+   uncertainty, bin them into equal-count bins, and plot RMSE vs RMV.
 
 Reported summary metrics:
 - ENCE is computed from the bins only.
 - Pearson correlation is computed on all systems, without binning.
 
 Outputs:
-- ``--output_csv_raw`` stores per-configuration data for the selected epoch.
-  This is the file to reuse with ``--input_csv`` when only the plot/bins need
-  to be recomputed.
-- ``--output_csv_bins`` stores the binned reliability data, including ENCE
+- ``--output-csv-raw`` stores per-configuration data for the plotted split.
+- ``--output-csv-bins`` stores the binned reliability data, including ENCE
   terms.
 """
 
 import argparse
 import csv
-import json
+import logging
+import re
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+import ase.io
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
+import torch.nn
+
+from mace import data
+from mace.data.utils import KeySpecification, config_from_atoms
+from mace.tools import torch_geometric, torch_tools, utils as mace_utils
 
 
-ConfigKey = Tuple[str, int]  # (loader, config_index)
+CHECKPOINT_PATTERN = re.compile(
+    r"^(?P<experiment>.+)_run-(?P<seed>\d+)_epoch-(?P<epoch>\d+)\.pt$"
+)
+ConfigKey = int
+LOGGER = logging.getLogger(__name__)
+
+
+def setup_logging(level_name: str) -> None:
+    level = getattr(logging, level_name.upper(), logging.INFO)
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s | %(levelname)s | %(message)s",
+        datefmt="%H:%M:%S",
+    )
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "--inputs",
-        nargs="+",
-        default=None,
-        help="Paths to *_epoch_outputs.txt files, one per ensemble member.",
+        "--checkpoints-dir",
+        type=str,
+        required=False,
+        help="Folder containing ensemble checkpoints named *_run-<seed>_epoch-<best_epoch>.pt.",
     )
     parser.add_argument(
-        "--input_csv",
+        "--experiment-name",
+        type=str,
+        required=False,
+        help="Experiment name prefix used to filter checkpoints inside --checkpoints-dir.",
+    )
+    parser.add_argument(
+        "--input-csv",
         type=str,
         default=None,
         help=(
             "Optional raw per-config CSV produced by this script. If set, skip "
-            "log parsing and rebuild bins/plot from the saved per-config data."
+            "checkpoint inference and rebuild bins/plot from the saved data."
         ),
     )
     parser.add_argument(
-        "--selection_split",
+        "--validation-split",
         type=str,
-        choices=["train", "valid", "test"],
-        default="valid",
-        help=(
-            "Split used to select the best epoch. If --isotonic_calibration is "
-            "enabled, the calibrator is also fit on this split."
-        ),
+        required=False,
+        help="Validation .xyz file used for isotonic calibration fitting.",
     )
     parser.add_argument(
-        "--plot_split",
+        "--test-split",
         type=str,
-        choices=["train", "valid", "test"],
-        default="test",
-        help="Split used for the final reliability diagram.",
+        required=False,
+        help="Test .xyz file used for the final reliability diagram.",
     )
     parser.add_argument(
-        "--selection_loader",
+        "--energy-key-val",
+        type=str,
+        required=False,
+        help="Energy key to read from the validation .xyz file.",
+    )
+    parser.add_argument(
+        "--energy-key-test",
+        type=str,
+        required=False,
+        help="Energy key to read from the test .xyz file.",
+    )
+    parser.add_argument(
+        "--head",
         type=str,
         default=None,
-        help="Optional loader filter for best-epoch selection/calibration.",
+        help="Optional model head to use for multi-head models.",
     )
     parser.add_argument(
-        "--plot_loader",
+        "--device",
         type=str,
-        default=None,
-        help="Optional loader filter for reliability plotting.",
+        choices=["cpu", "cuda", "mps", "xpu"],
+        default="cpu",
+        help="Evaluation device.",
     )
     parser.add_argument(
-        "--num_bins",
+        "--default-dtype",
+        type=str,
+        choices=["float32", "float64"],
+        default="float64",
+        help="Torch default dtype.",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=64,
+        help="Evaluation batch size.",
+    )
+    parser.add_argument(
+        "--num-bins",
         type=int,
         default=10,
         help="Number of equal-count uncertainty bins used in the reliability diagram.",
     )
     parser.add_argument(
-        "--per_atom",
+        "--per-atom",
         dest="per_atom",
         action="store_true",
         help="Use per-atom energy errors and variances: E/N and var/N^2 (default).",
@@ -110,28 +155,40 @@ def parse_args() -> argparse.Namespace:
         help="Use total-system energy errors and variances instead of per-atom values.",
     )
     parser.add_argument(
-        "--isotonic_calibration",
+        "--isotonic-calibration",
         action="store_true",
         help=(
-            "Fit isotonic regressors on the selected epoch of --selection_split "
-            "and apply them to the uncertainties on --plot_split before binning. "
-            "Calibration is fit against squared error."
+            "Fit isotonic regressors on the validation split and apply them to "
+            "the test split before binning. Calibration is fit against squared error."
         ),
     )
     parser.add_argument(
-        "--output_plot",
+        "--log-level",
+        type=str,
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        default="INFO",
+        help="Verbosity for timing and progress logging.",
+    )
+    parser.add_argument(
+        "--log-every-batches",
+        type=int,
+        default=10,
+        help="Emit an inference progress log every N batches for validation/test evaluation.",
+    )
+    parser.add_argument(
+        "--output-plot",
         type=str,
         default="unc_vs_error.png",
         help="Output reliability plot path.",
     )
     parser.add_argument(
-        "--output_csv_raw",
+        "--output-csv-raw",
         type=str,
         default="unc_vs_error_raw.csv",
-        help="Output raw per-configuration CSV path for the selected epoch.",
+        help="Output raw per-configuration CSV path for the plotted split.",
     )
     parser.add_argument(
-        "--output_csv_bins",
+        "--output-csv-bins",
         type=str,
         default="unc_vs_error_bins.csv",
         help="Output binned reliability CSV path.",
@@ -140,215 +197,312 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_member_file(path: Path) -> Dict[str, Dict[int, Dict[ConfigKey, Dict[str, float]]]]:
-    data: Dict[str, Dict[int, Dict[ConfigKey, Dict[str, float]]]] = {}
-    with path.open("r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            row = json.loads(line)
-            if row.get("mode") != "epoch_outputs_config":
-                continue
-            if "pred_energy" not in row:
-                continue
+def discover_checkpoints(checkpoints_dir: Path, experiment_name: Optional[str]) -> List[Path]:
+    start_time = time.perf_counter()
+    model_paths: List[Tuple[int, Path]] = []
+    for path in checkpoints_dir.glob("*.pt"):
+        match = CHECKPOINT_PATTERN.match(path.name)
+        if match is None:
+            continue
+        if experiment_name is not None and match.group("experiment") != experiment_name:
+            continue
+        model_paths.append((int(match.group("seed")), path))
 
-            split = str(row["split"])
-            epoch = int(row["epoch"])
-            loader = str(row.get("loader", ""))
-            config_index = int(row["config_index"])
-            key: ConfigKey = (loader, config_index)
-
-            if split not in data:
-                data[split] = {}
-            if epoch not in data[split]:
-                data[split][epoch] = {}
-            data[split][epoch][key] = {
-                "pred_energy": float(row["pred_energy"]),
-                "pred_energy_var": float(row["pred_energy_var"])
-                if "pred_energy_var" in row
-                else np.nan,
-                "ref_energy": float(row["ref_energy"]) if "ref_energy" in row else np.nan,
-                "num_atoms": int(row["num_atoms"]) if "num_atoms" in row else np.nan,
-            }
-    return data
-
-
-def filter_loader(
-    member_data: Dict[int, Dict[ConfigKey, Dict[str, float]]],
-    loader: Optional[str],
-) -> Dict[int, Dict[ConfigKey, Dict[str, float]]]:
-    if loader is None:
-        return member_data
-    filtered: Dict[int, Dict[ConfigKey, Dict[str, float]]] = {}
-    for epoch, config_map in member_data.items():
-        selected = {
-            key: value for key, value in config_map.items() if key[0] == loader
-        }
-        if selected:
-            filtered[epoch] = selected
-    return filtered
-
-
-def validate_alignment(
-    epoch: int,
-    key: ConfigKey,
-    ref_energies: np.ndarray,
-    num_atoms_vals: np.ndarray,
-    align_tol: float = 1e-8,
-) -> None:
-    finite_ref = np.isfinite(ref_energies)
-    if np.any(finite_ref) and np.ptp(ref_energies[finite_ref]) > align_tol:
+    if not model_paths:
+        experiment_msg = (
+            f" for experiment '{experiment_name}'" if experiment_name is not None else ""
+        )
         raise RuntimeError(
-            f"Misaligned ensemble at epoch={epoch}, key={key}: ref_energy differs."
-        )
-    finite_n = np.isfinite(num_atoms_vals)
-    if np.any(finite_n) and np.ptp(num_atoms_vals[finite_n]) > 0:
-        raise RuntimeError(
-            f"Misaligned ensemble at epoch={epoch}, key={key}: num_atoms differs."
+            "No checkpoints matching '*_run-<seed>_epoch-<best_epoch>.pt' "
+            f"were found in {checkpoints_dir}{experiment_msg}."
         )
 
+    model_paths.sort(key=lambda item: item[0])
+    checkpoint_list = [path for _, path in model_paths]
+    LOGGER.info(
+        "Discovered %d checkpoints in %.2fs from %s%s",
+        len(checkpoint_list),
+        time.perf_counter() - start_time,
+        checkpoints_dir,
+        f" (experiment={experiment_name})" if experiment_name is not None else "",
+    )
+    return checkpoint_list
 
-def common_epoch_keys(
-    members: List[Dict[int, Dict[ConfigKey, Dict[str, float]]]]
-) -> List[int]:
-    if not members:
-        return []
-    return sorted(set.intersection(*(set(member.keys()) for member in members)))
 
-
-def compute_epoch_rmse(
-    members: List[Dict[int, Dict[ConfigKey, Dict[str, float]]]],
-    epoch: int,
-    per_atom: bool,
-) -> float:
-    common_configs = sorted(set.intersection(*(set(member[epoch].keys()) for member in members)))
-    if not common_configs:
-        raise RuntimeError(f"No common configurations found at epoch {epoch}.")
-
-    sq_errors: List[float] = []
-    for key in common_configs:
-        pred_energies = np.array(
-            [member[epoch][key]["pred_energy"] for member in members], dtype=float
-        )
-        ref_energies = np.array(
-            [member[epoch][key]["ref_energy"] for member in members], dtype=float
-        )
-        num_atoms_vals = np.array(
-            [member[epoch][key]["num_atoms"] for member in members], dtype=float
-        )
-        validate_alignment(epoch, key, ref_energies, num_atoms_vals)
-
-        ref_energy = float(ref_energies[0])
-        pred_energy = float(np.mean(pred_energies))
-
-        if per_atom:
-            n_atoms = float(num_atoms_vals[0]) if np.isfinite(num_atoms_vals[0]) else np.nan
-            if (not np.isfinite(n_atoms)) or n_atoms <= 0:
-                raise RuntimeError(
-                    "Missing/invalid num_atoms in epoch outputs. Per-atom mode requires it."
+def _select_head_tensor(
+    x: Optional[torch.Tensor],
+    batch_heads: Optional[torch.Tensor],
+    head_name: Optional[str],
+    model_heads: Optional[List[str]],
+) -> Optional[torch.Tensor]:
+    if x is None:
+        return None
+    if x.ndim >= 2 and model_heads is not None and x.shape[1] == len(model_heads):
+        if head_name is not None:
+            if head_name not in model_heads:
+                raise ValueError(
+                    f"Requested head '{head_name}' not in model heads {model_heads}."
                 )
-            ref_energy = ref_energy / n_atoms
-            pred_energy = pred_energy / n_atoms
+            head_idx = model_heads.index(head_name)
+            return x[:, head_idx, ...]
+        if batch_heads is not None:
+            graph_idx = torch.arange(x.shape[0], device=x.device)
+            return x[graph_idx, batch_heads.long(), ...]
+        return x[:, 0, ...]
+    return x
 
-        sq_errors.append((pred_energy - ref_energy) ** 2)
 
-    return float(np.sqrt(np.mean(sq_errors)))
+def load_models(checkpoint_paths: List[Path], device: torch.device) -> List[torch.nn.Module]:
+    total_start = time.perf_counter()
+    models: List[torch.nn.Module] = []
+    for model_idx, path in enumerate(checkpoint_paths, start=1):
+        model_start = time.perf_counter()
+        checkpoint_obj = torch.load(f=str(path), map_location=str(device))
+        if isinstance(checkpoint_obj, torch.nn.Module):
+            model = checkpoint_obj
+        elif isinstance(checkpoint_obj, dict) and "model" in checkpoint_obj:
+            tag = path.name.rsplit("_epoch-", 1)[0]
+            companion_model_path = path.with_name(f"{tag}.model")
+            if not companion_model_path.exists():
+                raise RuntimeError(
+                    "Checkpoint file contains only a state_dict and no companion "
+                    f"serialized model was found at {companion_model_path}."
+                )
+            model = torch.load(f=str(companion_model_path), map_location=str(device))
+            if not isinstance(model, torch.nn.Module):
+                raise RuntimeError(
+                    f"Companion model file {companion_model_path} did not contain a torch.nn.Module."
+                )
+            model.load_state_dict(checkpoint_obj["model"], strict=True)
+        else:
+            raise RuntimeError(
+                f"Unsupported checkpoint contents in {path}: expected torch.nn.Module or dict with key 'model'."
+            )
+
+        model = model.to(device)
+        model.eval()
+        for param in model.parameters():
+            param.requires_grad = False
+        models.append(model)
+        LOGGER.info(
+            "Loaded model %d/%d from %s in %.2fs",
+            model_idx,
+            len(checkpoint_paths),
+            path.name,
+            time.perf_counter() - model_start,
+        )
+
+    model0 = models[0]
+    for model in models[1:]:
+        if hasattr(model, "atomic_numbers") and hasattr(model0, "atomic_numbers"):
+            if not torch.equal(model.atomic_numbers.cpu(), model0.atomic_numbers.cpu()):
+                raise RuntimeError("Ensemble checkpoints have different atomic_numbers.")
+        if float(model.r_max) != float(model0.r_max):
+            raise RuntimeError("Ensemble checkpoints have different r_max values.")
+        if getattr(model, "heads", None) != getattr(model0, "heads", None):
+            raise RuntimeError("Ensemble checkpoints have different heads.")
+
+    LOGGER.info(
+        "Loaded %d ensemble members in %.2fs on %s",
+        len(models),
+        time.perf_counter() - total_start,
+        device,
+    )
+    return models
 
 
-def select_best_epoch(
-    members: List[Dict[int, Dict[ConfigKey, Dict[str, float]]]],
+def build_dataloader(
+    xyz_path: Path,
+    energy_key: str,
+    model: torch.nn.Module,
+    batch_size: int,
+    head_name: Optional[str],
+):
+    total_start = time.perf_counter()
+    LOGGER.info("Reading split from %s with energy key '%s'", xyz_path, energy_key)
+    read_start = time.perf_counter()
+    atoms_list = ase.io.read(str(xyz_path), index=":")
+    if len(atoms_list) == 0:
+        raise RuntimeError(f"No configurations found in {xyz_path}.")
+
+    LOGGER.info("Read %d configurations from %s in %.2fs", len(atoms_list), xyz_path, time.perf_counter() - read_start)
+
+    keyspec = KeySpecification(info_keys={"energy": energy_key}, arrays_keys={})
+    effective_head = head_name or (
+        getattr(model, "heads", ["Default"])[0] if getattr(model, "heads", None) else "Default"
+    )
+
+    configs_start = time.perf_counter()
+    configs = []
+    for idx, atoms in enumerate(atoms_list):
+        if energy_key not in atoms.info:
+            raise KeyError(
+                f"Energy key '{energy_key}' not found in configuration index {idx} of {xyz_path}."
+            )
+        configs.append(config_from_atoms(atoms, key_specification=keyspec, head_name=effective_head))
+
+    LOGGER.info("Converted ASE atoms to configs in %.2fs", time.perf_counter() - configs_start)
+
+    z_table = mace_utils.AtomicNumberTable([int(z) for z in model.atomic_numbers])
+    heads = getattr(model, "heads", None)
+    dataset_start = time.perf_counter()
+    dataset = [
+        data.AtomicData.from_config(
+            config,
+            z_table=z_table,
+            cutoff=float(model.r_max),
+            heads=heads,
+        )
+        for config in configs
+    ]
+    LOGGER.info("Built AtomicData dataset in %.2fs", time.perf_counter() - dataset_start)
+
+    loader = torch_geometric.dataloader.DataLoader(
+        dataset=dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        drop_last=False,
+    )
+    LOGGER.info(
+        "Prepared dataloader for %s: %d configs, batch_size=%d, total prep %.2fs",
+        xyz_path,
+        len(dataset),
+        batch_size,
+        time.perf_counter() - total_start,
+    )
+    return loader, len(dataset)
+
+
+def evaluate_split(
+    models: List[torch.nn.Module],
+    data_loader,
+    device: torch.device,
     per_atom: bool,
-) -> int:
-    epochs = common_epoch_keys(members)
-    if not epochs:
-        raise RuntimeError("No common epochs found across ensemble members.")
-
-    best_epoch = epochs[0]
-    best_rmse = compute_epoch_rmse(members, best_epoch, per_atom=per_atom)
-    for epoch in epochs[1:]:
-        rmse = compute_epoch_rmse(members, epoch, per_atom=per_atom)
-        if rmse < best_rmse:
-            best_epoch = epoch
-            best_rmse = rmse
-    return best_epoch
-
-
-def compute_selected_epoch_rows(
-    members: List[Dict[int, Dict[ConfigKey, Dict[str, float]]]],
-    epoch: int,
-    per_atom: bool,
+    head_name: Optional[str],
+    split_name: str,
+    log_every_batches: int,
 ) -> List[Dict[str, float]]:
-    common_configs = sorted(set.intersection(*(set(member[epoch].keys()) for member in members)))
-    if not common_configs:
-        raise RuntimeError(f"No common configurations found at epoch {epoch}.")
+    raw_rows: List[Dict[str, float]] = []
+    model_heads = getattr(models[0], "heads", None)
+    running_index = 0
+    num_batches = len(data_loader)
+    split_start = time.perf_counter()
+    cumulative_model_time = 0.0
+    LOGGER.info(
+        "Starting %s evaluation: %d configs across %d batches with %d ensemble members on %s",
+        split_name,
+        len(data_loader.dataset),
+        num_batches,
+        len(models),
+        device,
+    )
 
-    rows: List[Dict[str, float]] = []
-    for key in common_configs:
-        loader, config_index = key
-        pred_energies = np.array(
-            [member[epoch][key]["pred_energy"] for member in members], dtype=float
-        )
-        pred_vars = np.array(
-            [member[epoch][key]["pred_energy_var"] for member in members], dtype=float
-        )
-        ref_energies = np.array(
-            [member[epoch][key]["ref_energy"] for member in members], dtype=float
-        )
-        num_atoms_vals = np.array(
-            [member[epoch][key]["num_atoms"] for member in members], dtype=float
-        )
-        validate_alignment(epoch, key, ref_energies, num_atoms_vals)
+    with torch.no_grad():
+        for batch_idx, batch in enumerate(data_loader, start=1):
+            batch_start = time.perf_counter()
+            batch = batch.to(device)
+            batch_dict = batch.to_dict()
+            batch_heads = batch["head"] if "head" in batch.keys else None
+            num_graphs = int(batch.num_graphs)
+            num_atoms = (batch.ptr[1:] - batch.ptr[:-1]).to(device=device, dtype=torch.get_default_dtype())
 
-        ref_energy = float(ref_energies[0])
-        ensemble_pred_energy = float(np.mean(pred_energies))
-        aleatoric_var = (
-            float(np.nanmean(pred_vars)) if np.any(np.isfinite(pred_vars)) else float("nan")
-        )
-        epistemic_var = float(np.var(pred_energies, ddof=0))
-        num_atoms = float(num_atoms_vals[0]) if np.isfinite(num_atoms_vals[0]) else np.nan
-
-        if per_atom:
-            if (not np.isfinite(num_atoms)) or num_atoms <= 0:
-                raise RuntimeError(
-                    "Missing/invalid num_atoms in epoch outputs. Per-atom mode requires it."
+            member_preds = []
+            member_vars = []
+            for model in models:
+                model_forward_start = time.perf_counter()
+                output = model(
+                    batch_dict,
+                    training=False,
+                    compute_force=False,
+                    compute_virials=False,
+                    compute_stress=False,
+                    compute_hessian=False,
+                    compute_edge_forces=False,
                 )
-            ref_energy = ref_energy / num_atoms
-            ensemble_pred_energy = ensemble_pred_energy / num_atoms
-            if np.isfinite(aleatoric_var):
-                aleatoric_var = aleatoric_var / (num_atoms**2)
-            epistemic_var = epistemic_var / (num_atoms**2)
-        total_var = (
-            aleatoric_var + epistemic_var
-            if np.isfinite(aleatoric_var) and np.isfinite(epistemic_var)
-            else float("nan")
-        )
+                pred_energy = _select_head_tensor(
+                    output.get("energy_mean", output.get("energy")),
+                    batch_heads,
+                    head_name,
+                    model_heads,
+                )
+                pred_var = output.get("energy_var", None)
+                if pred_var is None and output.get("energy_logvar", None) is not None:
+                    pred_var = torch.exp(output["energy_logvar"])
+                pred_var = _select_head_tensor(
+                    pred_var,
+                    batch_heads,
+                    head_name,
+                    model_heads,
+                )
+                if pred_var is None:
+                    pred_var = torch.zeros_like(pred_energy)
+                cumulative_model_time += time.perf_counter() - model_forward_start
+                member_preds.append(pred_energy)
+                member_vars.append(pred_var)
 
-        error = ensemble_pred_energy - ref_energy
-        rows.append(
-            {
-                "epoch": epoch,
-                "loader": loader,
-                "config_index": int(config_index),
-                "num_atoms": int(num_atoms) if np.isfinite(num_atoms) else "",
-                "ref_energy": ref_energy,
-                "pred_energy": ensemble_pred_energy,
-                "error": error,
-                "sq_error": error**2,
-                "aleatoric_var": aleatoric_var,
-                "epistemic_var": epistemic_var,
-                "total_var": total_var,
-                "aleatoric_var_raw": aleatoric_var,
-                "epistemic_var_raw": epistemic_var,
-                "total_var_raw": total_var,
-            }
-        )
-    return rows
+            pred_stack = torch.stack(member_preds, dim=0)
+            var_stack = torch.stack(member_vars, dim=0)
+            ref_energy = batch.energy.to(device=device, dtype=torch.get_default_dtype())
+
+            if per_atom:
+                pred_stack = pred_stack / num_atoms.unsqueeze(0)
+                var_stack = var_stack / (num_atoms.unsqueeze(0) ** 2)
+                ref_energy = ref_energy / num_atoms
+
+            ensemble_pred = torch.mean(pred_stack, dim=0)
+            aleatoric_var = torch.mean(var_stack, dim=0)
+            epistemic_var = torch.var(pred_stack, dim=0, unbiased=False)
+            total_var = aleatoric_var + epistemic_var
+            sq_error = (ensemble_pred - ref_energy) ** 2
+
+            for local_idx in range(num_graphs):
+                raw_rows.append(
+                    {
+                        "config_index": running_index + local_idx,
+                        "num_atoms": float(num_atoms[local_idx].detach().cpu().item()),
+                        "ref_energy": float(ref_energy[local_idx].detach().cpu().item()),
+                        "pred_energy": float(ensemble_pred[local_idx].detach().cpu().item()),
+                        "error": float((ensemble_pred[local_idx] - ref_energy[local_idx]).detach().cpu().item()),
+                        "sq_error": float(sq_error[local_idx].detach().cpu().item()),
+                        "aleatoric_var": float(aleatoric_var[local_idx].detach().cpu().item()),
+                        "epistemic_var": float(epistemic_var[local_idx].detach().cpu().item()),
+                        "total_var": float(total_var[local_idx].detach().cpu().item()),
+                        "aleatoric_var_raw": float(aleatoric_var[local_idx].detach().cpu().item()),
+                        "epistemic_var_raw": float(epistemic_var[local_idx].detach().cpu().item()),
+                        "total_var_raw": float(total_var[local_idx].detach().cpu().item()),
+                    }
+                )
+            running_index += num_graphs
+
+            batch_elapsed = time.perf_counter() - batch_start
+            if batch_idx == 1 or batch_idx == num_batches or (log_every_batches > 0 and batch_idx % log_every_batches == 0):
+                elapsed = time.perf_counter() - split_start
+                LOGGER.info(
+                    "%s progress: batch %d/%d, rows=%d, batch %.2fs, elapsed %.2fs, avg/batch %.2fs, avg model forward %.2fs",
+                    split_name,
+                    batch_idx,
+                    num_batches,
+                    len(raw_rows),
+                    batch_elapsed,
+                    elapsed,
+                    elapsed / batch_idx,
+                    cumulative_model_time / max(batch_idx * len(models), 1),
+                )
+
+    total_elapsed = time.perf_counter() - split_start
+    LOGGER.info(
+        "Finished %s evaluation in %.2fs for %d configs (%d batches); cumulative model forward time %.2fs",
+        split_name,
+        total_elapsed,
+        len(raw_rows),
+        num_batches,
+        cumulative_model_time,
+    )
+    return raw_rows
 
 
-def fit_isotonic_calibrators(
-    selection_rows: List[Dict[str, float]],
-) -> Dict[str, object]:
+def fit_isotonic_calibrators(selection_rows: List[Dict[str, float]]) -> Dict[str, object]:
+    start_time = time.perf_counter()
     try:
         from sklearn.isotonic import IsotonicRegression
     except ImportError as exc:
@@ -379,6 +533,12 @@ def fit_isotonic_calibrators(
         regressor.fit(x, y)
         calibrators[unc_name] = regressor
 
+    LOGGER.info(
+        "Fit %d isotonic calibrators on %d validation rows in %.2fs",
+        len(calibrators),
+        len(selection_rows),
+        time.perf_counter() - start_time,
+    )
     return calibrators
 
 
@@ -386,6 +546,7 @@ def apply_isotonic_calibration(
     rows: List[Dict[str, float]],
     calibrators: Dict[str, object],
 ) -> List[Dict[str, float]]:
+    start_time = time.perf_counter()
     calibrated_rows: List[Dict[str, float]] = []
     for row in rows:
         updated_row = dict(row)
@@ -398,8 +559,12 @@ def apply_isotonic_calibration(
             if regressor is not None and np.isfinite(row[unc_key]):
                 calibrated_value = float(regressor.predict([row[unc_key]])[0])
                 updated_row[unc_key] = max(calibrated_value, 0.0)
-
         calibrated_rows.append(updated_row)
+    LOGGER.info(
+        "Applied isotonic calibration to %d rows in %.2fs",
+        len(rows),
+        time.perf_counter() - start_time,
+    )
     return calibrated_rows
 
 
@@ -417,50 +582,25 @@ def read_raw_csv(path: Path) -> List[Dict[str, float]]:
         rows = []
         for row in reader:
             parsed: Dict[str, float] = {
-                "epoch": int(row["epoch"]),
-                "loader": row["loader"],
                 "config_index": int(row["config_index"]),
                 "num_atoms": float(row["num_atoms"]) if row["num_atoms"] else np.nan,
                 "ref_energy": float(row["ref_energy"]),
                 "pred_energy": float(row["pred_energy"]),
                 "error": float(row["error"]),
                 "sq_error": float(row["sq_error"]),
-                "aleatoric_var": float(row["aleatoric_var"])
-                if row["aleatoric_var"]
-                else np.nan,
-                "epistemic_var": float(row["epistemic_var"]),
-                "total_var": (
-                    float(row["total_var"])
-                    if row.get("total_var")
-                    else float(row["aleatoric_var"]) + float(row["epistemic_var"])
-                ),
-                "aleatoric_var_raw": (
-                    float(row["aleatoric_var_raw"])
-                    if row.get("aleatoric_var_raw")
-                    else np.nan
-                ),
-                "epistemic_var_raw": (
-                    float(row["epistemic_var_raw"])
-                    if row.get("epistemic_var_raw")
-                    else np.nan
-                ),
-                "total_var_raw": (
-                    float(row["total_var_raw"])
-                    if row.get("total_var_raw")
-                    else (
-                        float(row["aleatoric_var_raw"]) + float(row["epistemic_var_raw"])
-                        if row.get("aleatoric_var_raw") and row.get("epistemic_var_raw")
-                        else np.nan
-                    )
-                ),
+                "aleatoric_var": float(row["aleatoric_var"]) if row.get("aleatoric_var") else np.nan,
+                "epistemic_var": float(row["epistemic_var"]) if row.get("epistemic_var") else np.nan,
+                "total_var": float(row["total_var"]) if row.get("total_var") else np.nan,
+                "aleatoric_var_raw": float(row["aleatoric_var_raw"]) if row.get("aleatoric_var_raw") else np.nan,
+                "epistemic_var_raw": float(row["epistemic_var_raw"]) if row.get("epistemic_var_raw") else np.nan,
+                "total_var_raw": float(row["total_var_raw"]) if row.get("total_var_raw") else np.nan,
             }
             rows.append(parsed)
     return rows
 
 
-def build_binned_rows(
-    raw_rows: List[Dict[str, float]], num_bins: int
-) -> List[Dict[str, float]]:
+def build_binned_rows(raw_rows: List[Dict[str, float]], num_bins: int) -> List[Dict[str, float]]:
+    start_time = time.perf_counter()
     if not raw_rows:
         raise RuntimeError("Cannot build reliability bins from empty raw rows.")
 
@@ -470,7 +610,6 @@ def build_binned_rows(
         ("epistemic", "epistemic_var"),
         ("total", "total_var"),
     ]
-    selected_epoch = int(raw_rows[0]["epoch"])
 
     for unc_name, unc_key in uncertainty_specs:
         valid_rows = [row for row in raw_rows if np.isfinite(row[unc_key])]
@@ -478,7 +617,9 @@ def build_binned_rows(
             continue
         valid_rows = sorted(valid_rows, key=lambda row: row[unc_key])
         effective_bins = min(num_bins, len(valid_rows))
-        for bin_idx, bin_rows in enumerate(np.array_split(np.array(valid_rows, dtype=object), effective_bins)):
+        for bin_idx, bin_rows in enumerate(
+            np.array_split(np.array(valid_rows, dtype=object), effective_bins)
+        ):
             bin_list = list(bin_rows)
             if not bin_list:
                 continue
@@ -493,7 +634,6 @@ def build_binned_rows(
             )
             binned_rows.append(
                 {
-                    "epoch": selected_epoch,
                     "uncertainty_type": unc_name,
                     "bin_index": bin_idx,
                     "count": len(bin_list),
@@ -506,6 +646,12 @@ def build_binned_rows(
                     "uncertainty_max": float(np.max(variances)),
                 }
             )
+    LOGGER.info(
+        "Built %d binned reliability rows from %d raw rows in %.2fs",
+        len(binned_rows),
+        len(raw_rows),
+        time.perf_counter() - start_time,
+    )
     return binned_rows
 
 
@@ -537,15 +683,12 @@ def compute_pearson_summary(raw_rows: List[Dict[str, float]]) -> Dict[str, float
         if np.count_nonzero(valid) < 2:
             summary[unc_name] = float("nan")
             continue
-
         x = variances[valid]
         y = sq_errors[valid]
         if np.std(x) == 0.0 or np.std(y) == 0.0:
             summary[unc_name] = float("nan")
             continue
-
         summary[unc_name] = float(np.corrcoef(x, y)[0, 1])
-
     return summary
 
 
@@ -556,6 +699,7 @@ def write_plot(
     isotonic_calibration: bool,
     raw_rows: List[Dict[str, float]],
 ) -> None:
+    start_time = time.perf_counter()
     if not binned_rows:
         raise RuntimeError("Cannot create reliability plot from empty binned rows.")
 
@@ -592,39 +736,22 @@ def write_plot(
     ax.set_aspect("equal", adjustable="box")
     ax.set_xlabel("RMV")
     ax.set_ylabel("RMSE")
-    if per_atom:
-        ax.set_title("Reliability Diagram (per-atom energies)")
-    else:
-        ax.set_title("Reliability Diagram")
+    ax.set_title("Reliability Diagram (per-atom energies)" if per_atom else "Reliability Diagram")
     if isotonic_calibration:
         ax.set_title(ax.get_title() + " with Isotonic Calibration")
     ax.grid(alpha=0.3)
     ax.legend()
+
     summary_lines = []
-    if np.isfinite(ence_summary["aleatoric"]):
-        summary_lines.append(
-            f"Aleatoric ENCE (binned) = {ence_summary['aleatoric']:.4f}"
-        )
-    if np.isfinite(ence_summary["epistemic"]):
-        summary_lines.append(
-            f"Epistemic ENCE (binned) = {ence_summary['epistemic']:.4f}"
-        )
-    if np.isfinite(ence_summary["total"]):
-        summary_lines.append(
-            f"Total ENCE (binned) = {ence_summary['total']:.4f}"
-        )
-    if np.isfinite(pearson_summary["aleatoric"]):
-        summary_lines.append(
-            f"Aleatoric Pearson (all systems) = {pearson_summary['aleatoric']:.4f}"
-        )
-    if np.isfinite(pearson_summary["epistemic"]):
-        summary_lines.append(
-            f"Epistemic Pearson (all systems) = {pearson_summary['epistemic']:.4f}"
-        )
-    if np.isfinite(pearson_summary["total"]):
-        summary_lines.append(
-            f"Total Pearson (all systems) = {pearson_summary['total']:.4f}"
-        )
+    for unc_name in ["aleatoric", "epistemic", "total"]:
+        if np.isfinite(ence_summary[unc_name]):
+            summary_lines.append(
+                f"{unc_name.capitalize()} ENCE (binned) = {ence_summary[unc_name]:.4f}"
+            )
+        if np.isfinite(pearson_summary[unc_name]):
+            summary_lines.append(
+                f"{unc_name.capitalize()} Pearson (all systems) = {pearson_summary[unc_name]:.4f}"
+            )
     if summary_lines:
         ax.text(
             0.04,
@@ -635,53 +762,77 @@ def write_plot(
             ha="left",
             bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.85},
         )
+
     plt.tight_layout()
     plt.savefig(path, dpi=200)
     plt.close()
+    LOGGER.info("Saved reliability plot to %s in %.2fs", path, time.perf_counter() - start_time)
 
 
 def main() -> None:
     args = parse_args()
-
-    if args.input_csv is None and not args.inputs:
-        raise RuntimeError("Provide either --inputs or --input_csv.")
+    setup_logging(args.log_level)
+    main_start = time.perf_counter()
+    torch_tools.set_default_dtype(args.default_dtype)
+    device = torch_tools.init_device(args.device)
+    LOGGER.info("Using device=%s default_dtype=%s", device, args.default_dtype)
 
     if args.input_csv is not None:
         raw_rows = read_raw_csv(Path(args.input_csv))
     else:
-        members_all = [load_member_file(Path(path)) for path in args.inputs]
-        selection_members = [
-            filter_loader(member.get(args.selection_split, {}), args.selection_loader)
-            for member in members_all
-        ]
-        best_epoch = select_best_epoch(selection_members, per_atom=args.per_atom)
-
-        plot_loader = args.plot_loader if args.plot_loader is not None else args.selection_loader
-        plot_members = [
-            filter_loader(member.get(args.plot_split, {}), plot_loader)
-            for member in members_all
-        ]
-        if any(best_epoch not in member for member in plot_members):
+        if not all([
+            args.checkpoints_dir,
+            args.validation_split,
+            args.test_split,
+            args.energy_key_val,
+            args.energy_key_test,
+        ]):
             raise RuntimeError(
-                f"Selected epoch {best_epoch} is not available for split '{args.plot_split}'."
+                "When --input-csv is not provided, you must pass --checkpoints-dir, "
+                "--validation-split, --test-split, --energy-key-val, and --energy-key-test."
             )
 
-        raw_rows = compute_selected_epoch_rows(
-            plot_members,
-            epoch=best_epoch,
-            per_atom=args.per_atom,
+        checkpoint_paths = discover_checkpoints(Path(args.checkpoints_dir), args.experiment_name)
+        models = load_models(checkpoint_paths, device=device)
+        val_loader, _ = build_dataloader(
+            Path(args.validation_split),
+            args.energy_key_val,
+            models[0],
+            batch_size=args.batch_size,
+            head_name=args.head,
         )
+        test_loader, _ = build_dataloader(
+            Path(args.test_split),
+            args.energy_key_test,
+            models[0],
+            batch_size=args.batch_size,
+            head_name=args.head,
+        )
+
+        val_rows = evaluate_split(
+            models=models,
+            data_loader=val_loader,
+            device=device,
+            per_atom=args.per_atom,
+            head_name=args.head,
+            split_name="validation",
+            log_every_batches=args.log_every_batches,
+        )
+        raw_rows = evaluate_split(
+            models=models,
+            data_loader=test_loader,
+            device=device,
+            per_atom=args.per_atom,
+            head_name=args.head,
+            split_name="test",
+            log_every_batches=args.log_every_batches,
+        )
+
         if args.isotonic_calibration:
-            selection_rows = compute_selected_epoch_rows(
-                selection_members,
-                epoch=best_epoch,
-                per_atom=args.per_atom,
-            )
-            calibrators = fit_isotonic_calibrators(selection_rows)
+            calibrators = fit_isotonic_calibrators(val_rows)
             raw_rows = apply_isotonic_calibration(raw_rows, calibrators)
+
         raw_fieldnames = [
-            "epoch",
-            "loader",
             "config_index",
             "num_atoms",
             "ref_energy",
@@ -699,7 +850,6 @@ def main() -> None:
 
     binned_rows = build_binned_rows(raw_rows, num_bins=args.num_bins)
     bins_fieldnames = [
-        "epoch",
         "uncertainty_type",
         "bin_index",
         "count",
@@ -720,6 +870,7 @@ def main() -> None:
         raw_rows=raw_rows,
     )
 
+    LOGGER.info("Total runtime: %.2fs", time.perf_counter() - main_start)
     print(f"Saved raw CSV: {args.output_csv_raw}")
     print(f"Saved binned CSV: {args.output_csv_bins}")
     print(f"Saved plot: {args.output_plot}")
