@@ -2,15 +2,15 @@
 
 
 # Store PIDs of background processes
-CUDA_VISIBLE_DEVICES=2 python mace/cli/run_train.py --config experiment_A/config_A.yml --seed 0 &
+CUDA_VISIBLE_DEVICES=7 python mace/cli/run_train.py --config experiment_A/config_A.yml --seed 0 --wandb_name mace_seed_0 &
 PID1=$!
-CUDA_VISIBLE_DEVICES=3 python mace/cli/run_train.py --config experiment_A/config_A.yml --seed 1 &
+CUDA_VISIBLE_DEVICES=7 python mace/cli/run_train.py --config experiment_A/config_A.yml --seed 1 --wandb_name mace_seed_1 &
 PID2=$!
-CUDA_VISIBLE_DEVICES=4 python mace/cli/run_train.py --config experiment_A/config_A.yml --seed 2 &
+CUDA_VISIBLE_DEVICES=6 python mace/cli/run_train.py --config experiment_A/config_A.yml --seed 2 --wandb_name mace_seed_2 &
 PID3=$!
-CUDA_VISIBLE_DEVICES=5  python mace/cli/run_train.py --config experiment_A/config_A.yml --seed 3 &
+CUDA_VISIBLE_DEVICES=6  python mace/cli/run_train.py --config experiment_A/config_A.yml --seed 3 --wandb_name mace_seed_3 &
 PID4=$!
-CUDA_VISIBLE_DEVICES=6 python mace/cli/run_train.py --config experiment_A/config_A.yml --seed 4 &
+CUDA_VISIBLE_DEVICES=5 python mace/cli/run_train.py --config experiment_A/config_A.yml --seed 4 --wandb_name mace_seed_4 &
 PID5=$!
 
 

@@ -1,0 +1,20 @@
+#!/bin/bash
+
+
+# Store PIDs of background processes
+CUDA_VISIBLE_DEVICES=5 python mace/cli/run_train.py --config experiment_C/config_C.yml --seed 0 --wandb_name mace_seed_0 &
+PID1=$!
+CUDA_VISIBLE_DEVICES=4 python mace/cli/run_train.py --config experiment_C/config_C.yml --seed 1 --wandb_name mace_seed_1 &
+PID2=$!
+CUDA_VISIBLE_DEVICES=4 python mace/cli/run_train.py --config experiment_C/config_C.yml --seed 2 --wandb_name mace_seed_2 &
+PID3=$!
+CUDA_VISIBLE_DEVICES=3  python mace/cli/run_train.py --config experiment_C/config_C.yml --seed 3 --wandb_name mace_seed_3 &
+PID4=$!
+CUDA_VISIBLE_DEVICES=3 python mace/cli/run_train.py --config experiment_C/config_C.yml --seed 4 --wandb_name mace_seed_4 &
+PID5=$!
+
+
+# Kill both processes on Ctrl+C
+trap "kill $PID1 $PID2 $PID3 $PID4 $PID5 2>/dev/null" INT
+
+wait
