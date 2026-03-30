@@ -229,6 +229,26 @@ def discover_checkpoints(checkpoints_dir: Path, experiment_name: Optional[str]) 
     return checkpoint_list
 
 
+def _get_model_dtype(model: torch.nn.Module) -> torch.dtype:
+    first_param = next(model.parameters(), None)
+    if first_param is not None:
+        return first_param.dtype
+    first_buffer = next(model.buffers(), None)
+    if first_buffer is not None:
+        return first_buffer.dtype
+    return torch.get_default_dtype()
+
+
+def _cast_batch_dict_dtype(batch_dict: Dict[str, torch.Tensor], dtype: torch.dtype) -> Dict[str, torch.Tensor]:
+    casted: Dict[str, torch.Tensor] = {}
+    for key, value in batch_dict.items():
+        if isinstance(value, torch.Tensor) and torch.is_floating_point(value):
+            casted[key] = value.to(dtype=dtype)
+        else:
+            casted[key] = value
+    return casted
+
+
 def _select_head_tensor(
     x: Optional[torch.Tensor],
     batch_heads: Optional[torch.Tensor],
@@ -384,6 +404,7 @@ def evaluate_split(
 ) -> List[Dict[str, float]]:
     raw_rows: List[Dict[str, float]] = []
     model_heads = getattr(models[0], "heads", None)
+    model_dtype = _get_model_dtype(models[0])
     running_index = 0
     num_batches = len(data_loader)
     split_start = time.perf_counter()
@@ -401,10 +422,10 @@ def evaluate_split(
         for batch_idx, batch in enumerate(data_loader, start=1):
             batch_start = time.perf_counter()
             batch = batch.to(device)
-            batch_dict = batch.to_dict()
+            batch_dict = _cast_batch_dict_dtype(batch.to_dict(), model_dtype)
             batch_heads = batch["head"] if "head" in batch.keys else None
             num_graphs = int(batch.num_graphs)
-            num_atoms = (batch.ptr[1:] - batch.ptr[:-1]).to(device=device, dtype=torch.get_default_dtype())
+            num_atoms = (batch.ptr[1:] - batch.ptr[:-1]).to(device=device, dtype=model_dtype)
 
             member_preds = []
             member_vars = []
@@ -442,7 +463,7 @@ def evaluate_split(
 
             pred_stack = torch.stack(member_preds, dim=0)
             var_stack = torch.stack(member_vars, dim=0)
-            ref_energy = batch.energy.to(device=device, dtype=torch.get_default_dtype())
+            ref_energy = batch.energy.to(device=device, dtype=model_dtype)
 
             if per_atom:
                 pred_stack = pred_stack / num_atoms.unsqueeze(0)
@@ -794,6 +815,16 @@ def main() -> None:
 
         checkpoint_paths = discover_checkpoints(Path(args.checkpoints_dir), args.experiment_name)
         models = load_models(checkpoint_paths, device=device)
+        model_dtype = _get_model_dtype(models[0])
+        requested_dtype = torch.get_default_dtype()
+        if model_dtype != requested_dtype:
+            LOGGER.warning(
+                "Requested default dtype %s does not match checkpoint dtype %s; using checkpoint dtype for dataset/inference.",
+                requested_dtype,
+                model_dtype,
+            )
+            torch.set_default_dtype(model_dtype)
+        LOGGER.info("Ensemble parameter dtype: %s", model_dtype)
         val_loader, _ = build_dataloader(
             Path(args.validation_split),
             args.energy_key_val,

@@ -17,7 +17,7 @@ max_L: 1
 r_max: 6.0
 forces_weight: 0.0
 device: cuda
-batch_size: 256
+batch_size: 128
 max_num_epochs: 300
 swa: False
 compute_forces: False
@@ -25,7 +25,7 @@ E0s: "average"
 predict_mve: True
 loss: "gaussian_nll"
 eval_interval: 1
-save_all_checkpoints: False
+save_all_checkpoints: True
 log_epoch_outputs: False
 default_dtype: "float32"
 enable_cueq: False
