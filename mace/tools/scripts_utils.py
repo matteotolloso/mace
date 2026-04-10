@@ -250,11 +250,25 @@ def extract_config_mace_model(model: torch.nn.Module) -> Dict[str, Any]:
     scale = model.scale_shift.scale
     shift = model.scale_shift.shift
     heads = model.heads if hasattr(model, "heads") else ["default"]
+    predict_mve = bool(getattr(model, "predict_mve", False))
+    mve_head_multiplier = int(
+        getattr(model, "mve_head_multiplier", 2 if predict_mve else 1)
+    )
     model_mlp_irreps = (
         o3.Irreps(str(model.readouts[-1].hidden_irreps))
         if model.num_interactions.item() > 1
         else 1
     )
+    if model.num_interactions.item() > 1:
+        total_scalar_irreps = model_mlp_irreps.count((0, 1))
+        divisor = len(heads) * mve_head_multiplier
+        if total_scalar_irreps % divisor != 0:
+            raise ValueError(
+                "Cannot infer base MLP_irreps from the model readout: "
+                f"found {total_scalar_irreps} scalar irreps for {len(heads)} head(s) "
+                f"with MVE multiplier {mve_head_multiplier}."
+            )
+        base_mlp_irreps = total_scalar_irreps // divisor
     try:
         correlation = (
             len(model.products[0].symmetric_contractions.contractions[0].weights) + 1
@@ -273,10 +287,11 @@ def extract_config_mace_model(model: torch.nn.Module) -> Dict[str, Any]:
         "hidden_irreps": o3.Irreps(str(model.products[0].linear.irreps_out)),
         "edge_irreps": model.edge_irreps if hasattr(model, "edge_irreps") else None,
         "MLP_irreps": (
-            o3.Irreps(f"{model_mlp_irreps.count((0, 1)) // len(heads)}x0e")
+            o3.Irreps(f"{base_mlp_irreps}x0e")
             if model.num_interactions.item() > 1
             else 1
         ),
+        "predict_mve": predict_mve,
         "gate": (
             model.readouts[-1]  # pylint: disable=protected-access
             .non_linearity._modules["acts"][0]
@@ -527,6 +542,12 @@ def convert_from_json_format(dict_input):
     dict_output["radial_type"] = dict_input["radial_type"]
     dict_output["radial_MLP"] = ast.literal_eval(dict_input["radial_MLP"])
     dict_output["pair_repulsion"] = ast.literal_eval(dict_input["pair_repulsion"])
+    if "predict_mve" in dict_input:
+        dict_output["predict_mve"] = (
+            ast.literal_eval(dict_input["predict_mve"])
+            if isinstance(dict_input["predict_mve"], str)
+            else bool(dict_input["predict_mve"])
+        )
     dict_output["distance_transform"] = dict_input["distance_transform"]
     dict_output["atomic_inter_scale"] = float(dict_input["atomic_inter_scale"])
     dict_output["atomic_inter_shift"] = float(dict_input["atomic_inter_shift"])

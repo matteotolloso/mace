@@ -10,14 +10,15 @@ results_dir: "experiment_C/results"
 train_file: "dataset/ani1x_energy_split/dft_train.xyz"
 valid_file: "dataset/ani1x_energy_split/dft_val.xyz"
 test_file: "dataset/ani1x_energy_split/dft_test_id.xyz"
-
 energy_key: "wb97x_tz.energy"
+
+lr: 0.01
 num_channels: 128
 max_L: 1
 r_max: 6.0
 forces_weight: 0.0
 device: cuda
-batch_size: 128
+batch_size: 64
 max_num_epochs: 300
 swa: False
 compute_forces: False

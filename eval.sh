@@ -2,7 +2,7 @@
 
 # Plot AU and EU per epoch
 
-python utils/plt_epoch_au_eu.py \
+python utils/epoch_raw.py \
   --inputs outputs/results/mace-mv-sp_run-0_epoch_outputs.txt outputs/results/mace-mv-sp_run-1_epoch_outputs.txt outputs/results/mace-mv-sp_run-2_epoch_outputs.txt outputs/results/mace-mv-sp_run-3_epoch_outputs.txt outputs/results/mace-mv-sp_run-4_epoch_outputs.txt \
   --split train \
   --clip_percentile 100 \
@@ -11,7 +11,7 @@ python utils/plt_epoch_au_eu.py \
   --output_plot outputs/plots/unc_vs_epoch_train-mv-sp.png \
   --plot_log_variance
 
-# python utils/plt_epoch_au_eu.py \
+# python utils/epoch_raw.py \
 #   --inputs outputs/results/mace-mv-sp_run-0_epoch_outputs.txt outputs/results/mace-mv-sp_run-1_epoch_outputs.txt outputs/results/mace-mv-sp_run-2_epoch_outputs.txt outputs/results/mace-mv-sp_run-3_epoch_outputs.txt outputs/results/mace-mv-sp_run-4_epoch_outputs.txt \
 #   --split valid \
 #   --clip_percentile 100 \
@@ -20,7 +20,7 @@ python utils/plt_epoch_au_eu.py \
 #   --output_plot outputs/plots/unc_vs_epoch_valid-mv-sp.png \
 #   --plot_log_variance
 
-# python utils/plt_epoch_au_eu.py \
+# python utils/epoch_raw.py \
 #   --inputs outputs/results/mace-mv-sp_run-0_epoch_outputs.txt outputs/results/mace-mv-sp_run-1_epoch_outputs.txt outputs/results/mace-mv-sp_run-2_epoch_outputs.txt outputs/results/mace-mv-sp_run-3_epoch_outputs.txt outputs/results/mace-mv-sp_run-4_epoch_outputs.txt \
 #   --split test \
 #   --clip_percentile 100 \
@@ -56,7 +56,7 @@ python utils/plt_epoch_au_members_configs.py \
 
 # Plot reliability diagram 
 
-python utils/plt_unc_vs_error.py \
+python utils/reliability.py \
   --inputs outputs/results/mace-mv-sp_run-0_epoch_outputs.txt outputs/results/mace-mv-sp_run-1_epoch_outputs.txt outputs/results/mace-mv-sp_run-2_epoch_outputs.txt outputs/results/mace-mv-sp_run-3_epoch_outputs.txt outputs/results/mace-mv-sp_run-4_epoch_outputs.txt \
   --selection_split valid \
   --plot_split test \

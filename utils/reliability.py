@@ -1,34 +1,72 @@
 #!/usr/bin/env python3
-"""Plot uncertainty-vs-error reliability diagrams from ensemble checkpoints.
+"""Plot uncertainty-vs-error reliability diagrams from an ensemble.
 
-Workflow:
-1. Discover ensemble checkpoints in ``--checkpoints-dir`` matching the pattern
-   ``<experiment_name>_run-<seed>_epoch-<best_epoch>.pt``.
-2. Load the ensemble directly from those checkpoints.
-3. Evaluate the validation and test ``.xyz`` splits using the requested energy
-   keys.
-4. On each configuration, compute:
-   - aleatoric variance = mean predicted variance across ensemble members
-   - epistemic variance = variance of ensemble member predictions
+Current workflow:
+1. Read one ``<experiment>_run-<seed>_train.txt`` file per ensemble member from
+   ``--results-dir``. These files contain batch logs (``mode == "opt"``) and
+   validation epoch logs (``mode == "eval"``).
+2. For each seed, select the best validation epoch independently using
+   ``--selection-key`` and ``--selection-mode``. If ``--head`` is provided, only
+   validation rows for that head are considered.
+3. Enforce checkpoint completeness: every logged validation epoch for the chosen
+   seed/head must have a matching checkpoint file
+   ``<experiment>_run-<seed>_epoch-<epoch>.pt`` in ``--checkpoints-dir``. If
+   any validation epoch is missing its checkpoint, the script raises an error
+   and stops.
+4. Load the selected checkpoint for each seed. Checkpoints can be saved either
+   as full serialized modules or as state dictionaries paired with
+   ``<experiment>_run-<seed>.model`` companion files.
+5. Evaluate the resulting ensemble on the selection split and on the test split.
+   The selection split is used for optional isotonic calibration; the test split
+   is used for the final reliability diagram.
+6. For each configuration, compute per-member energies and predicted variances.
+   In the default per-atom mode, each member energy is divided by ``N`` and each
+   member variance by ``N^2`` before ensemble aggregation. Then compute:
+   - aleatoric variance = mean predicted variance across members
+   - epistemic variance = variance of member predictions
    - total variance = aleatoric + epistemic
-5. Optionally fit isotonic regressors on the validation split and apply them to
-   the test split.
-6. Sort test systems independently by aleatoric, epistemic, and total
+7. Optionally fit isotonic regressors on the selection split and apply them to
+   the test split. Calibration is learned independently for aleatoric,
+   epistemic, and total variance against squared error.
+8. Sort test configurations independently by aleatoric, epistemic, and total
    uncertainty, bin them into equal-count bins, and plot RMSE vs RMV.
 
-Reported summary metrics:
-- ENCE is computed from the bins only.
-- Pearson correlation is computed on all systems, without binning.
+Metrics reported by the script:
+- Ensemble ``rmse_e_per_atom`` on selection and test splits in default mode
+  (or ``rmse_e`` in ``--total`` mode).
+- Reliability diagram quantities are computed after sorting systems by
+  uncertainty and binning them. For each bin, the script computes
+  ``RMSE = sqrt(mean(squared error))`` and
+  ``RMV = sqrt(mean(predicted variance))``, then plots ``RMSE`` vs ``RMV``.
+- ENCE is computed from those binned reliability quantities only.
+- Pearson correlation is computed on all systems, without binning, between
+  per-system uncertainty variance (i.e. predicted sigma^2) and per-system squared error.
+- Spearman correlation is computed on all systems, without binning, between
+  per-system uncertainty variance (i.e. predicted sigma^2) and per-system squared error.
+- AUSE (Area Under the Sparsification Error) is computed on all systems,
+  without binning, from the ordering induced by each uncertainty variance
+  against the oracle ordering induced by absolute error. The sparsification
+  curves themselves are MAE-based, following the formal AUSE definition.
 
 Outputs:
-- ``--output-csv-raw`` stores per-configuration data for the plotted split.
+- ``--output-csv-raw`` stores per-configuration predictions and uncertainties for
+  the plotted split.
 - ``--output-csv-bins`` stores the binned reliability data, including ENCE
   terms.
+- ``--output-plot`` stores the parity-style reliability diagram.
+
+Notes:
+- ``--input-csv`` bypasses checkpoint loading and rebuilds only the bins/plot
+  from a previously saved raw CSV.
+- Per-atom mode is the default. Use ``--total`` to switch to total-system
+  energies and variances.
 """
 
 import argparse
 import csv
+import json
 import logging
+import warnings
 import re
 import time
 from pathlib import Path
@@ -40,6 +78,13 @@ import numpy as np
 import torch
 import torch.nn
 
+warnings.filterwarnings(
+    "ignore",
+    message=r"You are using `torch\.load` with `weights_only=False`.*",
+    category=FutureWarning,
+    module=r"e3nn\.o3\._wigner",
+)
+
 from mace import data
 from mace.data.utils import KeySpecification, config_from_atoms
 from mace.tools import torch_geometric, torch_tools, utils as mace_utils
@@ -48,8 +93,22 @@ from mace.tools import torch_geometric, torch_tools, utils as mace_utils
 CHECKPOINT_PATTERN = re.compile(
     r"^(?P<experiment>.+)_run-(?P<seed>\d+)_epoch-(?P<epoch>\d+)\.pt$"
 )
+RESULTS_PATTERN = re.compile(
+    r"^(?P<experiment>.+)_run-(?P<seed>\d+)_train\.txt$"
+)
 ConfigKey = int
 LOGGER = logging.getLogger(__name__)
+
+
+def str2bool(value: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    value_lower = value.lower()
+    if value_lower in {"true", "1", "yes", "y"}:
+        return True
+    if value_lower in {"false", "0", "no", "n"}:
+        return False
+    raise argparse.ArgumentTypeError(f"Invalid boolean value: {value}")
 
 
 def setup_logging(level_name: str) -> None:
@@ -69,13 +128,19 @@ def parse_args() -> argparse.Namespace:
         "--checkpoints-dir",
         type=str,
         required=False,
-        help="Folder containing ensemble checkpoints named *_run-<seed>_epoch-<best_epoch>.pt.",
+        help="Folder containing checkpoints named <experiment>_run-<seed>_epoch-<epoch>.pt and companion <experiment>_run-<seed>.model files.",
+    )
+    parser.add_argument(
+        "--results-dir",
+        type=str,
+        required=False,
+        help="Folder containing result logs named <experiment>_run-<seed>_train.txt used to select the best epoch independently for each seed.",
     )
     parser.add_argument(
         "--experiment-name",
         type=str,
         required=False,
-        help="Experiment name prefix used to filter checkpoints inside --checkpoints-dir.",
+        help="Experiment name prefix used to filter both result files in --results-dir and checkpoints in --checkpoints-dir.",
     )
     parser.add_argument(
         "--input-csv",
@@ -83,26 +148,27 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Optional raw per-config CSV produced by this script. If set, skip "
-            "checkpoint inference and rebuild bins/plot from the saved data."
+            "result parsing, checkpoint loading, and split evaluation, and rebuild "
+            "only the bins/plot from the saved data."
         ),
     )
     parser.add_argument(
         "--validation-split",
         type=str,
         required=False,
-        help="Validation .xyz file used for isotonic calibration fitting.",
+        help="Selection/validation .xyz file used both for best-epoch selection diagnostics and optional isotonic calibration fitting.",
     )
     parser.add_argument(
         "--test-split",
         type=str,
         required=False,
-        help="Test .xyz file used for the final reliability diagram.",
+        help="Test .xyz file used for the final reliability diagram and reported ensemble test RMSE.",
     )
     parser.add_argument(
         "--energy-key-val",
         type=str,
         required=False,
-        help="Energy key to read from the validation .xyz file.",
+        help="Energy key to read from the selection/validation .xyz file.",
     )
     parser.add_argument(
         "--energy-key-test",
@@ -114,7 +180,20 @@ def parse_args() -> argparse.Namespace:
         "--head",
         type=str,
         default=None,
-        help="Optional model head to use for multi-head models.",
+        help="Optional model head to use for multi-head models. When multiple validation heads are present in the results file, this is also used to select the metric rows.",
+    )
+    parser.add_argument(
+        "--selection-key",
+        type=str,
+        default="rmse_e_per_atom",
+        help="Validation metric key used to select the best epoch independently for each seed from the *_train.txt files.",
+    )
+    parser.add_argument(
+        "--selection-mode",
+        type=str,
+        choices=["auto", "min", "max"],
+        default="auto",
+        help="Whether to minimize or maximize --selection-key when selecting the best checkpoint per seed.",
     )
     parser.add_argument(
         "--device",
@@ -143,12 +222,6 @@ def parse_args() -> argparse.Namespace:
         help="Number of equal-count uncertainty bins used in the reliability diagram.",
     )
     parser.add_argument(
-        "--per-atom",
-        dest="per_atom",
-        action="store_true",
-        help="Use per-atom energy errors and variances: E/N and var/N^2 (default).",
-    )
-    parser.add_argument(
         "--total",
         dest="per_atom",
         action="store_false",
@@ -156,10 +229,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--isotonic-calibration",
-        action="store_true",
+        type=str2bool,
+        default=False,
         help=(
-            "Fit isotonic regressors on the validation split and apply them to "
-            "the test split before binning. Calibration is fit against squared error."
+            "Whether to fit isotonic regressors on the validation split and apply them to "
+            "the test split before binning. Calibration is fit against squared error. "
+            "Use explicit values such as True or False."
         ),
     )
     parser.add_argument(
@@ -229,6 +304,162 @@ def discover_checkpoints(checkpoints_dir: Path, experiment_name: Optional[str]) 
     return checkpoint_list
 
 
+def _resolve_selection_mode(selection_key: str, selection_mode: str) -> str:
+    if selection_mode != "auto":
+        return selection_mode
+    key = selection_key.lower()
+    minimize_tokens = ("loss", "rmse", "mae", "q95", "error", "var")
+    maximize_tokens = ("acc", "accuracy", "auc", "pearson", "spearman", "r2")
+    if any(token in key for token in maximize_tokens):
+        return "max"
+    if any(token in key for token in minimize_tokens):
+        return "min"
+    return "min"
+
+
+def _read_jsonl_dicts(path: Path) -> List[Dict[str, object]]:
+    rows: List[Dict[str, object]] = []
+    with path.open("r", encoding="utf-8") as f:
+        for line_number, line in enumerate(f, start=1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise RuntimeError(f"Failed to parse JSON on line {line_number} of {path}: {exc}") from exc
+            if isinstance(record, dict):
+                rows.append(record)
+    return rows
+
+
+def discover_result_files(results_dir: Path, experiment_name: Optional[str]) -> List[Tuple[int, Path, str]]:
+    start_time = time.perf_counter()
+    result_files: List[Tuple[int, Path, str]] = []
+    experiments = set()
+    for path in results_dir.glob("*_train.txt"):
+        match = RESULTS_PATTERN.match(path.name)
+        if match is None:
+            continue
+        experiment = match.group("experiment")
+        if experiment_name is not None and experiment != experiment_name:
+            continue
+        seed = int(match.group("seed"))
+        result_files.append((seed, path, experiment))
+        experiments.add(experiment)
+
+    if not result_files:
+        experiment_msg = f" for experiment '{experiment_name}'" if experiment_name is not None else ""
+        raise RuntimeError(
+            f"No result files matching <experiment>_run-<seed>_train.txt were found in {results_dir}{experiment_msg}."
+        )
+
+    if experiment_name is None and len(experiments) > 1:
+        raise RuntimeError(
+            f"Multiple experiments were found in {results_dir}: {sorted(experiments)}. Pass --experiment-name to disambiguate."
+        )
+
+    result_files.sort(key=lambda item: item[0])
+    LOGGER.info(
+        "Discovered %d result files in %.2fs from %s%s",
+        len(result_files),
+        time.perf_counter() - start_time,
+        results_dir,
+        f" (experiment={experiment_name})" if experiment_name is not None else "",
+    )
+    return result_files
+
+
+def select_best_checkpoints(
+    checkpoints_dir: Path,
+    results_dir: Path,
+    experiment_name: Optional[str],
+    selection_key: str,
+    selection_mode: str,
+    head_name: Optional[str],
+) -> List[Path]:
+    resolved_mode = _resolve_selection_mode(selection_key, selection_mode)
+    result_files = discover_result_files(results_dir, experiment_name)
+    selected_paths: List[Tuple[int, Path]] = []
+
+    for seed, result_path, experiment in result_files:
+        rows = _read_jsonl_dicts(result_path)
+        eval_rows = [
+            row
+            for row in rows
+            if row.get("mode") == "eval" and row.get("epoch") is not None
+        ]
+        if head_name is not None:
+            eval_rows = [row for row in eval_rows if row.get("head") == head_name]
+        else:
+            heads = sorted({str(row.get("head")) for row in eval_rows if row.get("head") is not None})
+            if len(heads) > 1:
+                raise RuntimeError(
+                    f"Result file {result_path} contains multiple validation heads {heads}. Pass --head to select one."
+                )
+
+        available_checkpoints = []
+        for checkpoint_path in checkpoints_dir.glob(f"{experiment}_run-{seed}_epoch-*.pt"):
+            match = CHECKPOINT_PATTERN.match(checkpoint_path.name)
+            if match is None:
+                continue
+            available_checkpoints.append((int(match.group("epoch")), checkpoint_path))
+        available_checkpoints.sort(key=lambda item: item[0])
+        available_epochs = {epoch for epoch, _ in available_checkpoints}
+        if not available_checkpoints:
+            raise RuntimeError(
+                f"No checkpoints were found for seed {seed} in {checkpoints_dir} with experiment prefix '{experiment}'."
+            )
+
+        logged_eval_epochs = sorted({int(row["epoch"]) for row in eval_rows})
+        missing_epochs = [epoch for epoch in logged_eval_epochs if epoch not in available_epochs]
+        if missing_epochs:
+            raise RuntimeError(
+                f"Result file {result_path} contains validation epochs without matching checkpoints for seed {seed}: {missing_epochs}. All logged eval epochs must have checkpoint files in {checkpoints_dir}."
+            )
+
+        metric_rows = []
+        for row in eval_rows:
+            value = row.get(selection_key)
+            if value is None:
+                continue
+            try:
+                metric_value = float(value)
+            except (TypeError, ValueError):
+                continue
+            if not np.isfinite(metric_value):
+                continue
+            metric_rows.append((row, metric_value))
+
+        if not metric_rows:
+            available_keys = sorted(
+                {key for row in eval_rows for key, value in row.items() if isinstance(value, (int, float))}
+            )
+            raise RuntimeError(
+                f"No finite '{selection_key}' values were found in {result_path}. Available numeric keys: {available_keys}"
+            )
+
+        best_row, best_metric = (
+            min(metric_rows, key=lambda item: item[1])
+            if resolved_mode == "min"
+            else max(metric_rows, key=lambda item: item[1])
+        )
+        best_epoch = int(best_row["epoch"])
+        checkpoint_path = checkpoints_dir / f"{experiment}_run-{seed}_epoch-{best_epoch}.pt"
+        selected_paths.append((seed, checkpoint_path))
+        LOGGER.info(
+            "Selected seed %d from %s: epoch=%d using %s=%s (%s)",
+            seed,
+            result_path.name,
+            best_epoch,
+            selection_key,
+            best_metric,
+            resolved_mode,
+        )
+
+    return [path for _, path in selected_paths]
+
+
 def _get_model_dtype(model: torch.nn.Module) -> torch.dtype:
     first_param = next(model.parameters(), None)
     if first_param is not None:
@@ -277,7 +508,7 @@ def load_models(checkpoint_paths: List[Path], device: torch.device) -> List[torc
     models: List[torch.nn.Module] = []
     for model_idx, path in enumerate(checkpoint_paths, start=1):
         model_start = time.perf_counter()
-        checkpoint_obj = torch.load(f=str(path), map_location=str(device))
+        checkpoint_obj = torch.load(f=str(path), map_location=str(device), weights_only=False)
         if isinstance(checkpoint_obj, torch.nn.Module):
             model = checkpoint_obj
         elif isinstance(checkpoint_obj, dict) and "model" in checkpoint_obj:
@@ -288,7 +519,7 @@ def load_models(checkpoint_paths: List[Path], device: torch.device) -> List[torc
                     "Checkpoint file contains only a state_dict and no companion "
                     f"serialized model was found at {companion_model_path}."
                 )
-            model = torch.load(f=str(companion_model_path), map_location=str(device))
+            model = torch.load(f=str(companion_model_path), map_location=str(device), weights_only=False)
             if not isinstance(model, torch.nn.Module):
                 raise RuntimeError(
                     f"Companion model file {companion_model_path} did not contain a torch.nn.Module."
@@ -522,6 +753,15 @@ def evaluate_split(
     return raw_rows
 
 
+def compute_energy_rmse(raw_rows: List[Dict[str, float]]) -> float:
+    if not raw_rows:
+        return float("nan")
+    sq_errors = np.array([row["sq_error"] for row in raw_rows if np.isfinite(row["sq_error"])], dtype=float)
+    if sq_errors.size == 0:
+        return float("nan")
+    return float(np.sqrt(np.mean(sq_errors)))
+
+
 def fit_isotonic_calibrators(selection_rows: List[Dict[str, float]]) -> Dict[str, object]:
     start_time = time.perf_counter()
     try:
@@ -690,6 +930,27 @@ def compute_ence_summary(binned_rows: List[Dict[str, float]]) -> Dict[str, float
     return summary
 
 
+def _trapezoid_integral(y: np.ndarray, x: np.ndarray) -> float:
+    if hasattr(np, "trapezoid"):
+        return float(np.trapezoid(y, x))
+    return float(np.sum(0.5 * (y[1:] + y[:-1]) * (x[1:] - x[:-1])))
+
+
+def _rankdata(values: np.ndarray) -> np.ndarray:
+    order = np.argsort(values, kind="mergesort")
+    ranks = np.empty(len(values), dtype=float)
+    sorted_values = values[order]
+    start = 0
+    while start < len(values):
+        end = start + 1
+        while end < len(values) and sorted_values[end] == sorted_values[start]:
+            end += 1
+        avg_rank = 0.5 * (start + end - 1) + 1.0
+        ranks[order[start:end]] = avg_rank
+        start = end
+    return ranks
+
+
 def compute_pearson_summary(raw_rows: List[Dict[str, float]]) -> Dict[str, float]:
     summary: Dict[str, float] = {}
     sq_errors = np.array([row["sq_error"] for row in raw_rows], dtype=float)
@@ -713,6 +974,82 @@ def compute_pearson_summary(raw_rows: List[Dict[str, float]]) -> Dict[str, float
     return summary
 
 
+def compute_spearman_summary(raw_rows: List[Dict[str, float]]) -> Dict[str, float]:
+    summary: Dict[str, float] = {}
+    sq_errors = np.array([row["sq_error"] for row in raw_rows], dtype=float)
+
+    for unc_name, unc_key in (
+        ("aleatoric", "aleatoric_var"),
+        ("epistemic", "epistemic_var"),
+        ("total", "total_var"),
+    ):
+        variances = np.array([row[unc_key] for row in raw_rows], dtype=float)
+        valid = np.isfinite(variances) & np.isfinite(sq_errors)
+        if np.count_nonzero(valid) < 2:
+            summary[unc_name] = float("nan")
+            continue
+        x = variances[valid]
+        y = sq_errors[valid]
+        x_rank = _rankdata(x)
+        y_rank = _rankdata(y)
+        if np.std(x_rank) == 0.0 or np.std(y_rank) == 0.0:
+            summary[unc_name] = float("nan")
+            continue
+        summary[unc_name] = float(np.corrcoef(x_rank, y_rank)[0, 1])
+    return summary
+
+
+def compute_ause(scores: np.ndarray, abs_errors: np.ndarray) -> float:
+    valid = np.isfinite(scores) & np.isfinite(abs_errors)
+    if np.count_nonzero(valid) < 2:
+        return float("nan")
+
+    scores = scores[valid]
+    abs_errors = abs_errors[valid]
+    if np.any(abs_errors < 0.0):
+        return float("nan")
+
+    n = len(scores)
+    unc_order = np.argsort(scores)[::-1]
+    oracle_order = np.argsort(abs_errors)[::-1]
+
+    unc_errors = abs_errors[unc_order]
+    oracle_errors = abs_errors[oracle_order]
+
+    unc_tail_mae = np.cumsum(unc_errors[::-1])[::-1] / np.arange(n, 0, -1)
+    oracle_tail_mae = np.cumsum(oracle_errors[::-1])[::-1] / np.arange(n, 0, -1)
+
+    baseline = unc_tail_mae[0]
+    if baseline <= 0.0 or not np.isfinite(baseline):
+        return float("nan")
+
+    unc_curve = unc_tail_mae / baseline
+    oracle_curve = oracle_tail_mae / baseline
+    sparsification_error = unc_curve - oracle_curve
+    fractions = np.arange(n, dtype=float) / float(n)
+    return _trapezoid_integral(sparsification_error, fractions)
+
+
+def compute_ause_summary(raw_rows: List[Dict[str, float]]) -> Dict[str, float]:
+    summary: Dict[str, float] = {}
+    abs_errors = np.array(
+        [
+            abs(row["error"]) if np.isfinite(row.get("error", np.nan)) else np.sqrt(max(row["sq_error"], 0.0))
+            for row in raw_rows
+        ],
+        dtype=float,
+    )
+
+    for unc_name, unc_key in (
+        ("aleatoric", "aleatoric_var"),
+        ("epistemic", "epistemic_var"),
+        ("total", "total_var"),
+    ):
+        variances = np.array([row[unc_key] for row in raw_rows], dtype=float)
+        summary[unc_name] = compute_ause(variances, abs_errors)
+    return summary
+
+
 def write_plot(
     path: Path,
     binned_rows: List[Dict[str, float]],
@@ -725,7 +1062,8 @@ def write_plot(
         raise RuntimeError("Cannot create reliability plot from empty binned rows.")
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    fig, ax = plt.subplots(figsize=(7, 7))
+    fig, ax = plt.subplots(figsize=(10.5, 7))
+    fig.subplots_adjust(right=0.66)
 
     style_map = {
         "aleatoric": {"marker": "o", "label": "Aleatoric"},
@@ -734,6 +1072,8 @@ def write_plot(
     }
     ence_summary = compute_ence_summary(binned_rows)
     pearson_summary = compute_pearson_summary(raw_rows)
+    spearman_summary = compute_spearman_summary(raw_rows)
+    ause_summary = compute_ause_summary(raw_rows)
     max_xy = 0.0
     for unc_name in ["aleatoric", "epistemic", "total"]:
         rows = [row for row in binned_rows if row["uncertainty_type"] == unc_name]
@@ -763,28 +1103,35 @@ def write_plot(
     ax.grid(alpha=0.3)
     ax.legend()
 
-    summary_lines = []
+    display_names = {
+        "aleatoric": "Aleatoric",
+        "epistemic": "Epistemic",
+        "total": "Total",
+    }
+    summary_blocks = []
     for unc_name in ["aleatoric", "epistemic", "total"]:
+        block_lines = [display_names[unc_name]]
         if np.isfinite(ence_summary[unc_name]):
-            summary_lines.append(
-                f"{unc_name.capitalize()} ENCE (binned) = {ence_summary[unc_name]:.4f}"
-            )
+            block_lines.append(f"ENCE     {ence_summary[unc_name]:.4f}")
         if np.isfinite(pearson_summary[unc_name]):
-            summary_lines.append(
-                f"{unc_name.capitalize()} Pearson (all systems) = {pearson_summary[unc_name]:.4f}"
-            )
-    if summary_lines:
-        ax.text(
-            0.04,
-            0.96,
-            "\n".join(summary_lines),
-            transform=ax.transAxes,
+            block_lines.append(f"Pearson  {pearson_summary[unc_name]:.4f}")
+        if np.isfinite(spearman_summary[unc_name]):
+            block_lines.append(f"Spearman {spearman_summary[unc_name]:.4f}")
+        if np.isfinite(ause_summary[unc_name]):
+            block_lines.append(f"AUSE     {ause_summary[unc_name]:.4f}")
+        if len(block_lines) > 1:
+            summary_blocks.append("\n".join(block_lines))
+    if summary_blocks:
+        fig.text(
+            0.70,
+            0.93,
+            "\n\n".join(summary_blocks),
             va="top",
             ha="left",
-            bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.85},
+            family="monospace",
+            bbox={"boxstyle": "round,pad=0.6", "facecolor": "white", "alpha": 0.9},
         )
 
-    plt.tight_layout()
     plt.savefig(path, dpi=200)
     plt.close()
     LOGGER.info("Saved reliability plot to %s in %.2fs", path, time.perf_counter() - start_time)
@@ -803,6 +1150,7 @@ def main() -> None:
     else:
         if not all([
             args.checkpoints_dir,
+            args.results_dir,
             args.validation_split,
             args.test_split,
             args.energy_key_val,
@@ -810,10 +1158,17 @@ def main() -> None:
         ]):
             raise RuntimeError(
                 "When --input-csv is not provided, you must pass --checkpoints-dir, "
-                "--validation-split, --test-split, --energy-key-val, and --energy-key-test."
+                "--results-dir, --validation-split, --test-split, --energy-key-val, and --energy-key-test."
             )
 
-        checkpoint_paths = discover_checkpoints(Path(args.checkpoints_dir), args.experiment_name)
+        checkpoint_paths = select_best_checkpoints(
+            checkpoints_dir=Path(args.checkpoints_dir),
+            results_dir=Path(args.results_dir),
+            experiment_name=args.experiment_name,
+            selection_key=args.selection_key,
+            selection_mode=args.selection_mode,
+            head_name=args.head,
+        )
         models = load_models(checkpoint_paths, device=device)
         model_dtype = _get_model_dtype(models[0])
         requested_dtype = torch.get_default_dtype()
@@ -858,6 +1213,14 @@ def main() -> None:
             split_name="test",
             log_every_batches=args.log_every_batches,
         )
+
+        selection_rmse = compute_energy_rmse(val_rows)
+        test_rmse = compute_energy_rmse(raw_rows)
+        rmse_label = "rmse_e_per_atom" if args.per_atom else "rmse_e"
+        LOGGER.info("Ensemble %s on selection split: %.6f", rmse_label, selection_rmse)
+        LOGGER.info("Ensemble %s on test split: %.6f", rmse_label, test_rmse)
+        print(f"Selection {rmse_label}: {selection_rmse:.6f}")
+        print(f"Test {rmse_label}: {test_rmse:.6f}")
 
         if args.isotonic_calibration:
             calibrators = fit_isotonic_calibrators(val_rows)

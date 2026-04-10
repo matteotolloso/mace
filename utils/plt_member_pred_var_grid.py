@@ -4,6 +4,7 @@
 The script:
 1. loads per-configuration rows from ensemble ``*_epoch_outputs.txt`` files
 2. selects the best common epoch on the validation split using ensemble RMSE_E
+   (or RMSE_E_per_atom in per-atom mode)
 3. evaluates one target split at that epoch
 4. ranks systems by total uncertainty = aleatoric + epistemic
 5. plots:
@@ -13,6 +14,9 @@ The script:
 
 Each panel shows one system. The x-axis is the member energy prediction and the
 y-axis is the corresponding member predicted variance.
+
+New epoch-output logs store per-atom variance as `var_e_per_atom_2`. Legacy
+logs with `pred_energy_var` are also supported.
 """
 
 import argparse
@@ -68,7 +72,7 @@ def parse_args() -> argparse.Namespace:
         "--per_atom",
         dest="per_atom",
         action="store_true",
-        help="Use per-atom energies and variances: E/N and var/N^2 (default).",
+        help="Use per-atom energies and per-atom variances (default).",
     )
     parser.add_argument(
         "--total",
@@ -117,13 +121,43 @@ def load_member_file(path: Path) -> Dict[str, Dict[int, Dict[ConfigKey, Dict[str
                 data[split][epoch] = {}
             data[split][epoch][key] = {
                 "pred_energy": float(row["pred_energy"]),
-                "pred_energy_var": float(row["pred_energy_var"])
+                "var_e_per_atom_2": float(row["var_e_per_atom_2"])
+                if "var_e_per_atom_2" in row
+                else np.nan,
+                "pred_energy_var_legacy_total": float(row["pred_energy_var"])
                 if "pred_energy_var" in row
                 else np.nan,
                 "ref_energy": float(row["ref_energy"]) if "ref_energy" in row else np.nan,
                 "num_atoms": int(row["num_atoms"]) if "num_atoms" in row else np.nan,
             }
     return data
+
+
+def resolve_logged_variance(row: Dict[str, float], per_atom: bool) -> float:
+    per_atom_var = float(row.get("var_e_per_atom_2", np.nan))
+    legacy_total_var = float(row.get("pred_energy_var_legacy_total", np.nan))
+    num_atoms = float(row.get("num_atoms", np.nan))
+
+    if np.isfinite(per_atom_var):
+        if per_atom:
+            return per_atom_var
+        if (not np.isfinite(num_atoms)) or num_atoms <= 0:
+            raise RuntimeError(
+                "Missing/invalid num_atoms in epoch outputs. Total variance mode "
+                "requires num_atoms when using per-atom logged variance."
+            )
+        return per_atom_var * (num_atoms**2)
+
+    if np.isfinite(legacy_total_var):
+        if not per_atom:
+            return legacy_total_var
+        if (not np.isfinite(num_atoms)) or num_atoms <= 0:
+            raise RuntimeError(
+                "Missing/invalid num_atoms in epoch outputs. Per-atom mode requires num_atoms."
+            )
+        return legacy_total_var / (num_atoms**2)
+
+    return float("nan")
 
 
 def filter_loader(
@@ -172,6 +206,7 @@ def common_epoch_keys(
 def compute_epoch_rmse_e(
     members: List[Dict[int, Dict[ConfigKey, Dict[str, float]]]],
     epoch: int,
+    per_atom: bool,
 ) -> float:
     common_configs = sorted(set.intersection(*(set(member[epoch].keys()) for member in members)))
     if not common_configs:
@@ -191,20 +226,30 @@ def compute_epoch_rmse_e(
         validate_alignment(epoch, key, ref_energies, num_atoms_vals)
         ref_energy = float(ref_energies[0])
         ensemble_pred_energy = float(np.mean(pred_energies))
+        if per_atom:
+            num_atoms = float(num_atoms_vals[0]) if np.isfinite(num_atoms_vals[0]) else np.nan
+            if (not np.isfinite(num_atoms)) or num_atoms <= 0:
+                raise RuntimeError(
+                    "Missing/invalid num_atoms in epoch outputs. Per-atom mode requires num_atoms."
+                )
+            ref_energy /= num_atoms
+            ensemble_pred_energy /= num_atoms
         sq_errors.append((ensemble_pred_energy - ref_energy) ** 2)
 
     return float(np.sqrt(np.mean(sq_errors)))
 
 
-def select_best_epoch(members: List[Dict[int, Dict[ConfigKey, Dict[str, float]]]]) -> int:
+def select_best_epoch(
+    members: List[Dict[int, Dict[ConfigKey, Dict[str, float]]]], per_atom: bool
+) -> int:
     epochs = common_epoch_keys(members)
     if not epochs:
         raise RuntimeError("No common epochs found across ensemble members.")
 
     best_epoch = epochs[0]
-    best_rmse = compute_epoch_rmse_e(members, best_epoch)
+    best_rmse = compute_epoch_rmse_e(members, best_epoch, per_atom)
     for epoch in epochs[1:]:
-        rmse = compute_epoch_rmse_e(members, epoch)
+        rmse = compute_epoch_rmse_e(members, epoch, per_atom)
         if rmse < best_rmse:
             best_epoch = epoch
             best_rmse = rmse
@@ -228,7 +273,8 @@ def build_system_rows(
             [member[epoch][key]["pred_energy"] for member in members], dtype=float
         )
         pred_vars = np.array(
-            [member[epoch][key]["pred_energy_var"] for member in members], dtype=float
+            [resolve_logged_variance(member[epoch][key], per_atom) for member in members],
+            dtype=float,
         )
         ref_energies = np.array(
             [member[epoch][key]["ref_energy"] for member in members], dtype=float
@@ -247,8 +293,6 @@ def build_system_rows(
                 )
             pred_energies = pred_energies / num_atoms
             ref_energy = ref_energy / num_atoms
-            pred_vars = pred_vars / (num_atoms**2)
-
         aleatoric_var = (
             float(np.nanmean(pred_vars)) if np.any(np.isfinite(pred_vars)) else float("nan")
         )
@@ -414,7 +458,7 @@ def main() -> None:
         raise RuntimeError(
             "At least one input file has no matching rows for best-epoch selection."
         )
-    best_epoch = select_best_epoch(selection_members)
+    best_epoch = select_best_epoch(selection_members, per_atom=args.per_atom)
 
     plot_loader = args.plot_loader if args.plot_loader is not None else args.selection_loader
     plot_members = [

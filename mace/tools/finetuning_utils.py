@@ -230,6 +230,16 @@ def load_foundations_elements(
                         .flatten()
                         .clone()
                     )
+                    if (
+                        model_readouts_one_linear_1_weight.numel()
+                        != readout.linear_1.weight.numel()
+                    ):
+                        raise RuntimeError(
+                            "Foundation readout linear_1 weight shape mismatch during "
+                            "fine-tuning. The reconstructed model does not match the "
+                            "foundation readout dimensions; check whether settings "
+                            "such as predict_mve were preserved."
+                        )
                     readout.linear_1.weight = torch.nn.Parameter(
                         model_readouts_one_linear_1_weight
                     )
@@ -272,6 +282,16 @@ def load_foundations_elements(
                     ).flatten().clone() / (
                         ((shape_input_1) / (shape_output_1)) ** 0.5
                     )
+                    if (
+                        model_readouts_one_linear_2_weight.numel()
+                        != readout.linear_2.weight.numel()
+                    ):
+                        raise RuntimeError(
+                            "Foundation readout linear_2 weight shape mismatch during "
+                            "fine-tuning. The reconstructed model does not match the "
+                            "foundation readout dimensions; check whether settings "
+                            "such as predict_mve were preserved."
+                        )
                     readout.linear_2.weight = torch.nn.Parameter(
                         model_readouts_one_linear_2_weight
                     )

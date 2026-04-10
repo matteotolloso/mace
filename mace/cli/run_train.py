@@ -940,28 +940,30 @@ def run(args) -> None:
                 "Please install it to use XPU device."
             )
 
-    epoch_train_eval_loaders = {}
-    for head in heads:
-        eval_sampler = None
-        if args.distributed:
-            eval_sampler = torch.utils.data.distributed.DistributedSampler(
-                train_sets[head],
-                num_replicas=world_size,
-                rank=rank,
+    epoch_train_eval_loaders = None
+    if args.log_epoch_outputs:
+        epoch_train_eval_loaders = {}
+        for head in heads:
+            eval_sampler = None
+            if args.distributed:
+                eval_sampler = torch.utils.data.distributed.DistributedSampler(
+                    train_sets[head],
+                    num_replicas=world_size,
+                    rank=rank,
+                    shuffle=False,
+                    drop_last=False,
+                    seed=args.seed,
+                )
+            epoch_train_eval_loaders[head] = torch_geometric.dataloader.DataLoader(
+                dataset=train_sets[head],
+                batch_size=args.valid_batch_size,
+                sampler=eval_sampler,
                 shuffle=False,
                 drop_last=False,
-                seed=args.seed,
+                pin_memory=args.pin_memory,
+                num_workers=args.num_workers,
+                generator=torch.Generator().manual_seed(args.seed),
             )
-        epoch_train_eval_loaders[head] = torch_geometric.dataloader.DataLoader(
-            dataset=train_sets[head],
-            batch_size=args.valid_batch_size,
-            sampler=eval_sampler,
-            shuffle=False,
-            drop_last=False,
-            pin_memory=args.pin_memory,
-            num_workers=args.num_workers,
-            generator=torch.Generator().manual_seed(args.seed),
-        )
     epoch_test_loaders = build_test_data_loaders(
         head_configs=head_configs,
         args=args,

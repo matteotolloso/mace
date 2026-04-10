@@ -5,7 +5,9 @@ Input files are expected to be the per-model logs produced by training with
 `--log_epoch_outputs=true`, i.e. lines with:
     mode == "epoch_outputs_config"
 and fields including:
-    epoch, split, loader, config_index, pred_energy_var
+    epoch, split, loader, config_index, var_e_per_atom_2
+
+Legacy files with `pred_energy_var` are also supported.
 """
 
 import argparse
@@ -48,13 +50,13 @@ def parse_args() -> argparse.Namespace:
         "--per_atom",
         dest="per_atom",
         action="store_true",
-        help="Normalize variance by N^2 before aggregation (default).",
+        help="Use per-atom variance (default).",
     )
     parser.add_argument(
         "--total",
         dest="per_atom",
         action="store_false",
-        help="Use total-system variance instead of per-atom variance.",
+        help="Convert per-atom variance back to total-system variance.",
     )
     parser.add_argument(
         "--output_csv",
@@ -99,7 +101,7 @@ def load_member_file(
                 continue
             if loader is not None and row.get("loader") != loader:
                 continue
-            if "pred_energy_var" not in row:
+            if "var_e_per_atom_2" not in row and "pred_energy_var" not in row:
                 continue
 
             epoch = int(row["epoch"])
@@ -110,11 +112,44 @@ def load_member_file(
             if epoch not in data:
                 data[epoch] = {}
             data[epoch][key] = {
-                "pred_energy_var": float(row["pred_energy_var"]),
+                "var_e_per_atom_2": float(row["var_e_per_atom_2"])
+                if "var_e_per_atom_2" in row
+                else np.nan,
+                "pred_energy_var_legacy_total": float(row["pred_energy_var"])
+                if "pred_energy_var" in row
+                else np.nan,
                 "num_atoms": int(row["num_atoms"]) if "num_atoms" in row else np.nan,
                 "ref_energy": float(row["ref_energy"]) if "ref_energy" in row else np.nan,
             }
     return data
+
+
+def resolve_logged_variance(row: Dict[str, float], per_atom: bool) -> float:
+    per_atom_var = float(row.get("var_e_per_atom_2", np.nan))
+    legacy_total_var = float(row.get("pred_energy_var_legacy_total", np.nan))
+    num_atoms = float(row.get("num_atoms", np.nan))
+
+    if np.isfinite(per_atom_var):
+        if per_atom:
+            return per_atom_var
+        if (not np.isfinite(num_atoms)) or num_atoms <= 0:
+            raise RuntimeError(
+                "Missing/invalid 'num_atoms' in epoch outputs. Total-variance mode "
+                "requires num_atoms when using per-atom logged variance."
+            )
+        return per_atom_var * (num_atoms**2)
+
+    if np.isfinite(legacy_total_var):
+        if not per_atom:
+            return legacy_total_var
+        if (not np.isfinite(num_atoms)) or num_atoms <= 0:
+            raise RuntimeError(
+                "Missing/invalid 'num_atoms' in epoch outputs. Per-atom "
+                "normalization requires num_atoms."
+            )
+        return legacy_total_var / (num_atoms**2)
+
+    return float("nan")
 
 
 def validate_alignment(
@@ -166,7 +201,8 @@ def compute_member_epoch_au(
         per_member_epoch_vars = [[] for _ in member_names]
         for key in common_configs:
             pred_vars = np.array(
-                [member[epoch][key]["pred_energy_var"] for member in members], dtype=float
+                [resolve_logged_variance(member[epoch][key], per_atom) for member in members],
+                dtype=float,
             )
             ref_energies = np.array(
                 [member[epoch][key]["ref_energy"] for member in members], dtype=float
@@ -175,15 +211,6 @@ def compute_member_epoch_au(
                 [member[epoch][key]["num_atoms"] for member in members], dtype=float
             )
             validate_alignment(epoch, key, ref_energies, num_atoms_vals)
-
-            if per_atom:
-                n_atoms = float(num_atoms_vals[0]) if np.isfinite(num_atoms_vals[0]) else np.nan
-                if (not np.isfinite(n_atoms)) or n_atoms <= 0:
-                    raise RuntimeError(
-                        "Missing/invalid 'num_atoms' in epoch outputs. "
-                        "Per-atom normalization requires num_atoms."
-                    )
-                pred_vars = pred_vars / (n_atoms**2)
 
             for member_idx, pred_var in enumerate(pred_vars):
                 if np.isfinite(pred_var):

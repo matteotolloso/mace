@@ -1,0 +1,40 @@
+
+model: "MACE"
+
+# foundation_model: "experiment_A/checkpoints/mace_run-<seed>.model" # In the train_B.sh script, we specify the foundation model for each seed separately, so we don't set it here in the config file.
+multiheads_finetuning: False
+
+name: "mace"
+model_dir: "experiment_B/models"
+log_dir: "experiment_B/logs"
+checkpoints_dir: "experiment_B/checkpoints"
+results_dir: "experiment_B/results"
+
+train_file: "dataset/ani1x_system_split/cc_train.xyz"
+valid_file: "dataset/ani1x_system_split/cc_val.xyz"
+test_file: "dataset/ani1x_system_split/cc_test_id.xyz"
+energy_key: "ccsd(t)_cbs.energy"
+
+lr: 0.001 # 1/10 of the learning rate used in experiment A, since we are fine-tuning
+num_channels: 128
+max_L: 1
+r_max: 6.0
+forces_weight: 0.0
+device: cuda
+batch_size: 64
+max_num_epochs: 100
+swa: False
+compute_forces: False
+E0s: "average"
+predict_mve: True
+loss: "gaussian_nll"
+eval_interval: 1
+save_all_checkpoints: True
+log_epoch_outputs: False
+default_dtype: "float32"
+enable_cueq: False
+
+wandb: True
+wandb_dir: "wandb"
+wandb_entity: "uq-mf"
+wandb_project: "experiment_B"
