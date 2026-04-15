@@ -78,6 +78,7 @@ import numpy as np
 import torch
 import torch.nn
 
+from csv_cache_utils import load_cached_csv_rows, parse_float, parse_int, parse_str, read_typed_csv
 warnings.filterwarnings(
     "ignore",
     message=r"You are using `torch\.load` with `weights_only=False`.*",
@@ -220,6 +221,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=10,
         help="Number of equal-count uncertainty bins used in the reliability diagram.",
+    )
+    parser.add_argument(
+        "--trim",
+        type=float,
+        default=0.0,
+        help="Symmetric fraction to trim from the lowest and highest total uncertainty values before plotting. Example: 0.005 trims 0.5%% on each side.",
     )
     parser.add_argument(
         "--total",
@@ -762,6 +769,45 @@ def compute_energy_rmse(raw_rows: List[Dict[str, float]]) -> float:
     return float(np.sqrt(np.mean(sq_errors)))
 
 
+def trim_rows_by_key(
+    rows: List[Dict[str, float]],
+    trim: float,
+    key: str = "total_var",
+) -> List[Dict[str, float]]:
+    if trim <= 0.0:
+        return rows
+    if trim >= 0.5:
+        raise ValueError("--trim must be < 0.5")
+
+    finite_positions = [
+        (idx, float(row[key]))
+        for idx, row in enumerate(rows)
+        if key in row and np.isfinite(row[key])
+    ]
+    n = len(finite_positions)
+    count_each_side = int(np.floor(trim * n))
+    if n == 0 or count_each_side == 0 or (2 * count_each_side) >= n:
+        return rows
+
+    ordered = sorted(finite_positions, key=lambda item: item[1])
+    keep_finite_indices = {
+        idx for idx, _ in ordered[count_each_side : n - count_each_side]
+    }
+    trimmed_rows = [
+        row
+        for idx, row in enumerate(rows)
+        if idx in keep_finite_indices or not (key in row and np.isfinite(row[key]))
+    ]
+    LOGGER.info(
+        "Trimmed rows by %s with trim=%.4f: kept %d/%d rows",
+        key,
+        trim,
+        len(trimmed_rows),
+        len(rows),
+    )
+    return trimmed_rows
+
+
 def fit_isotonic_calibrators(selection_rows: List[Dict[str, float]]) -> Dict[str, object]:
     start_time = time.perf_counter()
     try:
@@ -838,26 +884,67 @@ def write_csv(path: Path, rows: List[Dict[str, float]], fieldnames: List[str]) -
 
 
 def read_raw_csv(path: Path) -> List[Dict[str, float]]:
-    with path.open("r", newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        rows = []
-        for row in reader:
-            parsed: Dict[str, float] = {
-                "config_index": int(row["config_index"]),
-                "num_atoms": float(row["num_atoms"]) if row["num_atoms"] else np.nan,
-                "ref_energy": float(row["ref_energy"]),
-                "pred_energy": float(row["pred_energy"]),
-                "error": float(row["error"]),
-                "sq_error": float(row["sq_error"]),
-                "aleatoric_var": float(row["aleatoric_var"]) if row.get("aleatoric_var") else np.nan,
-                "epistemic_var": float(row["epistemic_var"]) if row.get("epistemic_var") else np.nan,
-                "total_var": float(row["total_var"]) if row.get("total_var") else np.nan,
-                "aleatoric_var_raw": float(row["aleatoric_var_raw"]) if row.get("aleatoric_var_raw") else np.nan,
-                "epistemic_var_raw": float(row["epistemic_var_raw"]) if row.get("epistemic_var_raw") else np.nan,
-                "total_var_raw": float(row["total_var_raw"]) if row.get("total_var_raw") else np.nan,
-            }
-            rows.append(parsed)
-    return rows
+    return read_typed_csv(
+        path,
+        required_fields=[
+            "config_index",
+            "num_atoms",
+            "ref_energy",
+            "pred_energy",
+            "error",
+            "sq_error",
+            "aleatoric_var",
+            "epistemic_var",
+            "total_var",
+            "aleatoric_var_raw",
+            "epistemic_var_raw",
+            "total_var_raw",
+        ],
+        field_parsers={
+            "config_index": parse_int,
+            "num_atoms": parse_float,
+            "ref_energy": parse_float,
+            "pred_energy": parse_float,
+            "error": parse_float,
+            "sq_error": parse_float,
+            "aleatoric_var": parse_float,
+            "epistemic_var": parse_float,
+            "total_var": parse_float,
+            "aleatoric_var_raw": parse_float,
+            "epistemic_var_raw": parse_float,
+            "total_var_raw": parse_float,
+        },
+    )
+
+
+def read_binned_csv(path: Path) -> List[Dict[str, float]]:
+    return read_typed_csv(
+        path,
+        required_fields=[
+            "uncertainty_type",
+            "bin_index",
+            "count",
+            "rmse",
+            "rmv",
+            "mse",
+            "mean_variance",
+            "ence_term",
+            "uncertainty_min",
+            "uncertainty_max",
+        ],
+        field_parsers={
+            "uncertainty_type": parse_str,
+            "bin_index": parse_int,
+            "count": parse_int,
+            "rmse": parse_float,
+            "rmv": parse_float,
+            "mse": parse_float,
+            "mean_variance": parse_float,
+            "ence_term": parse_float,
+            "uncertainty_min": parse_float,
+            "uncertainty_max": parse_float,
+        },
+    )
 
 
 def build_binned_rows(raw_rows: List[Dict[str, float]], num_bins: int) -> List[Dict[str, float]]:
@@ -1145,9 +1232,34 @@ def main() -> None:
     device = torch_tools.init_device(args.device)
     LOGGER.info("Using device=%s default_dtype=%s", device, args.default_dtype)
 
-    if args.input_csv is not None:
-        raw_rows = read_raw_csv(Path(args.input_csv))
-    else:
+    raw_fieldnames = [
+        "config_index",
+        "num_atoms",
+        "ref_energy",
+        "pred_energy",
+        "error",
+        "sq_error",
+        "aleatoric_var",
+        "epistemic_var",
+        "total_var",
+        "aleatoric_var_raw",
+        "epistemic_var_raw",
+        "total_var_raw",
+    ]
+    bins_fieldnames = [
+        "uncertainty_type",
+        "bin_index",
+        "count",
+        "rmse",
+        "rmv",
+        "mse",
+        "mean_variance",
+        "ence_term",
+        "uncertainty_min",
+        "uncertainty_max",
+    ]
+
+    def compute_raw_rows() -> List[Dict[str, float]]:
         if not all([
             args.checkpoints_dir,
             args.results_dir,
@@ -1157,7 +1269,7 @@ def main() -> None:
             args.energy_key_test,
         ]):
             raise RuntimeError(
-                "When --input-csv is not provided, you must pass --checkpoints-dir, "
+                "When cached CSVs are not available, you must pass --checkpoints-dir, "
                 "--results-dir, --validation-split, --test-split, --energy-key-val, and --energy-key-test."
             )
 
@@ -1225,43 +1337,120 @@ def main() -> None:
         if args.isotonic_calibration:
             calibrators = fit_isotonic_calibrators(val_rows)
             raw_rows = apply_isotonic_calibration(raw_rows, calibrators)
+        return raw_rows
 
-        raw_fieldnames = [
-            "config_index",
-            "num_atoms",
-            "ref_energy",
-            "pred_energy",
-            "error",
-            "sq_error",
-            "aleatoric_var",
-            "epistemic_var",
-            "total_var",
-            "aleatoric_var_raw",
-            "epistemic_var_raw",
-            "total_var_raw",
-        ]
-        write_csv(Path(args.output_csv_raw), raw_rows, raw_fieldnames)
+    if args.input_csv is not None:
+        raw_rows = read_raw_csv(Path(args.input_csv))
+        plot_rows = trim_rows_by_key(raw_rows, args.trim, key="total_var")
+        binned_rows = build_binned_rows(plot_rows, num_bins=args.num_bins)
+        write_csv(Path(args.output_csv_bins), binned_rows, bins_fieldnames)
+        write_plot(
+            Path(args.output_plot),
+            binned_rows,
+            per_atom=args.per_atom,
+            isotonic_calibration=args.isotonic_calibration,
+            raw_rows=plot_rows,
+        )
+        LOGGER.info("Total runtime: %.2fs", time.perf_counter() - main_start)
+        print(f"Saved raw CSV: {args.output_csv_raw}")
+        print(f"Saved binned CSV: {args.output_csv_bins}")
+        print(f"Saved plot: {args.output_plot}")
+        return
 
-    binned_rows = build_binned_rows(raw_rows, num_bins=args.num_bins)
-    bins_fieldnames = [
-        "uncertainty_type",
-        "bin_index",
-        "count",
-        "rmse",
-        "rmv",
-        "mse",
-        "mean_variance",
-        "ence_term",
-        "uncertainty_min",
-        "uncertainty_max",
-    ]
+    cached_raw_rows = load_cached_csv_rows(
+        Path(args.output_csv_raw),
+        required_fields=raw_fieldnames,
+        field_parsers={
+            "config_index": parse_int,
+            "num_atoms": parse_float,
+            "ref_energy": parse_float,
+            "pred_energy": parse_float,
+            "error": parse_float,
+            "sq_error": parse_float,
+            "aleatoric_var": parse_float,
+            "epistemic_var": parse_float,
+            "total_var": parse_float,
+            "aleatoric_var_raw": parse_float,
+            "epistemic_var_raw": parse_float,
+            "total_var_raw": parse_float,
+        },
+        logger=LOGGER,
+        label="reliability raw",
+        key_fields=["config_index"],
+        compute_missing_rows=compute_raw_rows,
+    )
+    if cached_raw_rows is not None:
+        plot_rows = trim_rows_by_key(cached_raw_rows, args.trim, key="total_var")
+        binned_rows = build_binned_rows(plot_rows, num_bins=args.num_bins)
+        write_csv(Path(args.output_csv_bins), binned_rows, bins_fieldnames)
+        write_plot(
+            Path(args.output_plot),
+            binned_rows,
+            per_atom=args.per_atom,
+            isotonic_calibration=args.isotonic_calibration,
+            raw_rows=plot_rows,
+        )
+        LOGGER.info("Total runtime: %.2fs", time.perf_counter() - main_start)
+        print(f"Saved raw CSV: {args.output_csv_raw}")
+        print(f"Saved binned CSV: {args.output_csv_bins}")
+        print(f"Saved plot: {args.output_plot}")
+        return
+
+    cached_binned_rows = load_cached_csv_rows(
+        Path(args.output_csv_bins),
+        required_fields=bins_fieldnames,
+        field_parsers={
+            "uncertainty_type": parse_str,
+            "bin_index": parse_int,
+            "count": parse_int,
+            "rmse": parse_float,
+            "rmv": parse_float,
+            "mse": parse_float,
+            "mean_variance": parse_float,
+            "ence_term": parse_float,
+            "uncertainty_min": parse_float,
+            "uncertainty_max": parse_float,
+        },
+        logger=LOGGER,
+        label="reliability bins",
+        key_fields=["uncertainty_type", "bin_index"],
+        compute_missing_rows=lambda: build_binned_rows(
+            trim_rows_by_key(
+                read_raw_csv(Path(args.output_csv_raw))
+                if Path(args.output_csv_raw).exists()
+                else compute_raw_rows(),
+                args.trim,
+                key="total_var",
+            ),
+            num_bins=args.num_bins,
+        ),
+    )
+    if cached_binned_rows is not None:
+        write_plot(
+            Path(args.output_plot),
+            cached_binned_rows,
+            per_atom=args.per_atom,
+            isotonic_calibration=args.isotonic_calibration,
+            raw_rows=[],
+        )
+        LOGGER.info("Total runtime: %.2fs", time.perf_counter() - main_start)
+        print(f"Saved raw CSV: {args.output_csv_raw}")
+        print(f"Saved binned CSV: {args.output_csv_bins}")
+        print(f"Saved plot: {args.output_plot}")
+        return
+
+    raw_rows = compute_raw_rows()
+
+    write_csv(Path(args.output_csv_raw), raw_rows, raw_fieldnames)
+    plot_rows = trim_rows_by_key(raw_rows, args.trim, key="total_var")
+    binned_rows = build_binned_rows(plot_rows, num_bins=args.num_bins)
     write_csv(Path(args.output_csv_bins), binned_rows, bins_fieldnames)
     write_plot(
         Path(args.output_plot),
         binned_rows,
         per_atom=args.per_atom,
         isotonic_calibration=args.isotonic_calibration,
-        raw_rows=raw_rows,
+        raw_rows=plot_rows,
     )
 
     LOGGER.info("Total runtime: %.2fs", time.perf_counter() - main_start)

@@ -19,6 +19,7 @@ from typing import Dict, List, Optional, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 
+from csv_cache_utils import load_cached_csv_rows, parse_float, parse_int
 
 ConfigKey = Tuple[str, int]  # (loader, config_index)
 
@@ -74,6 +75,12 @@ def parse_args() -> argparse.Namespace:
         "--plot_log_variance",
         action="store_true",
         help="Plot log(variance) values on the y-axis.",
+    )
+    parser.add_argument(
+        "--trim",
+        type=float,
+        default=0.0,
+        help="Symmetric fraction to trim from the lowest and highest AU values before computing per-epoch summaries. Example: 0.005 trims 0.5%% on each side.",
     )
     parser.add_argument(
         "--log_eps",
@@ -184,10 +191,24 @@ def top_share(values: np.ndarray, k: int) -> float:
     return float(np.sum(sorted_values[: min(k, len(sorted_values))]) / total)
 
 
+def trim_values(values: np.ndarray, trim: float) -> np.ndarray:
+    if trim <= 0.0:
+        return values
+    if trim >= 0.5:
+        raise ValueError("--trim must be < 0.5")
+    finite_values = values[np.isfinite(values)]
+    n = len(finite_values)
+    count_each_side = int(np.floor(trim * n))
+    if n == 0 or count_each_side == 0 or (2 * count_each_side) >= n:
+        return finite_values
+    return np.sort(finite_values)[count_each_side : n - count_each_side]
+
+
 def compute_member_epoch_au(
     members: List[Dict[int, Dict[ConfigKey, Dict[str, float]]]],
     member_names: List[str],
     per_atom: bool,
+    trim: float,
 ) -> List[Dict[str, float]]:
     common_epochs = sorted(set.intersection(*(set(member.keys()) for member in members)))
     rows: List[Dict[str, float]] = []
@@ -222,9 +243,11 @@ def compute_member_epoch_au(
             member_names, per_member_values, per_member_epoch_vars
         ):
             row[member_name] = (
-                float(np.mean(member_vals)) if len(member_vals) > 0 else float("nan")
+                float(np.mean(trim_values(np.array(member_vals, dtype=float), trim)))
+                if len(member_vals) > 0
+                else float("nan")
             )
-            member_epoch_vars_np = np.array(member_epoch_vars, dtype=float)
+            member_epoch_vars_np = trim_values(np.array(member_epoch_vars, dtype=float), trim)
             row[f"{member_name}_top1_share"] = top_share(member_epoch_vars_np, 1)
             row[f"{member_name}_top5_share"] = top_share(member_epoch_vars_np, 5)
             row[f"{member_name}_top20_share"] = top_share(member_epoch_vars_np, 20)
@@ -325,14 +348,6 @@ def main() -> None:
             f"for split='{args.split}' and loader='{args.loader}'."
         )
 
-    rows = compute_member_epoch_au(
-        members=members,
-        member_names=member_names,
-        per_atom=args.per_atom,
-    )
-    if not rows:
-        raise RuntimeError("No common epochs/configurations found across ensemble files.")
-
     fieldnames = ["epoch"]
     for member_name in member_names:
         fieldnames.append(member_name)
@@ -340,8 +355,39 @@ def main() -> None:
         fieldnames.append(f"{member_name}_top5_share")
         fieldnames.append(f"{member_name}_top20_share")
 
-    write_csv(Path(args.output_csv), rows, fieldnames)
-    plot_rows = read_csv(Path(args.output_csv))
+    output_csv_path = Path(args.output_csv)
+
+    def compute_rows() -> List[Dict[str, float]]:
+        computed_rows = compute_member_epoch_au(
+            members=members,
+            member_names=member_names,
+            per_atom=args.per_atom,
+            trim=args.trim,
+        )
+        if not computed_rows:
+            raise RuntimeError("No common epochs/configurations found across ensemble files.")
+        return computed_rows
+
+    field_parsers = {"epoch": parse_int}
+    for member_name in member_names:
+        field_parsers[member_name] = parse_float
+        field_parsers[f"{member_name}_top1_share"] = parse_float
+        field_parsers[f"{member_name}_top5_share"] = parse_float
+        field_parsers[f"{member_name}_top20_share"] = parse_float
+
+    plot_rows = load_cached_csv_rows(
+        output_csv_path,
+        required_fields=fieldnames,
+        field_parsers=field_parsers,
+        key_fields=["epoch"],
+        compute_missing_rows=compute_rows,
+        label="epoch_au_members_configs",
+    )
+    if plot_rows is None:
+        rows = compute_rows()
+        write_csv(output_csv_path, rows, fieldnames)
+        plot_rows = read_csv(output_csv_path)
+
     write_plot(
         Path(args.output_plot),
         plot_rows,

@@ -13,6 +13,8 @@ total uncertainty:
   oracle ordering induced by the true per-system absolute error. The
   sparsification curves themselves are MAE-based, following the formal
   definition of AUSE.
+- ENCE (Expected Normalized Calibration Error), computed from RMSE-vs-RMV
+  reliability bins on the same per-system rows.
 
 The split is provided through ``--split-path`` / ``--energy-key`` and epochs are
 sampled using ``--every-n-epochs``.
@@ -23,10 +25,11 @@ Per-atom mode is the default:
 
 Use ``--total`` to switch to total-system quantities.
 
-Unlike a reliability diagram, this script does not use RMSE-vs-RMV binning.
-Its Pearson, Spearman, and AUSE metrics are computed directly from per-system
+Unlike a reliability diagram, this script does not use RMSE-vs-RMV binning for
+all metrics. Pearson, Spearman, and AUSE are computed directly from per-system
 uncertainty variance (i.e. predicted sigma^2). Pearson and Spearman use
-per-system squared error, while AUSE uses per-system absolute error.
+per-system squared error, AUSE uses per-system absolute error, and ENCE is
+computed from reliability bins with configurable ``--num-bins``.
 """
 
 from __future__ import annotations
@@ -48,6 +51,7 @@ import numpy as np
 import torch
 import torch.nn
 
+from csv_cache_utils import load_cached_csv_rows, parse_float, parse_int
 warnings.filterwarnings(
     "ignore",
     message=r"You are using `torch\.load` with `weights_only=False`.*",
@@ -58,6 +62,7 @@ warnings.filterwarnings(
 from mace import data
 from mace.data.utils import KeySpecification, config_from_atoms
 from mace.tools import torch_geometric, torch_tools, utils as mace_utils
+from reliability import build_binned_rows, compute_ence_summary, trim_rows_by_key
 
 
 CHECKPOINT_PATTERN = re.compile(
@@ -139,6 +144,18 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=1,
         help="Evaluate only epochs divisible by this value. Example: 5 -> evaluate epochs 0, 5, 10, ...",
+    )
+    parser.add_argument(
+        "--trim",
+        type=float,
+        default=0.0,
+        help="Symmetric fraction to trim from the lowest and highest total uncertainty values before summarizing each epoch. Example: 0.005 trims 0.5%% on each side.",
+    )
+    parser.add_argument(
+        "--num-bins",
+        type=int,
+        default=15,
+        help="Number of uncertainty bins used for ENCE.",
     )
     parser.add_argument(
         "--total",
@@ -620,16 +637,23 @@ def compute_ause(scores: np.ndarray, abs_errors: np.ndarray) -> float:
     return _trapezoid_integral(sparsification_error, fractions)
 
 
-def summarize_epoch(raw_rows: List[Dict[str, float]]) -> Dict[str, float]:
+def summarize_epoch(raw_rows: List[Dict[str, float]], num_bins: int) -> Dict[str, float]:
     summary: Dict[str, float] = {}
     sq_errors = np.array([row["sq_error"] for row in raw_rows], dtype=float)
     abs_errors = np.sqrt(np.clip(sq_errors, a_min=0.0, a_max=None))
     nll_values = np.array([row["nll_energy"] for row in raw_rows], dtype=float)
+    binned_rows = build_binned_rows(raw_rows, num_bins=num_bins)
+    ence_summary = compute_ence_summary(binned_rows)
     for unc_name, unc_key in UNCERTAINTY_SPECS:
         scores = np.array([row[unc_key] for row in raw_rows], dtype=float)
         summary[f"pearson_{unc_name}"] = compute_pearson(scores, sq_errors)
         summary[f"spearman_{unc_name}"] = compute_spearman(scores, sq_errors)
         summary[f"ause_{unc_name}"] = compute_ause(scores, abs_errors)
+        summary[f"ence_{unc_name}"] = ence_summary[unc_name]
+    finite_sq_errors = sq_errors[np.isfinite(sq_errors)]
+    summary["rmse_e_atom"] = (
+        float(np.sqrt(np.mean(finite_sq_errors))) if finite_sq_errors.size > 0 else float("nan")
+    )
     finite_nll = nll_values[np.isfinite(nll_values)]
     summary["nll_energy"] = float(np.mean(finite_nll)) if finite_nll.size > 0 else float("nan")
     return summary
@@ -648,12 +672,49 @@ def write_csv(path: Path, rows: List[Dict[str, float]]) -> None:
         "ause_aleatoric",
         "ause_epistemic",
         "ause_total",
+        "ence_aleatoric",
+        "ence_epistemic",
+        "ence_total",
+        "rmse_e_atom",
         "nll_energy",
     ]
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
+
+
+def read_csv(path: Path) -> Optional[List[Dict[str, float]]]:
+    metric_fields = [
+        "pearson_aleatoric",
+        "pearson_epistemic",
+        "pearson_total",
+        "spearman_aleatoric",
+        "spearman_epistemic",
+        "spearman_total",
+        "ause_aleatoric",
+        "ause_epistemic",
+        "ause_total",
+        "ence_aleatoric",
+        "ence_epistemic",
+        "ence_total",
+        "rmse_e_atom",
+        "nll_energy",
+    ]
+    field_parsers = {"epoch": parse_int}
+    for field in metric_fields:
+        field_parsers[field] = parse_float
+    cached_rows = load_cached_csv_rows(
+        path,
+        required_fields=["epoch", *metric_fields],
+        field_parsers=field_parsers,
+        logger=LOGGER,
+        label="epoch_quality",
+        key_fields=["epoch"],
+    )
+    if cached_rows is None:
+        return None
+    return cached_rows
 
 
 def write_plot(path: Path, rows: List[Dict[str, float]], drop_first_k_epochs: int) -> None:
@@ -672,10 +733,11 @@ def write_plot(path: Path, rows: List[Dict[str, float]], drop_first_k_epochs: in
         ("pearson", "Pearson"),
         ("spearman", "Spearman"),
         ("ause", "AUSE"),
+        ("ence", "ENCE"),
     ]
 
-    fig, axes = plt.subplots(4, 1, figsize=(10, 13), sharex=True)
-    for ax, (metric_prefix, title) in zip(axes[:3], metric_specs):
+    fig, axes = plt.subplots(6, 1, figsize=(10, 19), sharex=True)
+    for ax, (metric_prefix, title) in zip(axes[:4], metric_specs):
         for unc_name, _ in UNCERTAINTY_SPECS:
             values = np.array([row[f"{metric_prefix}_{unc_name}"] for row in rows_plot], dtype=float)
             ax.plot(
@@ -690,12 +752,19 @@ def write_plot(path: Path, rows: List[Dict[str, float]], drop_first_k_epochs: in
         ax.grid(alpha=0.3)
         ax.legend()
 
+    rmse_values = np.array([row["rmse_e_atom"] for row in rows_plot], dtype=float)
+    axes[4].plot(epochs, rmse_values, marker="o", color="black", label="RMSE")
+    axes[4].set_title("RMSE_E_per_atom")
+    axes[4].set_ylabel("RMSE")
+    axes[4].grid(alpha=0.3)
+    axes[4].legend()
+
     nll_values = np.array([row["nll_energy"] for row in rows_plot], dtype=float)
-    axes[3].plot(epochs, nll_values, marker="o", color="black", label="NLL")
-    axes[3].set_title("Weighted Gaussian NLL Energy")
-    axes[3].set_ylabel("NLL")
-    axes[3].grid(alpha=0.3)
-    axes[3].legend()
+    axes[5].plot(epochs, nll_values, marker="o", color="black", label="NLL")
+    axes[5].set_title("Weighted Gaussian NLL Energy")
+    axes[5].set_ylabel("NLL")
+    axes[5].grid(alpha=0.3)
+    axes[5].legend()
 
     axes[-1].set_xlabel("Epoch")
     fig.suptitle("Uncertainty quality vs epoch")
@@ -718,61 +787,103 @@ def main() -> None:
     torch_tools.set_default_dtype(args.default_dtype)
     device = torch_tools.init_device(args.device)
     LOGGER.info("Using device=%s default_dtype=%s", device, args.default_dtype)
+    def compute_rows() -> List[Dict[str, float]]:
+        if not all([args.checkpoints_dir, args.split_path, args.energy_key]):
+            raise RuntimeError("You must pass --checkpoints-dir, --split-path, and --energy-key.")
 
-    if not all([args.checkpoints_dir, args.split_path, args.energy_key]):
-        raise RuntimeError("You must pass --checkpoints-dir, --split-path, and --energy-key.")
+        checkpoint_map = discover_checkpoint_map(Path(args.checkpoints_dir), args.experiment_name)
+        epochs = select_common_epochs(checkpoint_map, args.every_n_epochs)
+        seeds = sorted(checkpoint_map)
 
-    checkpoint_map = discover_checkpoint_map(Path(args.checkpoints_dir), args.experiment_name)
-    epochs = select_common_epochs(checkpoint_map, args.every_n_epochs)
-    seeds = sorted(checkpoint_map)
-
-    sample_epoch = epochs[0]
-    sample_model = load_models([checkpoint_map[seeds[0]][sample_epoch]], device=device)[0]
-    model_dtype = _get_model_dtype(sample_model)
-    requested_dtype = torch.get_default_dtype()
-    if model_dtype != requested_dtype:
-        LOGGER.warning(
-            "Requested default dtype %s does not match checkpoint dtype %s; using checkpoint dtype for dataset/inference.",
-            requested_dtype,
-            model_dtype,
-        )
-        torch.set_default_dtype(model_dtype)
-    data_loader = build_dataloader(
-        Path(args.split_path),
-        args.energy_key,
-        sample_model,
-        batch_size=args.batch_size,
-        head_name=args.head,
-    )
-    release_models([sample_model], device)
-
-    rows: List[Dict[str, float]] = []
-    for epoch in epochs:
-        epoch_start = time.perf_counter()
-        checkpoint_paths = [checkpoint_map[seed][epoch] for seed in seeds]
-        LOGGER.info("Evaluating epoch %d with %d ensemble members", epoch, len(checkpoint_paths))
-        models = load_models(checkpoint_paths, device=device)
-        raw_rows = evaluate_split(
-            models=models,
-            data_loader=data_loader,
-            device=device,
-            per_atom=args.per_atom,
+        sample_epoch = epochs[0]
+        sample_model = load_models([checkpoint_map[seeds[0]][sample_epoch]], device=device)[0]
+        model_dtype = _get_model_dtype(sample_model)
+        requested_dtype = torch.get_default_dtype()
+        if model_dtype != requested_dtype:
+            LOGGER.warning(
+                "Requested default dtype %s does not match checkpoint dtype %s; using checkpoint dtype for dataset/inference.",
+                requested_dtype,
+                model_dtype,
+            )
+            torch.set_default_dtype(model_dtype)
+        data_loader = build_dataloader(
+            Path(args.split_path),
+            args.energy_key,
+            sample_model,
+            batch_size=args.batch_size,
             head_name=args.head,
-            split_name=f"epoch {epoch}",
         )
-        summary = summarize_epoch(raw_rows)
-        summary["epoch"] = epoch
-        rows.append(summary)
-        LOGGER.info(
-            "Epoch %d summary: pearson_total=%.4f spearman_total=%.4f ause_total=%.4f nll=%.6f (computed in %.2fs)",
-            epoch,
-            summary["pearson_total"],
-            summary["spearman_total"],
-            summary["ause_total"],
-            summary["nll_energy"],
-            time.perf_counter() - epoch_start,
-        )
-        release_models(models, device)
+        release_models([sample_model], device)
+
+        rows: List[Dict[str, float]] = []
+        for epoch in epochs:
+            epoch_start = time.perf_counter()
+            checkpoint_paths = [checkpoint_map[seed][epoch] for seed in seeds]
+            LOGGER.info("Evaluating epoch %d with %d ensemble members", epoch, len(checkpoint_paths))
+            models = load_models(checkpoint_paths, device=device)
+            raw_rows = evaluate_split(
+                models=models,
+                data_loader=data_loader,
+                device=device,
+                per_atom=args.per_atom,
+                head_name=args.head,
+                split_name=f"epoch {epoch}",
+            )
+            raw_rows = trim_rows_by_key(raw_rows, args.trim, key="total_var")
+            summary = summarize_epoch(raw_rows, num_bins=args.num_bins)
+            summary["epoch"] = epoch
+            rows.append(summary)
+            LOGGER.info(
+                "Epoch %d summary: pearson_total=%.4f spearman_total=%.4f ause_total=%.4f ence_total=%.4f rmse=%.6f nll=%.6f (computed in %.2fs)",
+                epoch,
+                summary["pearson_total"],
+                summary["spearman_total"],
+                summary["ause_total"],
+                summary["ence_total"],
+                summary["rmse_e_atom"],
+                summary["nll_energy"],
+                time.perf_counter() - epoch_start,
+            )
+            release_models(models, device)
+        return rows
+
+    metric_fields = [
+        "pearson_aleatoric",
+        "pearson_epistemic",
+        "pearson_total",
+        "spearman_aleatoric",
+        "spearman_epistemic",
+        "spearman_total",
+        "ause_aleatoric",
+        "ause_epistemic",
+        "ause_total",
+        "ence_aleatoric",
+        "ence_epistemic",
+        "ence_total",
+        "rmse_e_atom",
+        "nll_energy",
+    ]
+    field_parsers = {"epoch": parse_int}
+    for field in metric_fields:
+        field_parsers[field] = parse_float
+    cached_rows = load_cached_csv_rows(
+        Path(args.output_csv),
+        required_fields=["epoch", *metric_fields],
+        field_parsers=field_parsers,
+        logger=LOGGER,
+        label="epoch_quality",
+        key_fields=["epoch"],
+        compute_missing_rows=compute_rows,
+    )
+    if cached_rows is not None:
+        write_plot(Path(args.output_plot), cached_rows, drop_first_k_epochs=args.drop_first_k_epochs)
+        LOGGER.info("Saved plot: %s", args.output_plot)
+        LOGGER.info("Total runtime: %.2fs", time.perf_counter() - main_start)
+        print(f"Saved CSV: {args.output_csv}")
+        print(f"Saved plot: {args.output_plot}")
+        return
+
+    rows = compute_rows()
 
     write_csv(Path(args.output_csv), rows)
     write_plot(Path(args.output_plot), rows, drop_first_k_epochs=args.drop_first_k_epochs)

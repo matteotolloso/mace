@@ -28,6 +28,7 @@ from typing import Dict, List, Optional, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 
+from csv_cache_utils import load_cached_csv_rows, parse_float, parse_int, parse_str
 
 ConfigKey = Tuple[str, int]  # (loader, config_index)
 
@@ -91,6 +92,12 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="member_pred_var_grid.png",
         help="Output figure path.",
+    )
+    parser.add_argument(
+        "--trim",
+        type=float,
+        default=0.0,
+        help="Symmetric fraction to trim from the lowest and highest total uncertainty systems before selecting panels. Example: 0.005 trims 0.5%% on each side.",
     )
     parser.set_defaults(per_atom=True)
     return parser.parse_args()
@@ -342,6 +349,30 @@ def select_panel_rows(system_rows: List[Dict[str, object]]) -> List[Dict[str, ob
     return selected[:36]
 
 
+def trim_system_rows(
+    system_rows: List[Dict[str, object]],
+    trim: float,
+) -> List[Dict[str, object]]:
+    if trim <= 0.0:
+        return system_rows
+    if trim >= 0.5:
+        raise ValueError("--trim must be < 0.5")
+
+    finite_rows = [
+        (idx, float(row["total_var"]))
+        for idx, row in enumerate(system_rows)
+        if np.isfinite(row["total_var"])
+    ]
+    n = len(finite_rows)
+    count_each_side = int(np.floor(trim * n))
+    if n == 0 or count_each_side == 0 or (2 * count_each_side) >= n:
+        return system_rows
+
+    ordered = sorted(finite_rows, key=lambda item: item[1])
+    keep_idx = {idx for idx, _ in ordered[count_each_side : n - count_each_side]}
+    return [row for idx, row in enumerate(system_rows) if idx in keep_idx]
+
+
 def write_csv(path: Path, rows: List[Dict[str, object]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = [
@@ -395,6 +426,110 @@ def write_csv(path: Path, rows: List[Dict[str, object]]) -> None:
                         "total_var": row["total_var"],
                     }
                 )
+
+
+def read_panel_rows(path: Path) -> Optional[List[Dict[str, object]]]:
+    cached_rows = load_cached_csv_rows(
+        path,
+        required_fields=[
+            "panel_index",
+            "group",
+            "epoch",
+            "loader",
+            "config_index",
+            "num_atoms",
+            "ref_energy",
+            "member_index",
+            "member_name",
+            "pred_energy",
+            "pred_var",
+            "aleatoric_var",
+            "epistemic_var",
+            "total_var",
+        ],
+        field_parsers={
+            "panel_index": parse_int,
+            "group": parse_str,
+            "epoch": parse_int,
+            "loader": parse_str,
+            "config_index": parse_int,
+            "num_atoms": parse_float,
+            "ref_energy": parse_float,
+            "member_index": parse_int,
+            "member_name": parse_str,
+            "pred_energy": parse_float,
+            "pred_var": parse_float,
+            "aleatoric_var": parse_float,
+            "epistemic_var": parse_float,
+            "total_var": parse_float,
+        },
+        label="member_pred_var_grid",
+    )
+    if not cached_rows:
+        return None
+
+    grouped: Dict[int, List[Dict[str, object]]] = {}
+    for row in cached_rows:
+        grouped.setdefault(int(row["panel_index"]), []).append(row)
+
+    panel_rows: List[Dict[str, object]] = []
+    for panel_index in sorted(grouped):
+        entries = sorted(grouped[panel_index], key=lambda row: int(row["member_index"]))
+        first = entries[0]
+        num_atoms = float(first["num_atoms"])
+        panel_rows.append(
+            {
+                "epoch": int(first["epoch"]),
+                "loader": str(first["loader"]),
+                "config_index": int(first["config_index"]),
+                "num_atoms": int(num_atoms) if np.isfinite(num_atoms) else "",
+                "ref_energy": float(first["ref_energy"]),
+                "member_names": [str(entry["member_name"]) for entry in entries],
+                "member_pred_energy": [float(entry["pred_energy"]) for entry in entries],
+                "member_pred_var": [float(entry["pred_var"]) for entry in entries],
+                "aleatoric_var": float(first["aleatoric_var"]),
+                "epistemic_var": float(first["epistemic_var"]),
+                "total_var": float(first["total_var"]),
+            }
+        )
+    return panel_rows
+
+
+def flatten_panel_rows(rows: List[Dict[str, object]]) -> List[Dict[str, object]]:
+    flat_rows: List[Dict[str, object]] = []
+    for panel_index, row in enumerate(rows):
+        if panel_index < 12:
+            group = "low"
+        elif panel_index < 24:
+            group = "middle"
+        else:
+            group = "high"
+        for member_index, (member_name, pred_energy, pred_var) in enumerate(
+            zip(
+                row["member_names"],
+                row["member_pred_energy"],
+                row["member_pred_var"],
+            )
+        ):
+            flat_rows.append(
+                {
+                    "panel_index": panel_index,
+                    "group": group,
+                    "epoch": row["epoch"],
+                    "loader": row["loader"],
+                    "config_index": row["config_index"],
+                    "num_atoms": row["num_atoms"],
+                    "ref_energy": row["ref_energy"],
+                    "member_index": member_index,
+                    "member_name": member_name,
+                    "pred_energy": pred_energy,
+                    "pred_var": pred_var,
+                    "aleatoric_var": row["aleatoric_var"],
+                    "epistemic_var": row["epistemic_var"],
+                    "total_var": row["total_var"],
+                }
+            )
+    return flat_rows
 
 
 def write_plot(path: Path, rows: List[Dict[str, object]], per_atom: bool) -> None:
@@ -470,14 +605,67 @@ def main() -> None:
             f"Selected epoch {best_epoch} is not available for split '{args.plot_split}'."
         )
 
-    system_rows = build_system_rows(
-        members=plot_members,
-        member_names=member_names,
-        epoch=best_epoch,
-        per_atom=args.per_atom,
+    def compute_panel_rows() -> List[Dict[str, object]]:
+        system_rows = build_system_rows(
+            members=plot_members,
+            member_names=member_names,
+            epoch=best_epoch,
+            per_atom=args.per_atom,
+        )
+        system_rows_trimmed = trim_system_rows(system_rows, args.trim)
+        return select_panel_rows(system_rows_trimmed)
+
+    output_csv_path = Path(args.output_csv)
+    cached_flat_rows = load_cached_csv_rows(
+        output_csv_path,
+        required_fields=[
+            "panel_index",
+            "group",
+            "epoch",
+            "loader",
+            "config_index",
+            "num_atoms",
+            "ref_energy",
+            "member_index",
+            "member_name",
+            "pred_energy",
+            "pred_var",
+            "aleatoric_var",
+            "epistemic_var",
+            "total_var",
+        ],
+        field_parsers={
+            "panel_index": parse_int,
+            "group": parse_str,
+            "epoch": parse_int,
+            "loader": parse_str,
+            "config_index": parse_int,
+            "num_atoms": parse_float,
+            "ref_energy": parse_float,
+            "member_index": parse_int,
+            "member_name": parse_str,
+            "pred_energy": parse_float,
+            "pred_var": parse_float,
+            "aleatoric_var": parse_float,
+            "epistemic_var": parse_float,
+            "total_var": parse_float,
+        },
+        key_fields=["panel_index", "member_index"],
+        compute_missing_rows=lambda: flatten_panel_rows(compute_panel_rows()),
+        label="member_pred_var_grid",
     )
-    panel_rows = select_panel_rows(system_rows)
-    write_csv(Path(args.output_csv), panel_rows)
+    if cached_flat_rows is not None:
+        cached_panel_rows = read_panel_rows(output_csv_path)
+        if cached_panel_rows is None:
+            raise RuntimeError(f"Failed to rebuild panel rows from cached CSV {output_csv_path}")
+        write_plot(Path(args.output_plot), cached_panel_rows, per_atom=args.per_atom)
+        print(f"Selected epoch: {int(cached_panel_rows[0]['epoch'])}")
+        print(f"Saved CSV: {args.output_csv}")
+        print(f"Saved plot: {args.output_plot}")
+        return
+
+    panel_rows = compute_panel_rows()
+    write_csv(output_csv_path, panel_rows)
     write_plot(Path(args.output_plot), panel_rows, per_atom=args.per_atom)
 
     print(f"Selected epoch: {best_epoch}")

@@ -42,6 +42,7 @@ import numpy as np
 import torch
 import torch.nn
 
+from csv_cache_utils import load_cached_csv_rows, parse_float, parse_int
 warnings.filterwarnings(
     "ignore",
     message=r"You are using `torch\.load` with `weights_only=False`.*",
@@ -52,6 +53,7 @@ warnings.filterwarnings(
 from mace import data
 from mace.data.utils import KeySpecification, config_from_atoms
 from mace.tools import torch_geometric, torch_tools, utils as mace_utils
+from reliability import trim_rows_by_key
 
 
 CHECKPOINT_PATTERN = re.compile(
@@ -129,6 +131,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=1,
         help="Evaluate only epochs divisible by this value. Example: 5 -> evaluate epochs 0, 5, 10, ...",
+    )
+    parser.add_argument(
+        "--trim",
+        type=float,
+        default=0.0,
+        help="Symmetric fraction to trim from the lowest and highest total uncertainty values before summarizing each epoch. Example: 0.005 trims 0.5%% on each side.",
     )
     parser.add_argument(
         "--total",
@@ -543,6 +551,35 @@ def write_csv(path: Path, rows: List[Tuple[int, float, float, float, float]]) ->
         writer.writerows(rows)
 
 
+def read_csv(path: Path) -> Optional[List[Tuple[int, float, float, float, float]]]:
+    cached_rows = load_cached_csv_rows(
+        path,
+        required_fields=["epoch", "au_var", "eu_var", "tu_var", "rmse_energy"],
+        field_parsers={
+            "epoch": parse_int,
+            "au_var": parse_float,
+            "eu_var": parse_float,
+            "tu_var": parse_float,
+            "rmse_energy": parse_float,
+        },
+        logger=LOGGER,
+        label="epoch_raw",
+        key_fields=["epoch"],
+    )
+    if cached_rows is None:
+        return None
+    return [
+        (
+            int(row["epoch"]),
+            float(row["au_var"]),
+            float(row["eu_var"]),
+            float(row["tu_var"]),
+            float(row["rmse_energy"]),
+        )
+        for row in cached_rows
+    ]
+
+
 def write_plot(
     path: Path,
     rows: List[Tuple[int, float, float, float, float]],
@@ -614,65 +651,117 @@ def main() -> None:
     device = torch_tools.init_device(args.device)
     LOGGER.info("Using device=%s default_dtype=%s", device, args.default_dtype)
 
-    if not all([args.checkpoints_dir, args.split_path, args.energy_key]):
-        raise RuntimeError(
-            "You must pass --checkpoints-dir, --split-path, and --energy-key."
+    def compute_rows() -> List[Tuple[int, float, float, float, float]]:
+        if not all([args.checkpoints_dir, args.split_path, args.energy_key]):
+            raise RuntimeError(
+                "You must pass --checkpoints-dir, --split-path, and --energy-key."
+            )
+
+        checkpoint_map = discover_checkpoint_map(
+            Path(args.checkpoints_dir), args.experiment_name
         )
+        epochs = select_common_epochs(checkpoint_map, args.every_n_epochs)
+        seeds = sorted(checkpoint_map)
 
-    checkpoint_map = discover_checkpoint_map(
-        Path(args.checkpoints_dir), args.experiment_name
-    )
-    epochs = select_common_epochs(checkpoint_map, args.every_n_epochs)
-    seeds = sorted(checkpoint_map)
-
-    sample_epoch = epochs[0]
-    sample_model = load_models([checkpoint_map[seeds[0]][sample_epoch]], device=device)[0]
-    model_dtype = _get_model_dtype(sample_model)
-    requested_dtype = torch.get_default_dtype()
-    if model_dtype != requested_dtype:
-        LOGGER.warning(
-            "Requested default dtype %s does not match checkpoint dtype %s; using checkpoint dtype for dataset/inference.",
-            requested_dtype,
-            model_dtype,
-        )
-        torch.set_default_dtype(model_dtype)
-    LOGGER.info("Model parameter dtype: %s", model_dtype)
-    data_loader = build_dataloader(
-        Path(args.split_path),
-        args.energy_key,
-        sample_model,
-        batch_size=args.batch_size,
-        head_name=args.head,
-    )
-    release_models([sample_model], device)
-
-    rows: List[Tuple[int, float, float, float, float]] = []
-    for epoch in epochs:
-        epoch_start = time.perf_counter()
-        checkpoint_paths = [checkpoint_map[seed][epoch] for seed in seeds]
-        LOGGER.info("Evaluating epoch %d with %d ensemble members", epoch, len(checkpoint_paths))
-        models = load_models(checkpoint_paths, device=device)
-        raw_rows = evaluate_split(
-            models=models,
-            data_loader=data_loader,
-            device=device,
-            per_atom=args.per_atom,
+        sample_epoch = epochs[0]
+        sample_model = load_models([checkpoint_map[seeds[0]][sample_epoch]], device=device)[0]
+        model_dtype = _get_model_dtype(sample_model)
+        requested_dtype = torch.get_default_dtype()
+        if model_dtype != requested_dtype:
+            LOGGER.warning(
+                "Requested default dtype %s does not match checkpoint dtype %s; using checkpoint dtype for dataset/inference.",
+                requested_dtype,
+                model_dtype,
+            )
+            torch.set_default_dtype(model_dtype)
+        LOGGER.info("Model parameter dtype: %s", model_dtype)
+        data_loader = build_dataloader(
+            Path(args.split_path),
+            args.energy_key,
+            sample_model,
+            batch_size=args.batch_size,
             head_name=args.head,
-            split_name=f"epoch {epoch}",
         )
-        au, eu, tu, rmse_energy = summarize_epoch(raw_rows)
-        rows.append((epoch, au, eu, tu, rmse_energy))
-        LOGGER.info(
-            "Epoch %d summary: AU=%.6e EU=%.6e TU=%.6e %s=%.6e (computed in %.2fs)",
-            epoch,
-            au,
-            eu,
-            tu,
-            "rmse_e_per_atom" if args.per_atom else "rmse_e",
-            rmse_energy,
-            time.perf_counter() - epoch_start,
+        release_models([sample_model], device)
+
+        rows: List[Tuple[int, float, float, float, float]] = []
+        for epoch in epochs:
+            epoch_start = time.perf_counter()
+            checkpoint_paths = [checkpoint_map[seed][epoch] for seed in seeds]
+            LOGGER.info("Evaluating epoch %d with %d ensemble members", epoch, len(checkpoint_paths))
+            models = load_models(checkpoint_paths, device=device)
+            raw_rows = evaluate_split(
+                models=models,
+                data_loader=data_loader,
+                device=device,
+                per_atom=args.per_atom,
+                head_name=args.head,
+                split_name=f"epoch {epoch}",
+            )
+            raw_rows = trim_rows_by_key(raw_rows, args.trim, key="total_var")
+            au, eu, tu, rmse_energy = summarize_epoch(raw_rows)
+            rows.append((epoch, au, eu, tu, rmse_energy))
+            LOGGER.info(
+                "Epoch %d summary: AU=%.6e EU=%.6e TU=%.6e %s=%.6e (computed in %.2fs)",
+                epoch,
+                au,
+                eu,
+                tu,
+                "rmse_e_per_atom" if args.per_atom else "rmse_e",
+                rmse_energy,
+                time.perf_counter() - epoch_start,
+            )
+            release_models(models, device)
+        return rows
+
+    cached_rows = load_cached_csv_rows(
+        Path(args.output_csv),
+        required_fields=["epoch", "au_var", "eu_var", "tu_var", "rmse_energy"],
+        field_parsers={
+            "epoch": parse_int,
+            "au_var": parse_float,
+            "eu_var": parse_float,
+            "tu_var": parse_float,
+            "rmse_energy": parse_float,
+        },
+        logger=LOGGER,
+        label="epoch_raw",
+        key_fields=["epoch"],
+        compute_missing_rows=lambda: [
+            {
+                "epoch": epoch,
+                "au_var": au,
+                "eu_var": eu,
+                "tu_var": tu,
+                "rmse_energy": rmse_energy,
+            }
+            for epoch, au, eu, tu, rmse_energy in compute_rows()
+        ],
+    )
+    if cached_rows is not None:
+        rows = [
+            (
+                int(row["epoch"]),
+                float(row["au_var"]),
+                float(row["eu_var"]),
+                float(row["tu_var"]),
+                float(row["rmse_energy"]),
+            )
+            for row in cached_rows
+        ]
+        write_plot(
+            Path(args.output_plot),
+            rows,
+            drop_first_k_epochs=args.drop_first_k_epochs,
+            per_atom=args.per_atom,
         )
-        release_models(models, device)
+        LOGGER.info("Saved plot: %s", args.output_plot)
+        LOGGER.info("Total runtime: %.2fs", time.perf_counter() - main_start)
+        print(f"Saved CSV: {args.output_csv}")
+        print(f"Saved plot: {args.output_plot}")
+        return
+
+    rows = compute_rows()
 
     write_csv(Path(args.output_csv), rows)
     write_plot(
