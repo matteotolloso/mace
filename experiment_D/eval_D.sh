@@ -1,5 +1,19 @@
 mkdir -p experiment_D/evaluation
 
+# ensemble train/val loss curves
+
+CUDA_VISIBLE_DEVICES=4 python utils/train_curves.py \
+  --checkpoints-dir experiment_D/checkpoints \
+  --experiment-name mace \
+  --train-split dataset/ani1x_energy_split/cc_train.xyz \
+  --validation-split dataset/ani1x_energy_split/cc_val.xyz \
+  --energy-key-train "ccsd(t)_cbs.energy" \
+  --energy-key-val "ccsd(t)_cbs.energy" \
+  --every-n-epochs 5 \
+  --device cuda \
+  --output-csv experiment_D/evaluation/train_curves.csv \
+  --output-plot experiment_D/evaluation/train_curves.png
+
 # reliability digram ID
 
 # rmse + calibration

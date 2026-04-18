@@ -222,6 +222,9 @@ def write_csv(path: Path, rows: List[Dict[str, float]]) -> None:
         "ence_aleatoric",
         "ence_epistemic",
         "ence_total",
+        "magnitude_aleatoric",
+        "magnitude_epistemic",
+        "magnitude_total",
         "rmse_e_atom",
         "nll_energy",
     ]
@@ -245,6 +248,9 @@ def read_csv(path: Path) -> List[Dict[str, float]] | None:
         "ence_aleatoric",
         "ence_epistemic",
         "ence_total",
+        "magnitude_aleatoric",
+        "magnitude_epistemic",
+        "magnitude_total",
         "rmse_e_atom",
         "nll_energy",
     ]
@@ -291,48 +297,66 @@ def write_plot(
         "total": {"color": "tab:green", "label": "Total"},
     }
     metric_specs = [
-        ("pearson", "Pearson"),
-        ("spearman", "Spearman"),
-        ("ause", "AUSE"),
-        ("ence", "ENCE"),
+        ("pearson", "Pearson ↑"),
+        ("spearman", "Spearman ↑"),
+        ("ause", "AUSE ↓"),
+        ("ence", "ENCE ↓"),
+        ("magnitude", "|Uncertainty|"),
     ]
 
-    fig, axes = plt.subplots(6, 1, figsize=(10, 19), sharex=True)
-    for ax, (metric_prefix, panel_title) in zip(axes[:4], metric_specs):
+    title_fontsize = 18
+    label_fontsize = 16
+    tick_fontsize = 14
+    legend_fontsize = 14
+    suptitle_fontsize = 20
+
+    fig, axes = plt.subplots(7, 1, figsize=(11, 23), sharex=True)
+    for ax, (metric_prefix, panel_title) in zip(axes[:5], metric_specs):
         for unc_name, style in style_map.items():
             values = np.array([row[f"{metric_prefix}_{unc_name}"] for row in rows], dtype=float)
+            if metric_prefix == "magnitude":
+                values = np.where(values > 0.0, values, np.nan)
             ax.plot(
                 epochs,
                 values,
                 marker="o",
                 color=style["color"],
                 label=style["label"],
+                linewidth=2.3,
+                markersize=6.0,
             )
         ax.axvline(finetune_start, color="black", linestyle="--", linewidth=1.2)
-        ax.set_title(panel_title)
-        ax.set_ylabel(panel_title)
+        ax.set_title(panel_title, fontsize=title_fontsize)
+        ax.set_ylabel(panel_title, fontsize=label_fontsize)
+        if metric_prefix == "magnitude":
+            ax.set_yscale("log", base=10)
         ax.grid(alpha=0.3)
-        ax.legend()
+        ax.legend(fontsize=legend_fontsize)
+        ax.tick_params(axis="both", labelsize=tick_fontsize)
 
     rmse_values = np.array([row["rmse_e_atom"] for row in rows], dtype=float)
-    axes[4].plot(epochs, rmse_values, marker="o", color="black", label="RMSE")
-    axes[4].axvline(finetune_start, color="black", linestyle="--", linewidth=1.2)
-    axes[4].set_title("RMSE_E_per_atom")
-    axes[4].set_ylabel("RMSE")
-    axes[4].grid(alpha=0.3)
-    axes[4].legend()
+    rmse_values = np.where(rmse_values > 0.0, rmse_values, np.nan)
+    axes[5].plot(epochs, rmse_values, marker="o", color="black", label="RMSE", linewidth=2.3, markersize=6.0)
+    axes[5].axvline(finetune_start, color="black", linestyle="--", linewidth=1.2)
+    axes[5].set_title("RMSE_E_per_atom ↓", fontsize=title_fontsize)
+    axes[5].set_ylabel("RMSE", fontsize=label_fontsize)
+    axes[5].set_yscale("log", base=10)
+    axes[5].grid(alpha=0.3)
+    axes[5].legend(fontsize=legend_fontsize)
+    axes[5].tick_params(axis="both", labelsize=tick_fontsize)
 
     nll_values = np.array([row["nll_energy"] for row in rows], dtype=float)
-    axes[5].plot(epochs, nll_values, marker="o", color="black", label="NLL")
-    axes[5].axvline(finetune_start, color="black", linestyle="--", linewidth=1.2)
-    axes[5].set_title("NLL")
-    axes[5].set_ylabel("NLL")
-    axes[5].set_xlabel("Epoch")
-    axes[5].grid(alpha=0.3)
-    axes[5].legend()
+    axes[6].plot(epochs, nll_values, marker="o", color="black", label="NLL", linewidth=2.3, markersize=6.0)
+    axes[6].axvline(finetune_start, color="black", linestyle="--", linewidth=1.2)
+    axes[6].set_title("NLL ↓", fontsize=title_fontsize)
+    axes[6].set_ylabel("NLL", fontsize=label_fontsize)
+    axes[6].set_xlabel("Epoch", fontsize=label_fontsize)
+    axes[6].grid(alpha=0.3)
+    axes[6].legend(fontsize=legend_fontsize)
+    axes[6].tick_params(axis="both", labelsize=tick_fontsize)
 
-    fig.suptitle(title)
-    fig.tight_layout(rect=(0, 0, 1, 0.97))
+    fig.suptitle(title, fontsize=suptitle_fontsize)
+    fig.tight_layout(rect=(0, 0, 1, 0.985))
     fig.savefig(path, dpi=200)
     plt.close(fig)
 
@@ -391,6 +415,9 @@ def main() -> None:
             "ence_aleatoric",
             "ence_epistemic",
             "ence_total",
+            "magnitude_aleatoric",
+            "magnitude_epistemic",
+            "magnitude_total",
             "rmse_e_atom",
             "nll_energy",
         ],
@@ -410,6 +437,9 @@ def main() -> None:
             "ence_aleatoric": parse_float,
             "ence_epistemic": parse_float,
             "ence_total": parse_float,
+            "magnitude_aleatoric": parse_float,
+            "magnitude_epistemic": parse_float,
+            "magnitude_total": parse_float,
             "rmse_e_atom": parse_float,
             "nll_energy": parse_float,
         },

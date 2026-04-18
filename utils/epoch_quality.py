@@ -650,6 +650,10 @@ def summarize_epoch(raw_rows: List[Dict[str, float]], num_bins: int) -> Dict[str
         summary[f"spearman_{unc_name}"] = compute_spearman(scores, sq_errors)
         summary[f"ause_{unc_name}"] = compute_ause(scores, abs_errors)
         summary[f"ence_{unc_name}"] = ence_summary[unc_name]
+        finite_scores = scores[np.isfinite(scores)]
+        summary[f"magnitude_{unc_name}"] = (
+            float(np.mean(np.abs(finite_scores))) if finite_scores.size > 0 else float("nan")
+        )
     finite_sq_errors = sq_errors[np.isfinite(sq_errors)]
     summary["rmse_e_atom"] = (
         float(np.sqrt(np.mean(finite_sq_errors))) if finite_sq_errors.size > 0 else float("nan")
@@ -675,6 +679,9 @@ def write_csv(path: Path, rows: List[Dict[str, float]]) -> None:
         "ence_aleatoric",
         "ence_epistemic",
         "ence_total",
+        "magnitude_aleatoric",
+        "magnitude_epistemic",
+        "magnitude_total",
         "rmse_e_atom",
         "nll_energy",
     ]
@@ -698,6 +705,9 @@ def read_csv(path: Path) -> Optional[List[Dict[str, float]]]:
         "ence_aleatoric",
         "ence_epistemic",
         "ence_total",
+        "magnitude_aleatoric",
+        "magnitude_epistemic",
+        "magnitude_total",
         "rmse_e_atom",
         "nll_energy",
     ]
@@ -730,45 +740,63 @@ def write_plot(path: Path, rows: List[Dict[str, float]], drop_first_k_epochs: in
         "total": {"color": "tab:green", "label": "Total"},
     }
     metric_specs = [
-        ("pearson", "Pearson"),
-        ("spearman", "Spearman"),
-        ("ause", "AUSE"),
-        ("ence", "ENCE"),
+        ("pearson", "Pearson ↑"),
+        ("spearman", "Spearman ↑"),
+        ("ause", "AUSE ↓"),
+        ("ence", "ENCE ↓"),
+        ("magnitude", "|Uncertainty|"),
     ]
 
-    fig, axes = plt.subplots(6, 1, figsize=(10, 19), sharex=True)
-    for ax, (metric_prefix, title) in zip(axes[:4], metric_specs):
+    title_fontsize = 18
+    label_fontsize = 16
+    tick_fontsize = 14
+    legend_fontsize = 14
+    suptitle_fontsize = 20
+
+    fig, axes = plt.subplots(7, 1, figsize=(11, 23), sharex=True)
+    for ax, (metric_prefix, title) in zip(axes[:5], metric_specs):
         for unc_name, _ in UNCERTAINTY_SPECS:
             values = np.array([row[f"{metric_prefix}_{unc_name}"] for row in rows_plot], dtype=float)
+            if metric_prefix == "magnitude":
+                values = np.where(values > 0.0, values, np.nan)
             ax.plot(
                 epochs,
                 values,
                 marker="o",
                 color=style_map[unc_name]["color"],
                 label=style_map[unc_name]["label"],
+                linewidth=2.3,
+                markersize=6.0,
             )
-        ax.set_title(title)
-        ax.set_ylabel(title)
+        ax.set_title(title, fontsize=title_fontsize)
+        ax.set_ylabel(title, fontsize=label_fontsize)
+        if metric_prefix == "magnitude":
+            ax.set_yscale("log", base=10)
         ax.grid(alpha=0.3)
-        ax.legend()
+        ax.legend(fontsize=legend_fontsize)
+        ax.tick_params(axis="both", labelsize=tick_fontsize)
 
     rmse_values = np.array([row["rmse_e_atom"] for row in rows_plot], dtype=float)
-    axes[4].plot(epochs, rmse_values, marker="o", color="black", label="RMSE")
-    axes[4].set_title("RMSE_E_per_atom")
-    axes[4].set_ylabel("RMSE")
-    axes[4].grid(alpha=0.3)
-    axes[4].legend()
+    rmse_values = np.where(rmse_values > 0.0, rmse_values, np.nan)
+    axes[5].plot(epochs, rmse_values, marker="o", color="black", label="RMSE", linewidth=2.3, markersize=6.0)
+    axes[5].set_title("RMSE_E_per_atom ↓", fontsize=title_fontsize)
+    axes[5].set_ylabel("RMSE", fontsize=label_fontsize)
+    axes[5].set_yscale("log", base=10)
+    axes[5].grid(alpha=0.3)
+    axes[5].legend(fontsize=legend_fontsize)
+    axes[5].tick_params(axis="both", labelsize=tick_fontsize)
 
     nll_values = np.array([row["nll_energy"] for row in rows_plot], dtype=float)
-    axes[5].plot(epochs, nll_values, marker="o", color="black", label="NLL")
-    axes[5].set_title("Weighted Gaussian NLL Energy")
-    axes[5].set_ylabel("NLL")
-    axes[5].grid(alpha=0.3)
-    axes[5].legend()
+    axes[6].plot(epochs, nll_values, marker="o", color="black", label="NLL", linewidth=2.3, markersize=6.0)
+    axes[6].set_title("Weighted Gaussian NLL Energy ↓", fontsize=title_fontsize)
+    axes[6].set_ylabel("NLL", fontsize=label_fontsize)
+    axes[6].grid(alpha=0.3)
+    axes[6].legend(fontsize=legend_fontsize)
+    axes[6].tick_params(axis="both", labelsize=tick_fontsize)
 
-    axes[-1].set_xlabel("Epoch")
-    fig.suptitle("Uncertainty quality vs epoch")
-    fig.tight_layout()
+    axes[-1].set_xlabel("Epoch", fontsize=label_fontsize)
+    fig.suptitle("Uncertainty quality vs epoch", fontsize=suptitle_fontsize)
+    fig.tight_layout(rect=(0, 0, 1, 0.985))
     fig.savefig(path, dpi=200)
     plt.close(fig)
 
@@ -860,6 +888,9 @@ def main() -> None:
         "ence_aleatoric",
         "ence_epistemic",
         "ence_total",
+        "magnitude_aleatoric",
+        "magnitude_epistemic",
+        "magnitude_total",
         "rmse_e_atom",
         "nll_energy",
     ]
