@@ -1151,17 +1151,66 @@ def write_plot(
     path.parent.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(figsize=(10.5, 7))
     fig.subplots_adjust(right=0.66)
+    axis_min = 0.0
+    axis_max = 0.1
 
     style_map = {
-        "aleatoric": {"marker": "o", "label": "Aleatoric"},
-        "epistemic": {"marker": "s", "label": "Epistemic"},
-        "total": {"marker": "^", "label": "Total"},
+        "aleatoric": {"marker": "o", "label": "Aleatoric", "color": "tab:blue"},
+        "epistemic": {"marker": "s", "label": "Epistemic", "color": "tab:orange"},
+        "total": {"marker": "^", "label": "Total", "color": "tab:green"},
     }
     ence_summary = compute_ence_summary(binned_rows)
     pearson_summary = compute_pearson_summary(raw_rows)
     spearman_summary = compute_spearman_summary(raw_rows)
     ause_summary = compute_ause_summary(raw_rows)
-    max_xy = 0.0
+
+    def plot_curve_with_clipped_markers(
+        x_values: np.ndarray,
+        y_values: np.ndarray,
+        *,
+        marker: str,
+        label: str,
+        color: str,
+    ) -> None:
+        x = np.array(x_values, dtype=float)
+        y = np.array(y_values, dtype=float)
+        finite_mask = np.isfinite(x) & np.isfinite(y)
+        if not np.any(finite_mask):
+            return
+
+        x = x[finite_mask]
+        y = y[finite_mask]
+        low_x = x < axis_min
+        high_x = x > axis_max
+        low_y = y < axis_min
+        high_y = y > axis_max
+        out_mask = low_x | high_x | low_y | high_y
+        in_mask = ~out_mask
+
+        x_clipped = np.clip(x, axis_min, axis_max)
+        y_clipped = np.clip(y, axis_min, axis_max)
+
+        ax.plot(x_clipped, y_clipped, linewidth=1.8, color=color)
+        if np.any(in_mask):
+            ax.plot(
+                x_clipped[in_mask],
+                y_clipped[in_mask],
+                linestyle="None",
+                marker=marker,
+                color=color,
+                label=label,
+            )
+        if np.any(out_mask):
+            ax.plot(
+                x_clipped[out_mask],
+                y_clipped[out_mask],
+                linestyle="None",
+                marker="x",
+                markersize=8,
+                markeredgewidth=1.8,
+                color=color,
+            )
+
     for unc_name in ["aleatoric", "epistemic", "total"]:
         rows = [row for row in binned_rows if row["uncertainty_type"] == unc_name]
         if not rows:
@@ -1169,18 +1218,17 @@ def write_plot(
         rows = sorted(rows, key=lambda row: row["bin_index"])
         rmv = np.array([row["rmv"] for row in rows], dtype=float)
         rmse = np.array([row["rmse"] for row in rows], dtype=float)
-        max_xy = max(max_xy, float(np.max(rmv)), float(np.max(rmse)))
-        ax.plot(
+        plot_curve_with_clipped_markers(
             rmv,
             rmse,
             marker=style_map[unc_name]["marker"],
             label=style_map[unc_name]["label"],
+            color=style_map[unc_name]["color"],
         )
 
-    parity_max = max_xy * 1.05 if max_xy > 0 else 1.0
-    ax.plot([0.0, parity_max], [0.0, parity_max], linestyle="--", color="black", label="Ideal")
-    ax.set_xlim(0.0, parity_max)
-    ax.set_ylim(0.0, parity_max)
+    ax.plot([axis_min, axis_max], [axis_min, axis_max], linestyle="--", color="black", label="Ideal")
+    ax.set_xlim(axis_min, axis_max)
+    ax.set_ylim(axis_min, axis_max)
     ax.set_aspect("equal", adjustable="box")
     ax.set_xlabel("RMV")
     ax.set_ylabel("RMSE")
@@ -1191,31 +1239,40 @@ def write_plot(
     ax.legend()
 
     display_names = {
-        "aleatoric": "Aleatoric",
-        "epistemic": "Epistemic",
-        "total": "Total",
+        "aleatoric": "AU",
+        "epistemic": "EU",
+        "total": "TU",
     }
+    metric_specs = [
+        ("ENCE", ence_summary),
+        ("Pearson", pearson_summary),
+        ("Spearman", spearman_summary),
+        ("AUSE", ause_summary),
+    ]
     summary_blocks = []
-    for unc_name in ["aleatoric", "epistemic", "total"]:
-        block_lines = [display_names[unc_name]]
-        if np.isfinite(ence_summary[unc_name]):
-            block_lines.append(f"ENCE     {ence_summary[unc_name]:.4f}")
-        if np.isfinite(pearson_summary[unc_name]):
-            block_lines.append(f"Pearson  {pearson_summary[unc_name]:.4f}")
-        if np.isfinite(spearman_summary[unc_name]):
-            block_lines.append(f"Spearman {spearman_summary[unc_name]:.4f}")
-        if np.isfinite(ause_summary[unc_name]):
-            block_lines.append(f"AUSE     {ause_summary[unc_name]:.4f}")
+    # Compute and display test RMSE (if raw_rows contains test split rows)
+    test_rmse = compute_energy_rmse(raw_rows) if raw_rows else float("nan")
+    if np.isfinite(test_rmse):
+        rmse_label = "RMSE (per-atom)" if per_atom else "RMSE"
+        summary_blocks.append(f"Test RMSE\n{rmse_label}  {test_rmse:.6f}")
+    for metric_name, metric_summary in metric_specs:
+        block_lines = [metric_name]
+        for unc_name in ["aleatoric", "epistemic", "total"]:
+            value = metric_summary[unc_name]
+            if np.isfinite(value):
+                block_lines.append(f"{display_names[unc_name]}  {value:.4f}")
         if len(block_lines) > 1:
             summary_blocks.append("\n".join(block_lines))
     if summary_blocks:
+        axes_bbox = ax.get_position()
         fig.text(
             0.70,
-            0.93,
+            axes_bbox.y1,
             "\n\n".join(summary_blocks),
             va="top",
             ha="left",
             family="monospace",
+            fontsize=12.5,
             bbox={"boxstyle": "round,pad=0.6", "facecolor": "white", "alpha": 0.9},
         )
 

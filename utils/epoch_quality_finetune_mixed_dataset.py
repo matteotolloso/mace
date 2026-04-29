@@ -21,6 +21,7 @@ from epoch_quality_finetune_same_dataset import (
     evaluate_stage,
     infer_finetune_start,
     read_csv,
+    with_free_scale_suffix,
     write_csv,
     write_plot,
 )
@@ -80,6 +81,11 @@ def parse_args() -> argparse.Namespace:
         "--title",
         type=str,
         default="Epoch Quality: Pretrain (DFT) + Finetune (CC)",
+    )
+    parser.add_argument(
+        "--free-scale",
+        action="store_true",
+        help="Also save a second autoscaled plot with '-free-scale' appended to the output filename.",
     )
     parser.add_argument(
         "--log-level",
@@ -178,23 +184,43 @@ def main() -> None:
         label="epoch_quality_finetune_mixed",
     )
     if cached_rows is not None:
+        output_plot = Path(args.output_plot)
         write_plot(
-            Path(args.output_plot),
+            output_plot,
             cached_rows,
             finetune_start=infer_finetune_start(cached_rows),
             title=args.title,
         )
+        if args.free_scale:
+            write_plot(
+                with_free_scale_suffix(output_plot),
+                cached_rows,
+                finetune_start=infer_finetune_start(cached_rows),
+                title=args.title,
+                fixed_scales=False,
+                title_suffix=" - free-scale",
+            )
         return
 
     combined_rows = compute_combined_rows()
     finetune_start = infer_finetune_start(combined_rows)
     write_csv(Path(args.output_csv), combined_rows)
+    output_plot = Path(args.output_plot)
     write_plot(
-        Path(args.output_plot),
+        output_plot,
         combined_rows,
         finetune_start=finetune_start,
         title=args.title,
     )
+    if args.free_scale:
+        write_plot(
+            with_free_scale_suffix(output_plot),
+            combined_rows,
+            finetune_start=finetune_start,
+            title=args.title,
+            fixed_scales=False,
+            title_suffix=" - free-scale",
+        )
 
 
 if __name__ == "__main__":

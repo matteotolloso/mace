@@ -125,6 +125,7 @@ CUDA_VISIBLE_DEVICES=3 python utils/epoch_quality.py \
   --device cuda \
   --batch-size 256 \
   --every-n-epochs 5 \
+  --free-scale \
   --output-csv experiment_E/evaluation/epoch_quality_id.csv \
   --output-plot experiment_E/evaluation/epoch_quality_id.png
 
@@ -136,6 +137,7 @@ CUDA_VISIBLE_DEVICES=3 python utils/epoch_quality.py \
   --device cuda \
   --batch-size 256 \
   --every-n-epochs 5 \
+  --free-scale \
   --output-csv experiment_E/evaluation/epoch_quality_ood.csv \
   --output-plot experiment_E/evaluation/epoch_quality_ood.png
 
@@ -147,6 +149,7 @@ CUDA_VISIBLE_DEVICES=3 python utils/epoch_quality.py \
   --device cuda \
   --batch-size 256 \
   --every-n-epochs 5 \
+  --free-scale \
   --output-csv experiment_E/evaluation/epoch_quality_train.csv \
   --output-plot experiment_E/evaluation/epoch_quality_train.png
 

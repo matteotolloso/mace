@@ -1,77 +1,33 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Plot AU and EU per epoch
+set -euo pipefail
 
-python utils/epoch_raw.py \
-  --inputs outputs/results/mace-mv-sp_run-0_epoch_outputs.txt outputs/results/mace-mv-sp_run-1_epoch_outputs.txt outputs/results/mace-mv-sp_run-2_epoch_outputs.txt outputs/results/mace-mv-sp_run-3_epoch_outputs.txt outputs/results/mace-mv-sp_run-4_epoch_outputs.txt \
-  --split train \
-  --clip_percentile 100 \
-  --drop_first_k_epochs 0 \
-  --output_csv outputs/plots/unc_vs_epoch_train-mv-sp.csv \
-  --output_plot outputs/plots/unc_vs_epoch_train-mv-sp.png \
-  --plot_log_variance
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# python utils/epoch_raw.py \
-#   --inputs outputs/results/mace-mv-sp_run-0_epoch_outputs.txt outputs/results/mace-mv-sp_run-1_epoch_outputs.txt outputs/results/mace-mv-sp_run-2_epoch_outputs.txt outputs/results/mace-mv-sp_run-3_epoch_outputs.txt outputs/results/mace-mv-sp_run-4_epoch_outputs.txt \
-#   --split valid \
-#   --clip_percentile 100 \
-#   --drop_first_k_epochs 0 \
-#   --output_csv outputs/plots/unc_vs_epoch_valid-mv-sp.csv \
-#   --output_plot outputs/plots/unc_vs_epoch_valid-mv-sp.png \
-#   --plot_log_variance
+cd "$ROOT_DIR"
 
-# python utils/epoch_raw.py \
-#   --inputs outputs/results/mace-mv-sp_run-0_epoch_outputs.txt outputs/results/mace-mv-sp_run-1_epoch_outputs.txt outputs/results/mace-mv-sp_run-2_epoch_outputs.txt outputs/results/mace-mv-sp_run-3_epoch_outputs.txt outputs/results/mace-mv-sp_run-4_epoch_outputs.txt \
-#   --split test \
-#   --clip_percentile 100 \
-#   --drop_first_k_epochs 0 \
-#   --output_csv outputs/plots/unc_vs_epoch_test-mv-sp.csv \
-#   --output_plot outputs/plots/unc_vs_epoch_test-mv-sp.png \
-#   --plot_log_variance
+scripts=(
+  "experiment_A/eval_A.sh"
+  "experiment_B/eval_B.sh"
+  "experiment_C/eval_C.sh"
+  "experiment_D/eval_D.sh"
+  "experiment_E/eval_E.sh"
+  "experiment_F/eval_F.sh"
+)
 
+pids=()
 
-# Plot AU for each member of the ensemble per epoch
+for script in "${scripts[@]}"; do
+  bash "$script" &
+  pids+=("$!")
+done
 
-python utils/plt_epoch_au_members_configs.py \
-  --inputs outputs/results/mace-mv-sp_run-0_epoch_outputs.txt outputs/results/mace-mv-sp_run-1_epoch_outputs.txt outputs/results/mace-mv-sp_run-2_epoch_outputs.txt outputs/results/mace-mv-sp_run-3_epoch_outputs.txt outputs/results/mace-mv-sp_run-4_epoch_outputs.txt \
-  --split train \
-  --output_csv outputs/plots/au_members_configs_train-mv-sp.csv \
-  --output_plot outputs/plots/au_members_configs_train-mv-sp.png \
-  --plot_log_variance
+status=0
+for i in "${!pids[@]}"; do
+  if ! wait "${pids[$i]}"; then
+    echo "Evaluation failed: ${scripts[$i]}" >&2
+    status=1
+  fi
+done
 
-# python utils/plt_epoch_au_members_configs.py \
-#   --inputs outputs/results/mace-mv-sp_run-0_epoch_outputs.txt outputs/results/mace-mv-sp_run-1_epoch_outputs.txt outputs/results/mace-mv-sp_run-2_epoch_outputs.txt outputs/results/mace-mv-sp_run-3_epoch_outputs.txt outputs/results/mace-mv-sp_run-4_epoch_outputs.txt \
-#   --split valid \
-#   --output_csv outputs/plots/au_members_configs_valid-mv-sp.csv \
-#   --output_plot outputs/plots/au_members_configs_valid-mv-sp.png \
-#   --plot_log_variance
-
-# python utils/plt_epoch_au_members_configs.py \
-#   --inputs outputs/results/mace-mv-sp_run-0_epoch_outputs.txt outputs/results/mace-mv-sp_run-1_epoch_outputs.txt outputs/results/mace-mv-sp_run-2_epoch_outputs.txt outputs/results/mace-mv-sp_run-3_epoch_outputs.txt outputs/results/mace-mv-sp_run-4_epoch_outputs.txt \
-#   --split test \
-#   --output_csv outputs/plots/au_members_configs_test-mv-sp.csv \
-#   --output_plot outputs/plots/au_members_configs_test-mv-sp.png \
-#   --plot_log_variance
-
-
-# Plot reliability diagram 
-
-python utils/reliability.py \
-  --inputs outputs/results/mace-mv-sp_run-0_epoch_outputs.txt outputs/results/mace-mv-sp_run-1_epoch_outputs.txt outputs/results/mace-mv-sp_run-2_epoch_outputs.txt outputs/results/mace-mv-sp_run-3_epoch_outputs.txt outputs/results/mace-mv-sp_run-4_epoch_outputs.txt \
-  --selection_split valid \
-  --plot_split test \
-  --num_bins 40 \
-  --isotonic_calibration \
-  --output_csv_raw outputs/plots/unc_vs_error_raw.csv \
-  --output_csv_bins outputs/plots/unc_vs_error_bins.csv \
-  --output_plot outputs/plots/unc_vs_error.png
-
-
-# Plot single config diagram
-
-python utils/plt_member_pred_var_grid.py \
-  --inputs outputs/results/mace-mv-sp_run-0_epoch_outputs.txt outputs/results/mace-mv-sp_run-1_epoch_outputs.txt outputs/results/mace-mv-sp_run-2_epoch_outputs.txt outputs/results/mace-mv-sp_run-3_epoch_outputs.txt outputs/results/mace-mv-sp_run-4_epoch_outputs.txt \
-  --selection_split valid \
-  --plot_split test \
-  --output_csv outputs/plots/member_pred_var_grid.csv \
-  --output_plot outputs/plots/member_pred_var_grid.png
+exit "$status"

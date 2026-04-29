@@ -32,6 +32,7 @@ from epoch_quality import (
     select_common_epochs,
     setup_logging,
     summarize_epoch,
+    with_free_scale_suffix,
 )
 from reliability import trim_rows_by_key
 from mace.tools import torch_tools
@@ -105,6 +106,11 @@ def parse_args() -> argparse.Namespace:
         "--title",
         type=str,
         default="Epoch Quality: Same Dataset Pretrain + Finetune",
+    )
+    parser.add_argument(
+        "--free-scale",
+        action="store_true",
+        help="Also save a second autoscaled plot with '-free-scale' appended to the output filename.",
     )
     parser.add_argument(
         "--log-level",
@@ -287,6 +293,9 @@ def write_plot(
     rows: List[Dict[str, float]],
     finetune_start: int,
     title: str,
+    *,
+    fixed_scales: bool = True,
+    title_suffix: str = "",
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     rows = sorted(rows, key=lambda row: (int(row["epoch"]), 0 if row["phase"] == "pretrain" else 1))
@@ -297,7 +306,6 @@ def write_plot(
         "total": {"color": "tab:green", "label": "Total"},
     }
     metric_specs = [
-        ("pearson", "Pearson ↑"),
         ("spearman", "Spearman ↑"),
         ("ause", "AUSE ↓"),
         ("ence", "ENCE ↓"),
@@ -310,52 +318,158 @@ def write_plot(
     legend_fontsize = 14
     suptitle_fontsize = 20
 
-    fig, axes = plt.subplots(7, 1, figsize=(11, 23), sharex=True)
-    for ax, (metric_prefix, panel_title) in zip(axes[:5], metric_specs):
-        for unc_name, style in style_map.items():
+    def plot_series_with_clipped_markers(
+        ax,
+        x_values: np.ndarray,
+        y_values: np.ndarray,
+        *,
+        color: str,
+        label: str,
+        y_limits: tuple[float, float],
+        log_scale: bool = False,
+    ) -> None:
+        values = np.array(y_values, dtype=float)
+        finite_mask = np.isfinite(values)
+        low, high = y_limits
+        low_mask = finite_mask & (values < low)
+        high_mask = finite_mask & (values > high)
+        in_range_mask = finite_mask & ~(low_mask | high_mask)
+
+        clipped = values.copy()
+        clipped[low_mask] = low
+        clipped[high_mask] = high
+
+        if np.any(finite_mask):
+            ax.plot(
+                x_values[finite_mask],
+                clipped[finite_mask],
+                color=color,
+                linewidth=2.3,
+                label=label,
+            )
+        if np.any(in_range_mask):
+            ax.plot(
+                x_values[in_range_mask],
+                clipped[in_range_mask],
+                linestyle="None",
+                marker="o",
+                color=color,
+                markersize=6.0,
+            )
+        out_of_range_mask = low_mask | high_mask
+        if np.any(out_of_range_mask):
+            ax.plot(
+                x_values[out_of_range_mask],
+                clipped[out_of_range_mask],
+                linestyle="None",
+                marker="*",
+                color=color,
+                markersize=10.0,
+            )
+
+    fig, axes = plt.subplots(6, 1, figsize=(11, 20), sharex=True)
+    for ax, (metric_prefix, panel_title) in zip(axes[:4], metric_specs):
+        plotted_uncertainties = (
+            ["aleatoric", "epistemic"]
+            if metric_prefix == "magnitude"
+            else list(style_map.keys())
+        )
+        y_limits = {
+            "spearman": (0.0, 1.0),
+            "ause": (0.0, 0.5),
+            "ence": (0.0, 2.0),
+            "magnitude": (1e-6, 1e2),
+        }[metric_prefix]
+        for unc_name in plotted_uncertainties:
+            style = style_map[unc_name]
             values = np.array([row[f"{metric_prefix}_{unc_name}"] for row in rows], dtype=float)
             if metric_prefix == "magnitude":
                 values = np.where(values > 0.0, values, np.nan)
-            ax.plot(
-                epochs,
-                values,
-                marker="o",
-                color=style["color"],
-                label=style["label"],
-                linewidth=2.3,
-                markersize=6.0,
-            )
+            if fixed_scales:
+                plot_series_with_clipped_markers(
+                    ax,
+                    epochs,
+                    values,
+                    color=style["color"],
+                    label=style["label"],
+                    y_limits=y_limits,
+                    log_scale=(metric_prefix == "magnitude"),
+                )
+            else:
+                ax.plot(
+                    epochs,
+                    values,
+                    marker="o",
+                    color=style["color"],
+                    label=style["label"],
+                    linewidth=2.3,
+                    markersize=6.0,
+                )
         ax.axvline(finetune_start, color="black", linestyle="--", linewidth=1.2)
         ax.set_title(panel_title, fontsize=title_fontsize)
         ax.set_ylabel(panel_title, fontsize=label_fontsize)
+        if fixed_scales:
+            if metric_prefix == "spearman":
+                ax.set_ylim(0.0, 1.0)
+            elif metric_prefix == "ause":
+                ax.set_ylim(0.0, 0.5)
+            elif metric_prefix == "ence":
+                ax.set_ylim(0.0, 2.0)
         if metric_prefix == "magnitude":
             ax.set_yscale("log", base=10)
+            if fixed_scales:
+                ax.set_ylim(1e-6, 1e2)
         ax.grid(alpha=0.3)
         ax.legend(fontsize=legend_fontsize)
         ax.tick_params(axis="both", labelsize=tick_fontsize)
 
     rmse_values = np.array([row["rmse_e_atom"] for row in rows], dtype=float)
     rmse_values = np.where(rmse_values > 0.0, rmse_values, np.nan)
-    axes[5].plot(epochs, rmse_values, marker="o", color="black", label="RMSE", linewidth=2.3, markersize=6.0)
+    if fixed_scales:
+        plot_series_with_clipped_markers(
+            axes[4],
+            epochs,
+            rmse_values,
+            color="black",
+            label="RMSE",
+            y_limits=(1e-6, 1e2),
+            log_scale=True,
+        )
+    else:
+        axes[4].plot(epochs, rmse_values, marker="o", color="black", label="RMSE", linewidth=2.3, markersize=6.0)
+    axes[4].axvline(finetune_start, color="black", linestyle="--", linewidth=1.2)
+    axes[4].set_title("RMSE_E_per_atom ↓", fontsize=title_fontsize)
+    axes[4].set_ylabel("RMSE", fontsize=label_fontsize)
+    axes[4].set_yscale("log", base=10)
+    if fixed_scales:
+        axes[4].set_ylim(1e-6, 1e2)
+    axes[4].grid(alpha=0.3)
+    axes[4].legend(fontsize=legend_fontsize)
+    axes[4].tick_params(axis="both", labelsize=tick_fontsize)
+
+    nll_values = np.array([row["nll_energy"] for row in rows], dtype=float)
+    if fixed_scales:
+        plot_series_with_clipped_markers(
+            axes[5],
+            epochs,
+            nll_values,
+            color="black",
+            label="NLL",
+            y_limits=(-0.5, 0.5),
+        )
+    else:
+        axes[5].plot(epochs, nll_values, marker="o", color="black", label="NLL", linewidth=2.3, markersize=6.0)
     axes[5].axvline(finetune_start, color="black", linestyle="--", linewidth=1.2)
-    axes[5].set_title("RMSE_E_per_atom ↓", fontsize=title_fontsize)
-    axes[5].set_ylabel("RMSE", fontsize=label_fontsize)
-    axes[5].set_yscale("log", base=10)
+    axes[5].set_title("NLL ↓", fontsize=title_fontsize)
+    axes[5].set_ylabel("NLL", fontsize=label_fontsize)
+    axes[5].set_xlabel("Epoch", fontsize=label_fontsize)
+    if fixed_scales:
+        axes[5].set_ylim(-0.5, 0.5)
     axes[5].grid(alpha=0.3)
     axes[5].legend(fontsize=legend_fontsize)
     axes[5].tick_params(axis="both", labelsize=tick_fontsize)
 
-    nll_values = np.array([row["nll_energy"] for row in rows], dtype=float)
-    axes[6].plot(epochs, nll_values, marker="o", color="black", label="NLL", linewidth=2.3, markersize=6.0)
-    axes[6].axvline(finetune_start, color="black", linestyle="--", linewidth=1.2)
-    axes[6].set_title("NLL ↓", fontsize=title_fontsize)
-    axes[6].set_ylabel("NLL", fontsize=label_fontsize)
-    axes[6].set_xlabel("Epoch", fontsize=label_fontsize)
-    axes[6].grid(alpha=0.3)
-    axes[6].legend(fontsize=legend_fontsize)
-    axes[6].tick_params(axis="both", labelsize=tick_fontsize)
-
-    fig.suptitle(title, fontsize=suptitle_fontsize)
+    fig.suptitle(f"{title}{title_suffix}", fontsize=suptitle_fontsize)
     fig.tight_layout(rect=(0, 0, 1, 0.985))
     fig.savefig(path, dpi=200)
     plt.close(fig)
@@ -448,23 +562,43 @@ def main() -> None:
         label="epoch_quality_finetune_same",
     )
     if cached_rows is not None:
+        output_plot = Path(args.output_plot)
         write_plot(
-            Path(args.output_plot),
+            output_plot,
             cached_rows,
             finetune_start=infer_finetune_start(cached_rows),
             title=args.title,
         )
+        if args.free_scale:
+            write_plot(
+                with_free_scale_suffix(output_plot),
+                cached_rows,
+                finetune_start=infer_finetune_start(cached_rows),
+                title=args.title,
+                fixed_scales=False,
+                title_suffix=" - free-scale",
+            )
         return
 
     combined_rows = compute_combined_rows()
     finetune_start = infer_finetune_start(combined_rows)
     write_csv(Path(args.output_csv), combined_rows)
+    output_plot = Path(args.output_plot)
     write_plot(
-        Path(args.output_plot),
+        output_plot,
         combined_rows,
         finetune_start=finetune_start,
         title=args.title,
     )
+    if args.free_scale:
+        write_plot(
+            with_free_scale_suffix(output_plot),
+            combined_rows,
+            finetune_start=finetune_start,
+            title=args.title,
+            fixed_scales=False,
+            title_suffix=" - free-scale",
+        )
 
 
 if __name__ == "__main__":

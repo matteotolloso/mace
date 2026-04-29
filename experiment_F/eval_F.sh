@@ -125,6 +125,7 @@ CUDA_VISIBLE_DEVICES=2 python utils/epoch_quality.py \
   --device cuda \
   --batch-size 256 \
   --every-n-epochs 5 \
+  --free-scale \
   --output-csv experiment_F/evaluation/epoch_quality_id.csv \
   --output-plot experiment_F/evaluation/epoch_quality_id.png
 
@@ -136,6 +137,7 @@ CUDA_VISIBLE_DEVICES=2 python utils/epoch_quality.py \
   --device cuda \
   --batch-size 256 \
   --every-n-epochs 5 \
+  --free-scale \
   --output-csv experiment_F/evaluation/epoch_quality_ood.csv \
   --output-plot experiment_F/evaluation/epoch_quality_ood.png
 
@@ -147,6 +149,7 @@ CUDA_VISIBLE_DEVICES=2 python utils/epoch_quality.py \
   --device cuda \
   --batch-size 256 \
   --every-n-epochs 5 \
+  --free-scale \
   --output-csv experiment_F/evaluation/epoch_quality_train.csv \
   --output-plot experiment_F/evaluation/epoch_quality_train.png
 
@@ -193,3 +196,21 @@ CUDA_VISIBLE_DEVICES=2 python utils/distribution.py \
   --batch-size 256 \
   --output-csv experiment_F/evaluation/distribution_train.csv \
   --output-plot experiment_F/evaluation/distribution_train.png
+
+
+# uncertainty vs energy for energy-OOD test sets
+
+CUDA_VISIBLE_DEVICES=4 python utils/energy_ood.py \
+  --checkpoints-dir experiment_F/checkpoints \
+  --results-dir experiment_F/results \
+  --experiment-name mace \
+  --test-id-split dataset/ani1x_energy_split/cc_test_id.xyz \
+  --test-ood-split dataset/ani1x_energy_split/cc_test_ood.xyz \
+  --energy-key-test "ccsd(t)_cbs.energy" \
+  --selection-key loss \
+  --selection-mode min \
+  --device cuda \
+  --batch-size 256 \
+  --output-csv-raw experiment_F/evaluation/energy_ood_raw.csv \
+  --output-csv-bins experiment_F/evaluation/energy_ood_bins.csv \
+  --output-plot experiment_F/evaluation/energy_ood.png

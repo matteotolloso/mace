@@ -134,6 +134,7 @@ CUDA_VISIBLE_DEVICES=4 python utils/epoch_quality.py \
   --device cuda \
   --batch-size 256 \
   --every-n-epochs 5 \
+  --free-scale \
   --output-csv experiment_D/evaluation/epoch_quality_id.csv \
   --output-plot experiment_D/evaluation/epoch_quality_id.png
 
@@ -146,6 +147,7 @@ CUDA_VISIBLE_DEVICES=4 python utils/epoch_quality.py \
   --device cuda \
   --batch-size 256 \
   --every-n-epochs 5 \
+  --free-scale \
   --output-csv experiment_D/evaluation/epoch_quality_ood.csv \
   --output-plot experiment_D/evaluation/epoch_quality_ood.png
 
@@ -158,6 +160,7 @@ CUDA_VISIBLE_DEVICES=4 python utils/epoch_quality.py \
   --device cuda \
   --batch-size 256 \
   --every-n-epochs 5 \
+  --free-scale \
   --output-csv experiment_D/evaluation/epoch_quality_train.csv \
   --output-plot experiment_D/evaluation/epoch_quality_train.png
 
@@ -175,6 +178,7 @@ CUDA_VISIBLE_DEVICES=4 python utils/epoch_quality_finetune_same_dataset.py \
   --batch-size 256 \
   --every-n-epochs-pretrain 5 \
   --every-n-epochs-finetune 5 \
+  --free-scale \
   --output-csv experiment_D/evaluation/epoch_quality_finetune_same_id.csv \
   --output-plot experiment_D/evaluation/epoch_quality_finetune_same_id.png \
   --title "Epoch Quality ID: Same Dataset Pretrain + Finetune"
@@ -190,6 +194,7 @@ CUDA_VISIBLE_DEVICES=4 python utils/epoch_quality_finetune_same_dataset.py \
   --batch-size 256 \
   --every-n-epochs-pretrain 5 \
   --every-n-epochs-finetune 5 \
+  --free-scale \
   --output-csv experiment_D/evaluation/epoch_quality_finetune_same_ood.csv \
   --output-plot experiment_D/evaluation/epoch_quality_finetune_same_ood.png \
   --title "Epoch Quality OOD: Same Dataset Pretrain + Finetune"
@@ -205,6 +210,7 @@ CUDA_VISIBLE_DEVICES=4 python utils/epoch_quality_finetune_same_dataset.py \
   --batch-size 256 \
   --every-n-epochs-pretrain 5 \
   --every-n-epochs-finetune 5 \
+  --free-scale \
   --output-csv experiment_D/evaluation/epoch_quality_finetune_same_train.csv \
   --output-plot experiment_D/evaluation/epoch_quality_finetune_same_train.png \
   --title "Epoch Quality Train: Same Dataset Pretrain + Finetune"
@@ -225,6 +231,7 @@ CUDA_VISIBLE_DEVICES=4 python utils/epoch_quality_finetune_mixed_dataset.py \
   --batch-size 256 \
   --every-n-epochs-pretrain 5 \
   --every-n-epochs-finetune 5 \
+  --free-scale \
   --output-csv experiment_D/evaluation/epoch_quality_finetune_mixed_id.csv \
   --output-plot experiment_D/evaluation/epoch_quality_finetune_mixed_id.png \
   --title "Epoch Quality ID: DFT Pretrain + CC Finetune"
@@ -242,6 +249,7 @@ CUDA_VISIBLE_DEVICES=4 python utils/epoch_quality_finetune_mixed_dataset.py \
   --batch-size 256 \
   --every-n-epochs-pretrain 5 \
   --every-n-epochs-finetune 5 \
+  --free-scale \
   --output-csv experiment_D/evaluation/epoch_quality_finetune_mixed_ood.csv \
   --output-plot experiment_D/evaluation/epoch_quality_finetune_mixed_ood.png \
   --title "Epoch Quality OOD: DFT Pretrain + CC Finetune"
@@ -259,6 +267,7 @@ CUDA_VISIBLE_DEVICES=4 python utils/epoch_quality_finetune_mixed_dataset.py \
   --batch-size 256 \
   --every-n-epochs-pretrain 5 \
   --every-n-epochs-finetune 5 \
+  --free-scale \
   --output-csv experiment_D/evaluation/epoch_quality_finetune_mixed_train.csv \
   --output-plot experiment_D/evaluation/epoch_quality_finetune_mixed_train.png \
   --title "Epoch Quality Train: DFT Pretrain + CC Finetune"
@@ -329,3 +338,21 @@ CUDA_VISIBLE_DEVICES=4 python utils/distribution.py \
   --batch-size 256 \
   --output-csv experiment_D/evaluation/distribution_train.csv \
   --output-plot experiment_D/evaluation/distribution_train.png
+
+
+# uncertainty vs energy for energy-OOD test sets
+
+CUDA_VISIBLE_DEVICES=4 python utils/energy_ood.py \
+  --checkpoints-dir experiment_D/checkpoints \
+  --results-dir experiment_D/results \
+  --experiment-name mace \
+  --test-id-split dataset/ani1x_energy_split/cc_test_id.xyz \
+  --test-ood-split dataset/ani1x_energy_split/cc_test_ood.xyz \
+  --energy-key-test "ccsd(t)_cbs.energy" \
+  --selection-key loss \
+  --selection-mode min \
+  --device cuda \
+  --batch-size 256 \
+  --output-csv-raw experiment_D/evaluation/energy_ood_raw.csv \
+  --output-csv-bins experiment_D/evaluation/energy_ood_bins.csv \
+  --output-plot experiment_D/evaluation/energy_ood.png
