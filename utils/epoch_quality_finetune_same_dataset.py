@@ -309,14 +309,10 @@ def write_plot(
         ("spearman", "Spearman ↑"),
         ("ause", "AUSE ↓"),
         ("ence", "ENCE ↓"),
-        ("magnitude", "|Uncertainty|"),
+        ("magnitude", "Uncertainty"),
     ]
 
-    title_fontsize = 18
-    label_fontsize = 16
-    tick_fontsize = 14
-    legend_fontsize = 14
-    suptitle_fontsize = 20
+    uniform_fontsize = 24
 
     def plot_series_with_clipped_markers(
         ax,
@@ -367,8 +363,8 @@ def write_plot(
                 markersize=10.0,
             )
 
-    fig, axes = plt.subplots(6, 1, figsize=(11, 20), sharex=True)
-    for ax, (metric_prefix, panel_title) in zip(axes[:4], metric_specs):
+    fig, axes = plt.subplots(6, 1, figsize=(9.5, 20), sharex=True)
+    for ax, (metric_prefix, panel_label) in zip(axes[:4], metric_specs):
         plotted_uncertainties = (
             ["aleatoric", "epistemic"]
             if metric_prefix == "magnitude"
@@ -406,8 +402,7 @@ def write_plot(
                     markersize=6.0,
                 )
         ax.axvline(finetune_start, color="black", linestyle="--", linewidth=1.2)
-        ax.set_title(panel_title, fontsize=title_fontsize)
-        ax.set_ylabel(panel_title, fontsize=label_fontsize)
+        ax.set_ylabel(panel_label, fontsize=uniform_fontsize)
         if fixed_scales:
             if metric_prefix == "spearman":
                 ax.set_ylim(0.0, 1.0)
@@ -420,8 +415,8 @@ def write_plot(
             if fixed_scales:
                 ax.set_ylim(1e-6, 1e2)
         ax.grid(alpha=0.3)
-        ax.legend(fontsize=legend_fontsize)
-        ax.tick_params(axis="both", labelsize=tick_fontsize)
+        ax.legend(fontsize=uniform_fontsize)
+        ax.tick_params(axis="both", labelsize=uniform_fontsize)
 
     rmse_values = np.array([row["rmse_e_atom"] for row in rows], dtype=float)
     rmse_values = np.where(rmse_values > 0.0, rmse_values, np.nan)
@@ -432,20 +427,19 @@ def write_plot(
             rmse_values,
             color="black",
             label="RMSE",
-            y_limits=(1e-6, 1e2),
+            y_limits=(1e-3, 1e0),
             log_scale=True,
         )
     else:
         axes[4].plot(epochs, rmse_values, marker="o", color="black", label="RMSE", linewidth=2.3, markersize=6.0)
     axes[4].axvline(finetune_start, color="black", linestyle="--", linewidth=1.2)
-    axes[4].set_title("RMSE_E_per_atom ↓", fontsize=title_fontsize)
-    axes[4].set_ylabel("RMSE", fontsize=label_fontsize)
+    axes[4].set_ylabel("RMSE ↓", fontsize=uniform_fontsize)
     axes[4].set_yscale("log", base=10)
     if fixed_scales:
-        axes[4].set_ylim(1e-6, 1e2)
+        axes[4].set_ylim(1e-3, 1e0)
     axes[4].grid(alpha=0.3)
-    axes[4].legend(fontsize=legend_fontsize)
-    axes[4].tick_params(axis="both", labelsize=tick_fontsize)
+    axes[4].legend(fontsize=uniform_fontsize)
+    axes[4].tick_params(axis="both", labelsize=uniform_fontsize)
 
     nll_values = np.array([row["nll_energy"] for row in rows], dtype=float)
     if fixed_scales:
@@ -454,24 +448,23 @@ def write_plot(
             epochs,
             nll_values,
             color="black",
-            label="NLL",
+            label="GNLL",
             y_limits=(-0.5, 0.5),
         )
     else:
-        axes[5].plot(epochs, nll_values, marker="o", color="black", label="NLL", linewidth=2.3, markersize=6.0)
+        axes[5].plot(epochs, nll_values, marker="o", color="black", label="GNLL", linewidth=2.3, markersize=6.0)
     axes[5].axvline(finetune_start, color="black", linestyle="--", linewidth=1.2)
-    axes[5].set_title("NLL ↓", fontsize=title_fontsize)
-    axes[5].set_ylabel("NLL", fontsize=label_fontsize)
-    axes[5].set_xlabel("Epoch", fontsize=label_fontsize)
+    axes[5].set_ylabel("GNLL ↓", fontsize=uniform_fontsize)
+    axes[5].set_xlabel("Epoch", fontsize=uniform_fontsize)
     if fixed_scales:
         axes[5].set_ylim(-0.5, 0.5)
     axes[5].grid(alpha=0.3)
-    axes[5].legend(fontsize=legend_fontsize)
-    axes[5].tick_params(axis="both", labelsize=tick_fontsize)
+    axes[5].legend(fontsize=uniform_fontsize)
+    axes[5].tick_params(axis="both", labelsize=uniform_fontsize)
 
-    fig.suptitle(f"{title}{title_suffix}", fontsize=suptitle_fontsize)
-    fig.tight_layout(rect=(0, 0, 1, 0.985))
-    fig.savefig(path, dpi=200)
+    fig.tight_layout()
+    fig.savefig(path, dpi=300, bbox_inches="tight", pad_inches=0.2)
+    fig.savefig(path.with_suffix(".svg"), bbox_inches="tight", pad_inches=0.2)
     plt.close(fig)
 
 

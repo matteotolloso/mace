@@ -157,6 +157,7 @@ def _finite_array(rows: List[Dict[str, float]], key: str) -> np.ndarray:
 
 def write_plot(path: Path, rows: List[Dict[str, float]], per_atom: bool, num_bins: int) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    uniform_fontsize = 26
 
     au = _finite_array(rows, "aleatoric_var")
     eu = _finite_array(rows, "epistemic_var")
@@ -180,26 +181,36 @@ def write_plot(path: Path, rows: List[Dict[str, float]], per_atom: bool, num_bin
 
     for ax, values, title, color in specs:
         if values.size == 0:
-            ax.text(0.5, 0.5, "No finite values", ha="center", va="center", transform=ax.transAxes)
-            ax.set_title(title)
+            ax.text(
+                0.5,
+                0.5,
+                "No finite values",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+                fontsize=uniform_fontsize,
+            )
+            ax.set_title(title, fontsize=uniform_fontsize)
             ax.grid(alpha=0.3)
             continue
         ax.hist(values, bins=num_bins, color=color, alpha=0.85, edgecolor="black", linewidth=0.4)
-        ax.set_title(f"{title} (n={values.size})")
+        ax.set_title(f"{title} (n={values.size})", fontsize=uniform_fontsize)
         ax.set_yscale("log")
         ax.grid(alpha=0.3)
 
-    axes[0].set_xlabel("AU per atom^2" if per_atom else "AU")
-    axes[1].set_xlabel("EU per atom^2" if per_atom else "EU")
-    axes[2].set_xlabel("Error per atom" if per_atom else "Error")
-    axes[3].set_xlabel("RMSE_E_per_atom" if per_atom else "RMSE_E")
+    axes[0].set_xlabel("AU per atom^2" if per_atom else "AU", fontsize=uniform_fontsize)
+    axes[1].set_xlabel("EU per atom^2" if per_atom else "EU", fontsize=uniform_fontsize)
+    axes[2].set_xlabel("Error per atom" if per_atom else "Error", fontsize=uniform_fontsize)
+    axes[3].set_xlabel("RMSE_E_per_atom" if per_atom else "RMSE_E", fontsize=uniform_fontsize)
     for ax in axes:
-        ax.set_ylabel("Count")
+        ax.set_ylabel("Count", fontsize=uniform_fontsize)
+        ax.tick_params(axis="both", labelsize=uniform_fontsize)
     axes[2].axvline(0.0, color="black", linestyle="--", linewidth=1.0, alpha=0.8)
 
-    fig.suptitle("Uncertainty and Error Distributions", y=0.98)
+    # fig.suptitle("Uncertainty and Error Distributions", y=0.98, fontsize=uniform_fontsize)
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     fig.savefig(path, dpi=200)
+    fig.savefig(path.with_suffix(".svg"))
     plt.close(fig)
 
 

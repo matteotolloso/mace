@@ -515,16 +515,6 @@ def evaluate_split(
                 if "energy_weight" in batch.keys
                 else torch.ones(num_graphs, device=device, dtype=model_dtype)
             )
-            eps = torch.tensor(1e-16, device=device, dtype=model_dtype)
-            total_var_safe = total_var_total + eps
-            log_2pi = math.log(2.0 * math.pi)
-            nll_energy = (
-                config_weight
-                * config_energy_weight
-                * 0.5
-                * (((ref_energy_total - ensemble_pred_total) ** 2) / total_var_safe + torch.log(total_var_safe) + log_2pi)
-                / num_atoms
-            )
 
             if per_atom:
                 pred_stack = pred_stack_total / num_atoms.unsqueeze(0)
@@ -539,6 +529,15 @@ def evaluate_split(
             aleatoric_var = torch.mean(var_stack, dim=0)
             epistemic_var = torch.var(pred_stack, dim=0, unbiased=False)
             total_var = aleatoric_var + epistemic_var
+            eps = torch.tensor(1e-16, device=device, dtype=model_dtype)
+            total_var_safe = total_var + eps
+            log_2pi = math.log(2.0 * math.pi)
+            nll_energy = (
+                config_weight
+                * config_energy_weight
+                * 0.5
+                * (((ref_energy - ensemble_pred) ** 2) / total_var_safe + torch.log(total_var_safe) + log_2pi)
+            )
             sq_error = (ensemble_pred - ref_energy) ** 2
 
             for local_idx in range(num_graphs):
@@ -759,14 +758,10 @@ def write_plot(
         ("spearman", "Spearman ↑"),
         ("ause", "AUSE ↓"),
         ("ence", "ENCE ↓"),
-        ("magnitude", "|Uncertainty|"),
+        ("magnitude", "Uncertainty"),
     ]
 
-    title_fontsize = 18
-    label_fontsize = 16
-    tick_fontsize = 14
-    legend_fontsize = 14
-    suptitle_fontsize = 20
+    uniform_fontsize = 26
 
     def plot_series_with_clipped_markers(
         ax,
@@ -817,8 +812,8 @@ def write_plot(
                 markersize=10.0,
             )
 
-    fig, axes = plt.subplots(6, 1, figsize=(11, 20), sharex=True)
-    for ax, (metric_prefix, title) in zip(axes[:4], metric_specs):
+    fig, axes = plt.subplots(6, 1, figsize=(9.5, 20), sharex=True)
+    for ax, (metric_prefix, label) in zip(axes[:4], metric_specs):
         plotted_uncertainties = (
             [("aleatoric", "aleatoric_var"), ("epistemic", "epistemic_var")]
             if metric_prefix == "magnitude"
@@ -854,8 +849,7 @@ def write_plot(
                     linewidth=2.3,
                     markersize=6.0,
                 )
-        ax.set_title(title, fontsize=title_fontsize)
-        ax.set_ylabel(title, fontsize=label_fontsize)
+        ax.set_ylabel(label, fontsize=uniform_fontsize)
         if fixed_scales:
             if metric_prefix == "spearman":
                 ax.set_ylim(0.0, 1.0)
@@ -868,8 +862,8 @@ def write_plot(
             if fixed_scales:
                 ax.set_ylim(1e-6, 1e2)
         ax.grid(alpha=0.3)
-        ax.legend(fontsize=legend_fontsize)
-        ax.tick_params(axis="both", labelsize=tick_fontsize)
+        ax.legend(fontsize=uniform_fontsize)
+        ax.tick_params(axis="both", labelsize=uniform_fontsize)
 
     rmse_values = np.array([row["rmse_e_atom"] for row in rows_plot], dtype=float)
     rmse_values = np.where(rmse_values > 0.0, rmse_values, np.nan)
@@ -880,19 +874,18 @@ def write_plot(
             rmse_values,
             color="black",
             label="RMSE",
-            y_limits=(1e-6, 1e2),
+            y_limits=(1e-3, 1e0),
             log_scale=True,
         )
     else:
         axes[4].plot(epochs, rmse_values, marker="o", color="black", label="RMSE", linewidth=2.3, markersize=6.0)
-    axes[4].set_title("RMSE_E_per_atom ↓", fontsize=title_fontsize)
-    axes[4].set_ylabel("RMSE", fontsize=label_fontsize)
+    axes[4].set_ylabel("RMSE ↓", fontsize=uniform_fontsize)
     axes[4].set_yscale("log", base=10)
     if fixed_scales:
-        axes[4].set_ylim(1e-6, 1e2)
+        axes[4].set_ylim(1e-3, 1e0)
     axes[4].grid(alpha=0.3)
-    axes[4].legend(fontsize=legend_fontsize)
-    axes[4].tick_params(axis="both", labelsize=tick_fontsize)
+    axes[4].legend(fontsize=uniform_fontsize)
+    axes[4].tick_params(axis="both", labelsize=uniform_fontsize)
 
     nll_values = np.array([row["nll_energy"] for row in rows_plot], dtype=float)
     if fixed_scales:
@@ -901,23 +894,22 @@ def write_plot(
             epochs,
             nll_values,
             color="black",
-            label="NLL",
+            label="GNLL",
             y_limits=(-0.5, 0.5),
         )
     else:
-        axes[5].plot(epochs, nll_values, marker="o", color="black", label="NLL", linewidth=2.3, markersize=6.0)
-    axes[5].set_title("Weighted Gaussian NLL Energy ↓", fontsize=title_fontsize)
-    axes[5].set_ylabel("NLL", fontsize=label_fontsize)
+        axes[5].plot(epochs, nll_values, marker="o", color="black", label="GNLL", linewidth=2.3, markersize=6.0)
+    axes[5].set_ylabel("GNLL ↓", fontsize=uniform_fontsize)
     if fixed_scales:
         axes[5].set_ylim(-0.5, 0.5)
     axes[5].grid(alpha=0.3)
-    axes[5].legend(fontsize=legend_fontsize)
-    axes[5].tick_params(axis="both", labelsize=tick_fontsize)
+    axes[5].legend(fontsize=uniform_fontsize)
+    axes[5].tick_params(axis="both", labelsize=uniform_fontsize)
 
-    axes[-1].set_xlabel("Epoch", fontsize=label_fontsize)
-    fig.suptitle(f"Uncertainty quality vs epoch{title_suffix}", fontsize=suptitle_fontsize)
-    fig.tight_layout(rect=(0, 0, 1, 0.985))
-    fig.savefig(path, dpi=200)
+    axes[-1].set_xlabel("Epoch", fontsize=uniform_fontsize)
+    fig.tight_layout()
+    fig.savefig(path, dpi=300, bbox_inches="tight", pad_inches=0.2)
+    fig.savefig(path.with_suffix(".svg"), bbox_inches="tight", pad_inches=0.2)
     plt.close(fig)
 
 

@@ -215,7 +215,7 @@ def build_summary_rows(raw_rows: List[Dict[str, object]]) -> List[Dict[str, obje
             {
                 "group": "id",
                 "x_index": 0,
-                "label": "ID mean",
+                "label": "ID",
                 "split": "id",
                 "quantile_lo": 0.0,
                 "quantile_hi": 1.0,
@@ -270,6 +270,7 @@ def build_summary_rows(raw_rows: List[Dict[str, object]]) -> List[Dict[str, obje
 
 def write_plot(path: Path, summary_rows: List[Dict[str, object]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    uniform_fontsize = 24
 
     rows = sorted(summary_rows, key=lambda row: int(row["x_index"]))
     x = np.array([int(row["x_index"]) for row in rows], dtype=float)
@@ -285,13 +286,13 @@ def write_plot(path: Path, summary_rows: List[Dict[str, object]]) -> None:
     ax.bar(x + width / 2, eu, width=width, color="tab:orange", label="EU")
 
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, fontsize=12)
-    ax.set_ylabel("Variance", fontsize=13)
+    ax.set_xticklabels(labels, fontsize=uniform_fontsize)
+    ax.set_ylabel("Variance", fontsize=uniform_fontsize)
     ax.set_yscale("log", base=10)
-    ax.set_title("Uncertainty vs within-system energy quantile bin", fontsize=18)
+    # ax.set_title("Uncertainty vs within-system energy quantile bin", fontsize=uniform_fontsize)
     ax.grid(axis="y", alpha=0.3)
-    ax.legend(fontsize=12)
-    ax.tick_params(axis="y", labelsize=12)
+    ax.legend(fontsize=uniform_fontsize)
+    ax.tick_params(axis="both", labelsize=uniform_fontsize)
     fig.tight_layout()
     fig.savefig(path, dpi=200)
     plt.close(fig)

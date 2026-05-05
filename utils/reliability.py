@@ -1149,8 +1149,12 @@ def write_plot(
         raise RuntimeError("Cannot create reliability plot from empty binned rows.")
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    fig, ax = plt.subplots(figsize=(10.5, 7))
-    fig.subplots_adjust(right=0.66)
+    uniform_fontsize = 28
+    fig = plt.figure(figsize=(14.5, 8.5))
+    grid = fig.add_gridspec(1, 2, width_ratios=[1.2, 0.52], wspace=0.05)
+    ax = fig.add_subplot(grid[0, 0])
+    text_ax = fig.add_subplot(grid[0, 1])
+    text_ax.set_axis_off()
     axis_min = 0.0
     axis_max = 0.1
 
@@ -1160,7 +1164,6 @@ def write_plot(
         "total": {"marker": "^", "label": "Total", "color": "tab:green"},
     }
     ence_summary = compute_ence_summary(binned_rows)
-    pearson_summary = compute_pearson_summary(raw_rows)
     spearman_summary = compute_spearman_summary(raw_rows)
     ause_summary = compute_ause_summary(raw_rows)
 
@@ -1190,7 +1193,7 @@ def write_plot(
         x_clipped = np.clip(x, axis_min, axis_max)
         y_clipped = np.clip(y, axis_min, axis_max)
 
-        ax.plot(x_clipped, y_clipped, linewidth=1.8, color=color)
+        ax.plot(x_clipped, y_clipped, linewidth=5, color=color, alpha=0.9)
         if np.any(in_mask):
             ax.plot(
                 x_clipped[in_mask],
@@ -1199,6 +1202,8 @@ def write_plot(
                 marker=marker,
                 color=color,
                 label=label,
+                markersize=12,
+                alpha=0.9,
             )
         if np.any(out_mask):
             ax.plot(
@@ -1206,9 +1211,10 @@ def write_plot(
                 y_clipped[out_mask],
                 linestyle="None",
                 marker="x",
-                markersize=8,
-                markeredgewidth=1.8,
+                markersize=12,
+                # markeredgewidth=3.8,
                 color=color,
+                alpha=0.9,
             )
 
     for unc_name in ["aleatoric", "epistemic", "total"]:
@@ -1226,17 +1232,15 @@ def write_plot(
             color=style_map[unc_name]["color"],
         )
 
-    ax.plot([axis_min, axis_max], [axis_min, axis_max], linestyle="--", color="black", label="Ideal")
+    ax.plot([axis_min, axis_max], [axis_min, axis_max], linestyle="--", color="black", label="Ideal", alpha=0.5)
     ax.set_xlim(axis_min, axis_max)
     ax.set_ylim(axis_min, axis_max)
     ax.set_aspect("equal", adjustable="box")
-    ax.set_xlabel("RMV")
-    ax.set_ylabel("RMSE")
-    ax.set_title("Reliability Diagram (per-atom energies)" if per_atom else "Reliability Diagram")
-    if isotonic_calibration:
-        ax.set_title(ax.get_title() + " with Isotonic Calibration")
+    ax.set_xlabel("RMV", fontsize=uniform_fontsize)
+    ax.set_ylabel("RMSE", fontsize=uniform_fontsize)
+    ax.tick_params(axis="both", labelsize=uniform_fontsize)
     ax.grid(alpha=0.3)
-    ax.legend()
+    ax.legend(fontsize=uniform_fontsize)
 
     display_names = {
         "aleatoric": "AU",
@@ -1244,39 +1248,51 @@ def write_plot(
         "total": "TU",
     }
     metric_specs = [
-        ("ENCE", ence_summary),
-        ("Pearson", pearson_summary),
-        ("Spearman", spearman_summary),
-        ("AUSE", ause_summary),
+        ("Spearman ↑", spearman_summary),
+        ("AUSE ↓", ause_summary),
+        ("ENCE ↓", ence_summary),
     ]
     summary_blocks = []
     # Compute and display test RMSE (if raw_rows contains test split rows)
     test_rmse = compute_energy_rmse(raw_rows) if raw_rows else float("nan")
     if np.isfinite(test_rmse):
-        rmse_label = "RMSE (per-atom)" if per_atom else "RMSE"
-        summary_blocks.append(f"Test RMSE\n{rmse_label}  {test_rmse:.6f}")
+        summary_blocks.append(f"RMSE ↓\n{test_rmse:.4f}")
     for metric_name, metric_summary in metric_specs:
         block_lines = [metric_name]
+        value_format = ".2f" if (
+            metric_name.startswith("Spearman")
+            or metric_name.startswith("AUSE")
+            or metric_name.startswith("ENCE")
+        ) else ".4f"
         for unc_name in ["aleatoric", "epistemic", "total"]:
             value = metric_summary[unc_name]
             if np.isfinite(value):
-                block_lines.append(f"{display_names[unc_name]}  {value:.4f}")
+                block_lines.append(f"{display_names[unc_name]}  {format(value, value_format)}")
         if len(block_lines) > 1:
             summary_blocks.append("\n".join(block_lines))
     if summary_blocks:
-        axes_bbox = ax.get_position()
-        fig.text(
-            0.70,
-            axes_bbox.y1,
+        text_ax.text(
+            0.03,
+            0.965,
             "\n\n".join(summary_blocks),
             va="top",
             ha="left",
             family="monospace",
-            fontsize=12.5,
-            bbox={"boxstyle": "round,pad=0.6", "facecolor": "white", "alpha": 0.9},
+            fontsize=uniform_fontsize,
+            linespacing=1.15,
+            transform=text_ax.transAxes,
+            bbox={
+                "boxstyle": "round,pad=0.45",
+                "facecolor": "white",
+                "edgecolor": "0.75",
+                "linewidth": 1.2,
+                "alpha": 0.95,
+            },
         )
-
-    plt.savefig(path, dpi=200)
+    
+    # plt.tight_layout()
+    plt.savefig(path, dpi=300, bbox_inches='tight', pad_inches=0.2)
+    plt.savefig(path.with_suffix(".svg"), bbox_inches='tight', pad_inches=0.2)
     plt.close()
     LOGGER.info("Saved reliability plot to %s in %.2fs", path, time.perf_counter() - start_time)
 
