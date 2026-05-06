@@ -286,7 +286,7 @@ def write_plot(path: Path, summary_rows: List[Dict[str, object]]) -> None:
     ax.bar(x + width / 2, eu, width=width, color="tab:orange", label="EU")
 
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, fontsize=uniform_fontsize)
+    ax.set_xticklabels(labels, fontsize=uniform_fontsize, rotation=90)
     ax.set_ylabel("Variance", fontsize=uniform_fontsize)
     ax.set_yscale("log", base=10)
     # ax.set_title("Uncertainty vs within-system energy quantile bin", fontsize=uniform_fontsize)
@@ -295,6 +295,8 @@ def write_plot(path: Path, summary_rows: List[Dict[str, object]]) -> None:
     ax.tick_params(axis="both", labelsize=uniform_fontsize)
     fig.tight_layout()
     fig.savefig(path, dpi=200)
+    fig.savefig(path.with_suffix(".svg"))
+    fig.savefig(path.with_suffix(".pdf"))
     plt.close(fig)
 
 

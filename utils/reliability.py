@@ -1293,6 +1293,7 @@ def write_plot(
     # plt.tight_layout()
     plt.savefig(path, dpi=300, bbox_inches='tight', pad_inches=0.2)
     plt.savefig(path.with_suffix(".svg"), bbox_inches='tight', pad_inches=0.2)
+    plt.savefig(path.with_suffix(".pdf"), bbox_inches='tight', pad_inches=0.2)
     plt.close()
     LOGGER.info("Saved reliability plot to %s in %.2fs", path, time.perf_counter() - start_time)
 

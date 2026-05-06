@@ -211,6 +211,7 @@ def write_plot(path: Path, rows: List[Dict[str, float]], per_atom: bool, num_bin
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     fig.savefig(path, dpi=200)
     fig.savefig(path.with_suffix(".svg"))
+    fig.savefig(path.with_suffix(".pdf"))
     plt.close(fig)
 
 
