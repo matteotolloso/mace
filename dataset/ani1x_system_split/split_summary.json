@@ -21,10 +21,10 @@
   },
   "dft_forces_key": null,
   "dft_key": "wb97x_tz.energy",
-  "input_h5": "/raid/m.tolloso/mace/dataset/ani1x-release.h5",
+  "input_h5": "/raid/mace/dataset/ani1x-release.h5",
   "max_per_system": 64,
   "num_systems": 3114,
-  "output_dir": "/raid/m.tolloso/mace/dataset/ani1x_system_split",
+  "output_dir": "/raid/mace/dataset/ani1x_system_split",
   "output_units": {
     "energies": "eV",
     "forces": null,
