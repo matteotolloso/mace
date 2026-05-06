@@ -11,7 +11,7 @@ import logging
 import os
 from copy import deepcopy
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import torch.distributed
 from e3nn.util import jit
@@ -72,6 +72,91 @@ from mace.tools.scripts_utils import (
 )
 from mace.tools.tables_utils import create_error_table
 from mace.tools.utils import AtomicNumberTable
+
+
+def build_test_data_loaders(
+    head_configs: List[HeadConfig],
+    args,
+    z_table: AtomicNumberTable,
+    heads: List[str],
+    world_size: int,
+    rank: int,
+) -> Dict[str, torch_geometric.dataloader.DataLoader]:
+    test_sets = {}
+    stop_first_test = False
+    test_data_loader: Dict[str, torch_geometric.dataloader.DataLoader] = {}
+
+    if (
+        all(head_config.test_file == head_configs[0].test_file for head_config in head_configs)
+        and head_configs[0].test_file is not None
+    ):
+        stop_first_test = True
+    if (
+        all(head_config.test_dir == head_configs[0].test_dir for head_config in head_configs)
+        and head_configs[0].test_dir is not None
+    ):
+        stop_first_test = True
+
+    for head_config in head_configs:
+        if all(check_path_ase_read(f) for f in head_config.train_file):
+            for name, subset in head_config.collections.tests:
+                test_sets[name] = [
+                    data.AtomicData.from_config(
+                        config, z_table=z_table, cutoff=args.r_max, heads=heads
+                    )
+                    for config in subset
+                ]
+        if head_config.test_dir is not None:
+            if not args.multi_processed_test:
+                test_files = get_files_with_suffix(head_config.test_dir, "_test.h5")
+                for test_file in test_files:
+                    name = os.path.splitext(os.path.basename(test_file))[0]
+                    test_sets[name] = data.HDF5Dataset(
+                        test_file,
+                        r_max=args.r_max,
+                        z_table=z_table,
+                        heads=heads,
+                        head=head_config.head_name,
+                    )
+            else:
+                test_folders = glob.glob(head_config.test_dir + "/*")
+                for folder in test_folders:
+                    name = os.path.splitext(os.path.basename(folder))[0]
+                    test_sets[name] = data.dataset_from_sharded_hdf5(
+                        folder,
+                        r_max=args.r_max,
+                        z_table=z_table,
+                        heads=heads,
+                        head=head_config.head_name,
+                    )
+
+        for test_name, test_set in test_sets.items():
+            test_sampler = None
+            if args.distributed:
+                test_sampler = torch.utils.data.distributed.DistributedSampler(
+                    test_set,
+                    num_replicas=world_size,
+                    rank=rank,
+                    shuffle=True,
+                    drop_last=True,
+                    seed=args.seed,
+                )
+            try:
+                drop_last = test_set.drop_last
+            except AttributeError:
+                drop_last = False
+            test_loader = torch_geometric.dataloader.DataLoader(
+                test_set,
+                batch_size=args.valid_batch_size,
+                shuffle=False,
+                drop_last=drop_last,
+                num_workers=args.num_workers,
+                pin_memory=args.pin_memory,
+            )
+            test_data_loader[test_name] = test_loader
+        if stop_first_test:
+            break
+    return test_data_loader
 
 
 def main() -> None:
@@ -716,8 +801,11 @@ def run(args) -> None:
         f"Number of gradient updates: {int(args.max_num_epochs*len(train_set)/args.batch_size)}"
     )
     logging.info(f"Learning rate: {args.lr}, weight decay: {args.weight_decay}")
+    # print the argument loss
+    logging.info(f"Using Mean Variance Estimation (MVE): {args.predict_mve}")
+    logging.info(f"Using loss: {args.loss}")
     logging.info(loss_fn)
-
+    
     # Cueq and OEQ conversion
     if args.enable_cueq and args.enable_oeq:
         logging.warning(
@@ -852,6 +940,39 @@ def run(args) -> None:
                 "Please install it to use XPU device."
             )
 
+    epoch_train_eval_loaders = None
+    if args.log_epoch_outputs:
+        epoch_train_eval_loaders = {}
+        for head in heads:
+            eval_sampler = None
+            if args.distributed:
+                eval_sampler = torch.utils.data.distributed.DistributedSampler(
+                    train_sets[head],
+                    num_replicas=world_size,
+                    rank=rank,
+                    shuffle=False,
+                    drop_last=False,
+                    seed=args.seed,
+                )
+            epoch_train_eval_loaders[head] = torch_geometric.dataloader.DataLoader(
+                dataset=train_sets[head],
+                batch_size=args.valid_batch_size,
+                sampler=eval_sampler,
+                shuffle=False,
+                drop_last=False,
+                pin_memory=args.pin_memory,
+                num_workers=args.num_workers,
+                generator=torch.Generator().manual_seed(args.seed),
+            )
+    epoch_test_loaders = build_test_data_loaders(
+        head_configs=head_configs,
+        args=args,
+        z_table=z_table,
+        heads=heads,
+        world_size=world_size,
+        rank=rank,
+    )
+
     tools.train(
         model=model,
         loss_fn=loss_fn,
@@ -878,6 +999,14 @@ def run(args) -> None:
         plotter=plotter,
         train_sampler=train_sampler,
         rank=rank,
+        epoch_train_loaders=epoch_train_eval_loaders,
+        epoch_test_loaders=epoch_test_loaders,
+        log_epoch_outputs=args.log_epoch_outputs,
+        epoch_logger=(
+            tools.MetricsLogger(directory=args.results_dir, tag=tag + "_epoch_outputs")
+            if args.log_epoch_outputs and rank == 0
+            else None
+        ),
     )
 
     logging.info("")
@@ -890,69 +1019,7 @@ def run(args) -> None:
     for head, valid_loader in valid_loaders.items():
         data_load_name = "valid_" + head
         train_valid_data_loader[data_load_name] = valid_loader
-    test_sets = {}
-    stop_first_test = False
-    test_data_loader = {}
-    if all(
-        head_config.test_file == head_configs[0].test_file
-        for head_config in head_configs
-    ) and head_configs[0].test_file is not None:
-        stop_first_test = True
-    if all(
-        head_config.test_dir == head_configs[0].test_dir
-        for head_config in head_configs
-    ) and head_configs[0].test_dir is not None:
-        stop_first_test = True
-    for head_config in head_configs:
-        if all(check_path_ase_read(f) for f in head_config.train_file):
-            for name, subset in head_config.collections.tests:
-                test_sets[name] = [
-                    data.AtomicData.from_config(
-                        config, z_table=z_table, cutoff=args.r_max, heads=heads
-                    )
-                    for config in subset
-                ]
-        if head_config.test_dir is not None:
-            if not args.multi_processed_test:
-                test_files = get_files_with_suffix(head_config.test_dir, "_test.h5")
-                for test_file in test_files:
-                    name = os.path.splitext(os.path.basename(test_file))[0]
-                    test_sets[name] = data.HDF5Dataset(
-                        test_file, r_max=args.r_max, z_table=z_table, heads=heads, head=head_config.head_name
-                    )
-            else:
-                test_folders = glob(head_config.test_dir + "/*")
-                for folder in test_folders:
-                    name = os.path.splitext(os.path.basename(test_file))[0]
-                    test_sets[name] = data.dataset_from_sharded_hdf5(
-                        folder, r_max=args.r_max, z_table=z_table, heads=heads, head=head_config.head_name
-                    )
-        for test_name, test_set in test_sets.items():
-            test_sampler = None
-            if args.distributed:
-                test_sampler = torch.utils.data.distributed.DistributedSampler(
-                    test_set,
-                    num_replicas=world_size,
-                    rank=rank,
-                    shuffle=True,
-                    drop_last=True,
-                    seed=args.seed,
-                )
-            try:
-                drop_last = test_set.drop_last
-            except AttributeError as e:  # pylint: disable=W0612
-                drop_last = False
-            test_loader = torch_geometric.dataloader.DataLoader(
-                test_set,
-                batch_size=args.valid_batch_size,
-                shuffle=(test_sampler is None),
-                drop_last=drop_last,
-                num_workers=args.num_workers,
-                pin_memory=args.pin_memory,
-            )
-            test_data_loader[test_name] = test_loader
-        if stop_first_test:
-            break
+    test_data_loader = epoch_test_loaders
 
     for swa_eval in swas:
         epoch = checkpoint_handler.load_latest(

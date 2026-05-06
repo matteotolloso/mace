@@ -169,6 +169,9 @@ def configure_model(
             )
 
         model_config = dict(
+            ### MVE ###
+            predict_mve=args.predict_mve,
+            ### /MVE ###
             r_max=args.r_max,
             num_bessel=args.num_radial_basis,
             num_polynomial_cutoff=args.num_cutoff_basis,

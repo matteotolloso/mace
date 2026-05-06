@@ -29,6 +29,13 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         parser = argparse.ArgumentParser(
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         )
+    
+    ### MVE ###
+    parser.add_argument(
+        "--predict_mve", action="store_true",
+        help="If set, the model predicts mean and variance (logvar) per head."
+    )
+    ### /MVE ###
 
     # Name and seed
     parser.add_argument("--name", help="experiment name", required=True)
@@ -55,6 +62,12 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--results_dir", help="directory for results", type=str, default=None
+    )
+    parser.add_argument(
+        "--log_epoch_outputs",
+        help="if True, write epoch-end train/valid/test evaluation metrics to an additional results file",
+        type=str2bool,
+        default=False,
     )
     parser.add_argument(
         "--downloads_dir", help="directory for downloads", type=str, default=None
@@ -638,9 +651,13 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         help="type of loss",
         default="weighted",
         choices=[
+            ### MVE ###
+            "gaussian_nll",
+            ### /MVE ###
             "ef",
             "weighted",
             "forces_only",
+            "energy_only",
             "virials",
             "stress",
             "dipole",

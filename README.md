@@ -1,5 +1,123 @@
 # <span style="font-size:larger;">MACE</span>
 
+## Project-specific experiments in this repository
+
+This repository contains the original MACE codebase plus a project-specific
+experimental pipeline built on top of ANI-1x-derived datasets and uncertainty-aware
+ensemble training/evaluation scripts.
+
+### Dataset folder
+
+The [`dataset`](dataset) directory contains the processed splits used by the
+experiments.
+
+- [`dataset/ani1x_system_split`](dataset/ani1x_system_split): system-OOD split
+  where train/validation and test are separated by molecular system identity.
+- [`dataset/ani1x_energy_split`](dataset/ani1x_energy_split): energy-OOD split
+  where ID and OOD test configurations are separated by within-system relative energy.
+- Each split exists in two fidelity versions:
+  - `dft_*`: lower-fidelity DFT reference energies
+  - `cc_*`: higher-fidelity CCSD(T)/CBS reference energies
+- Standard files are:
+  - `*_train.xyz`
+  - `*_val.xyz`
+  - `*_test_id.xyz`
+  - `*_test_ood.xyz`
+  - plus `split_summary.json` and `system_assignments.csv`
+
+### Experiment folders
+
+Each `experiment_X` folder follows the same structure:
+
+- `config_X.yml`: experiment configuration passed to MACE training
+- `train_X.sh`: launches the ensemble training jobs
+- `eval_X.sh`: runs the post-training evaluation and plotting pipeline
+- `checkpoints/`: epoch checkpoints and selected `.model` files
+- `models/`: serialized model files
+- `results/`: per-run training logs such as `*_train.txt`
+- `logs/`: shell/stdout logs from the launch scripts
+- `evaluation/`: generated CSV files and plots
+
+### What each experiment is
+
+- [`experiment_A`](experiment_A): direct training on DFT, system-OOD split
+- [`experiment_B`](experiment_B): fine-tuning of `A` on CC, system-OOD split
+- [`experiment_C`](experiment_C): direct training on DFT, energy-OOD split
+- [`experiment_D`](experiment_D): fine-tuning of `C` on CC, energy-OOD split
+- [`experiment_E`](experiment_E): direct training on CC, system-OOD split
+- [`experiment_F`](experiment_F): direct training on CC, energy-OOD split
+
+In short:
+
+- `A`, `C`: DFT pretraining experiments
+- `B`, `D`: CC fine-tuning experiments starting from `A` and `C`
+- `E`, `F`: direct CC baselines without pretraining
+- `A`, `B`, `E`: system-OOD
+- `C`, `D`, `F`: energy-OOD
+
+### What the scripts do
+
+Training scripts:
+
+- The `train_X.sh` scripts launch multiple ensemble members with different seeds.
+- For direct-training experiments (`A`, `C`, `E`, `F`), they train models from scratch.
+- For fine-tuning experiments (`B`, `D`), they load a pretrained `.model` foundation model
+  from the corresponding pretraining experiment and continue training on the CC dataset.
+
+Evaluation scripts:
+
+- The `eval_X.sh` scripts generate the plots and CSV summaries stored in
+  `evaluation/` inside each experiment folder.
+- They run utilities from [`utils/`](utils), including:
+  - reliability diagrams
+  - epoch-quality plots
+  - raw uncertainty/error evolution over epochs
+  - train/validation ensemble curves
+  - uncertainty distributions
+  - fine-tuning comparison plots where applicable
+  - energy-OOD uncertainty profiles for energy-split experiments
+
+### How to run training
+
+From the repository root:
+
+```bash
+bash experiment_A/train_A.sh
+bash experiment_B/train_B.sh
+bash experiment_C/train_C.sh
+bash experiment_D/train_D.sh
+bash experiment_E/train_E.sh
+bash experiment_F/train_F.sh
+```
+
+The shell scripts define the seeds, GPU assignment, and the correct config file for each run.
+
+### How to run evaluation
+
+To evaluate a single experiment:
+
+```bash
+bash experiment_A/eval_A.sh
+```
+
+Equivalent commands exist for `B`, `C`, `D`, `E`, and `F`.
+
+To launch the full evaluation pipeline for all experiments:
+
+```bash
+bash eval.sh
+```
+
+This top-level script runs the six experiment evaluation scripts in parallel.
+
+### Practical notes
+
+- Run all commands from the repository root
+- The evaluation scripts assume the corresponding training outputs already exist
+- Most project plots are created both as raster images and as `.svg` files
+- Fine-tuning experiments require the pretrained models from their parent experiment
+  to be present in the expected checkpoint/model folders
+
 [![GitHub release](https://img.shields.io/github/release/ACEsuit/mace.svg)](https://GitHub.com/ACEsuit/mace/releases/)
 [![Paper](https://img.shields.io/badge/Paper-NeurIPs2022-blue)](https://openreview.net/forum?id=YPpSngE-ZU)
 [![License](https://img.shields.io/badge/License-MIT%202.0-blue.svg)](https://opensource.org/licenses/mit)
