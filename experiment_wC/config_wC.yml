@@ -1,0 +1,37 @@
+model: "MACE"
+
+name: "mace"
+model_dir: "experiment_wC/models"
+log_dir: "experiment_wC/logs"
+checkpoints_dir: "experiment_wC/checkpoints"
+results_dir: "experiment_wC/results"
+
+train_file: "dataset/water/ccsdt/train.xyz"
+valid_file: "dataset/water/ccsdt/val.xyz"
+test_file: "dataset/water/ccsdt/test.xyz"
+energy_key: "REF_energy"
+# forces_key: "REF_forces"
+
+lr: 0.005
+num_channels: 128
+max_L: 1
+r_max: 6.0
+forces_weight: 0.0
+device: cuda
+batch_size: 8
+max_num_epochs: 300
+swa: False
+compute_forces: False
+E0s: "average"
+predict_mve: True
+loss: "gaussian_nll"
+eval_interval: 1
+save_all_checkpoints: True
+log_epoch_outputs: False
+default_dtype: "float32"
+enable_cueq: False
+
+wandb: True
+wandb_dir: "wandb"
+wandb_entity: "uq-mf"
+wandb_project: "experiment_wC"
