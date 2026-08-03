@@ -28,14 +28,14 @@ class N2P2Config:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Convert each dataset/water/<theory>/input.data from n2p2 format to "
+            "Convert each dataset/water_0/<theory>/input.data from n2p2 format to "
             "train.xyz, val.xyz, and test.xyz extended XYZ files."
         )
     )
     parser.add_argument(
         "--root",
         type=Path,
-        default=Path("dataset/water"),
+        default=Path("dataset/water_0"),
         help="Root folder containing theory subfolders with input.data files.",
     )
     parser.add_argument("--train", type=float, default=80.0, help="Train percentage.")

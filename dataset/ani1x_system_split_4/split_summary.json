@@ -1,0 +1,96 @@
+{
+  "cc_available_pool_counts": {
+    "test_id": 63275,
+    "test_ood": 172769,
+    "train": 190141,
+    "val": 63386
+  },
+  "cc_forces_key": null,
+  "cc_key": "ccsd(t)_cbs.energy",
+  "config_pool_counts": {
+    "test_id": 640402,
+    "test_ood": 1751972,
+    "train": 1922528,
+    "val": 641103
+  },
+  "dft_available_pool_counts": {
+    "test_id": 597133,
+    "test_ood": 1630269,
+    "train": 1792226,
+    "val": 597601
+  },
+  "dft_forces_key": null,
+  "dft_key": "wb97x_tz.energy",
+  "input_h5": "/raid/m.tolloso/mace/dataset/ani1x-release.h5",
+  "max_per_system": 64,
+  "num_systems": 3114,
+  "output_dir": "/raid/m.tolloso/mace/dataset/ani1x_system_split_4",
+  "output_units": {
+    "energies": "eV",
+    "forces": null,
+    "positions": "Angstrom"
+  },
+  "p_seen": 0.6,
+  "p_test_id": 0.2,
+  "p_train": 0.6,
+  "p_val": 0.2,
+  "requested_targets": {
+    "cc": {
+      "test_id": 5000,
+      "test_ood": 5000,
+      "train": 5000,
+      "val": 1000
+    },
+    "dft": {
+      "test_id": 50000,
+      "test_ood": 50000,
+      "train": 50000,
+      "val": 10000
+    }
+  },
+  "resolved_targets": {
+    "test_id": {
+      "cc_available": 59379,
+      "cc_selected": 5000,
+      "dft_available": 597133,
+      "dft_selected": 50000
+    },
+    "test_ood": {
+      "cc_available": 161920,
+      "cc_selected": 5000,
+      "dft_available": 1630269,
+      "dft_selected": 50000
+    },
+    "train": {
+      "cc_available": 178733,
+      "cc_selected": 5000,
+      "dft_available": 1792226,
+      "dft_selected": 50000
+    },
+    "val": {
+      "cc_available": 59432,
+      "cc_selected": 1000,
+      "dft_available": 597601,
+      "dft_selected": 10000
+    }
+  },
+  "seed": 4,
+  "system_domain_counts": {
+    "seen": 1868,
+    "test_ood": 1246
+  },
+  "written_xyz_counts": {
+    "cc": {
+      "test_id": 5000,
+      "test_ood": 5000,
+      "train": 5000,
+      "val": 1000
+    },
+    "dft": {
+      "test_id": 50000,
+      "test_ood": 50000,
+      "train": 50000,
+      "val": 10000
+    }
+  }
+}

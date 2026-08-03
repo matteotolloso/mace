@@ -1,12 +1,16 @@
 #!/bin/bash
 
-set -e
+set -euo pipefail
 
-GPU_ID=${GPU_ID:-6}
+REPO_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+source "${REPO_ROOT}/utils/train_split_member.sh"
 
-for seed in {0..9}; do
-  CUDA_VISIBLE_DEVICES=${GPU_ID} python mace/cli/run_train.py \
-    --config experiment_wC/config_wC.yml \
-    --seed "${seed}" \
-    --wandb_name "mace_seed_${seed}"
-done
+EXPERIMENT_DIR="experiment_wC"
+CONFIG_FILE="experiment_wC/config_wC.yml"
+DATASET_PREFIX="dataset/water"
+TRAIN_RELATIVE_PATH="ccsdt/train.xyz"
+VALID_RELATIVE_PATH="ccsdt/val.xyz"
+TEST_RELATIVE_PATH="ccsdt/test.xyz"
+FOUNDATION_EXPERIMENT_DIR=""
+
+run_split_member "$@"

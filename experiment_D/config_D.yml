@@ -1,18 +1,18 @@
 
 model: "MACE"
 
-# foundation_model: "experiment_C/checkpoints/mace_run-<seed>.model" # In the train_D.sh script, we specify the foundation model for each seed separately, so we don't set it here in the config file.
+# foundation_model is selected by train_D.sh from experiment_C/checkpoints_<split_seed>/mace_run-<member_seed>.model.
 multiheads_finetuning: False
 
 name: "mace"
-model_dir: "experiment_D/models"
-log_dir: "experiment_D/logs"
-checkpoints_dir: "experiment_D/checkpoints"
-results_dir: "experiment_D/results"
+model_dir: "experiment_D/models_0"
+log_dir: "experiment_D/logs_0"
+checkpoints_dir: "experiment_D/checkpoints_0"
+results_dir: "experiment_D/results_0"
 
-train_file: "dataset/ani1x_energy_split/cc_train.xyz"
-valid_file: "dataset/ani1x_energy_split/cc_val.xyz"
-test_file: "dataset/ani1x_energy_split/cc_test_id.xyz"
+train_file: "dataset/ani1x_energy_split_0/cc_train.xyz"
+valid_file: "dataset/ani1x_energy_split_0/cc_val.xyz"
+test_file: "dataset/ani1x_energy_split_0/cc_test_id.xyz"
 energy_key: "ccsd(t)_cbs.energy"
 
 lr: 0.001 # 1/10 of the learning rate used in experiment C, since we are fine-tuning

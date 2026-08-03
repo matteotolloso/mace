@@ -1,26 +1,47 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+source eval/split_cache.sh
+
+if (( $# != 1 )); then
+  printf 'Usage: %s <gpu_number>\n' "$0" >&2
+  exit 2
+fi
+if [[ ! $1 =~ ^[0-9]+$ ]]; then
+  printf 'gpu_number must be a non-negative integer, got: %s\n' "$1" >&2
+  exit 2
+fi
+
+GPU_ID=$1
+EVAL_SPLIT_SEEDS="0 1 2 3 4"
+
+run_split() {
+local split_seed=$1
 
 mkdir -p experiment_wB/evaluation
 
-CUDA_VISIBLE_DEVICES=7 python utils/train_curves.py \
-  --checkpoints-dir experiment_wB/checkpoints \
+CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/train_curves.py \
+  --checkpoints-dir experiment_wB/checkpoints_${split_seed} \
   --experiment-name mace \
-  --train-split dataset/water/ccsdt/train.xyz \
-  --validation-split dataset/water/ccsdt/val.xyz \
+  --train-split dataset/water_${split_seed}/ccsdt/train.xyz \
+  --validation-split dataset/water_${split_seed}/ccsdt/val.xyz \
   --energy-key-train REF_energy \
   --energy-key-val REF_energy \
   --every-n-epochs 5 \
   --device cuda \
-  --output-csv experiment_wB/evaluation/train_curves.csv \
-  --output-plot experiment_wB/evaluation/train_curves.png \
+  --output-csv experiment_wB/evaluation/cache/split_${split_seed}/train_curves.csv \
+  --output-plot experiment_wB/evaluation/cache/split_${split_seed}/train_curves.png \
   --batch-size 16
 
-CUDA_VISIBLE_DEVICES=7 python utils/reliability.py \
-  --checkpoints-dir experiment_wB/checkpoints \
-  --results-dir experiment_wB/results \
+CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/reliability.py \
+  --checkpoints-dir experiment_wB/checkpoints_${split_seed} \
+  --results-dir experiment_wB/results_${split_seed} \
   --experiment-name mace \
-  --validation-split dataset/water/ccsdt/val.xyz \
-  --test-split dataset/water/ccsdt/test.xyz \
+  --validation-split dataset/water_${split_seed}/ccsdt/val.xyz \
+  --test-split dataset/water_${split_seed}/ccsdt/test.xyz \
   --energy-key-val REF_energy \
   --energy-key-test REF_energy \
   --selection-key loss \
@@ -31,20 +52,20 @@ CUDA_VISIBLE_DEVICES=7 python utils/reliability.py \
   --log-log-scale \
   --axis-min 1e-4 \
   --axis-max 1e-1 \
-  --output-csv-raw experiment_wB/evaluation/reliability_test_cal_raw.csv \
-  --output-csv-bins experiment_wB/evaluation/reliability_test_cal_bins.csv \
-  --output-plot experiment_wB/evaluation/reliability_test_cal.png \
+  --output-csv-raw experiment_wB/evaluation/cache/split_${split_seed}/reliability_test_cal_raw.csv \
+  --output-csv-bins experiment_wB/evaluation/cache/split_${split_seed}/reliability_test_cal_bins.csv \
+  --output-plot experiment_wB/evaluation/cache/split_${split_seed}/reliability_test_cal.png \
   --log-level INFO \
   --log-every-batches 1 \
   --device cuda \
   --batch-size 16
 
-CUDA_VISIBLE_DEVICES=7 python utils/reliability.py \
-  --checkpoints-dir experiment_wB/checkpoints \
-  --results-dir experiment_wB/results \
+CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/reliability.py \
+  --checkpoints-dir experiment_wB/checkpoints_${split_seed} \
+  --results-dir experiment_wB/results_${split_seed} \
   --experiment-name mace \
-  --validation-split dataset/water/ccsdt/val.xyz \
-  --test-split dataset/water/ccsdt/test.xyz \
+  --validation-split dataset/water_${split_seed}/ccsdt/val.xyz \
+  --test-split dataset/water_${split_seed}/ccsdt/test.xyz \
   --energy-key-val REF_energy \
   --energy-key-test REF_energy \
   --selection-key loss \
@@ -55,141 +76,151 @@ CUDA_VISIBLE_DEVICES=7 python utils/reliability.py \
   --log-log-scale \
   --axis-min 1e-4 \
   --axis-max 1e-1 \
-  --output-csv-raw experiment_wB/evaluation/reliability_test_nocal_raw.csv \
-  --output-csv-bins experiment_wB/evaluation/reliability_test_nocal_bins.csv \
-  --output-plot experiment_wB/evaluation/reliability_test_nocal.png \
+  --output-csv-raw experiment_wB/evaluation/cache/split_${split_seed}/reliability_test_nocal_raw.csv \
+  --output-csv-bins experiment_wB/evaluation/cache/split_${split_seed}/reliability_test_nocal_bins.csv \
+  --output-plot experiment_wB/evaluation/cache/split_${split_seed}/reliability_test_nocal.png \
   --log-level INFO \
   --log-every-batches 1 \
   --device cuda \
   --batch-size 16
 
-CUDA_VISIBLE_DEVICES=7 python utils/epoch_raw.py \
-  --checkpoints-dir experiment_wB/checkpoints \
+CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/epoch_raw.py \
+  --checkpoints-dir experiment_wB/checkpoints_${split_seed} \
   --experiment-name mace \
-  --split-path dataset/water/ccsdt/train.xyz \
+  --split-path dataset/water_${split_seed}/ccsdt/train.xyz \
   --energy-key REF_energy \
   --device cuda \
   --batch-size 16 \
   --every-n-epochs 10 \
-  --output-csv experiment_wB/evaluation/epoch_raw_train.csv \
-  --output-plot experiment_wB/evaluation/epoch_raw_train.png
+  --output-csv experiment_wB/evaluation/cache/split_${split_seed}/epoch_raw_train.csv \
+  --output-plot experiment_wB/evaluation/cache/split_${split_seed}/epoch_raw_train.png
 
-CUDA_VISIBLE_DEVICES=7 python utils/epoch_quality.py \
-  --checkpoints-dir experiment_wB/checkpoints \
+CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/epoch_quality.py \
+  --checkpoints-dir experiment_wB/checkpoints_${split_seed} \
   --experiment-name mace \
-  --split-path dataset/water/ccsdt/test.xyz \
+  --split-path dataset/water_${split_seed}/ccsdt/test.xyz \
   --energy-key REF_energy \
   --device cuda \
   --batch-size 16 \
   --every-n-epochs 5 \
   --free-scale \
-  --output-csv experiment_wB/evaluation/epoch_quality_test.csv \
-  --output-plot experiment_wB/evaluation/epoch_quality_test.png
+  --output-csv experiment_wB/evaluation/cache/split_${split_seed}/epoch_quality_test.csv \
+  --output-plot experiment_wB/evaluation/cache/split_${split_seed}/epoch_quality_test.png
 
-CUDA_VISIBLE_DEVICES=7 python utils/epoch_quality.py \
-  --checkpoints-dir experiment_wB/checkpoints \
+CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/epoch_quality.py \
+  --checkpoints-dir experiment_wB/checkpoints_${split_seed} \
   --experiment-name mace \
-  --split-path dataset/water/ccsdt/train.xyz \
+  --split-path dataset/water_${split_seed}/ccsdt/train.xyz \
   --energy-key REF_energy \
   --device cuda \
   --batch-size 16 \
   --every-n-epochs 5 \
   --free-scale \
-  --output-csv experiment_wB/evaluation/epoch_quality_train.csv \
-  --output-plot experiment_wB/evaluation/epoch_quality_train.png
+  --output-csv experiment_wB/evaluation/cache/split_${split_seed}/epoch_quality_train.csv \
+  --output-plot experiment_wB/evaluation/cache/split_${split_seed}/epoch_quality_train.png
 
-CUDA_VISIBLE_DEVICES=7 python utils/epoch_quality_finetune_same_dataset.py \
-  --pretrain-checkpoints-dir experiment_wA/checkpoints \
+CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/epoch_quality_finetune_same_dataset.py \
+  --pretrain-checkpoints-dir experiment_wA/checkpoints_${split_seed} \
   --pretrain-experiment-name mace \
-  --finetune-checkpoints-dir experiment_wB/checkpoints \
+  --finetune-checkpoints-dir experiment_wB/checkpoints_${split_seed} \
   --finetune-experiment-name mace \
-  --split-path dataset/water/ccsdt/test.xyz \
+  --split-path dataset/water_${split_seed}/ccsdt/test.xyz \
   --energy-key REF_energy \
   --device cuda \
   --batch-size 16 \
   --every-n-epochs-pretrain 5 \
   --every-n-epochs-finetune 5 \
   --free-scale \
-  --output-csv experiment_wB/evaluation/epoch_quality_finetune_same_test.csv \
-  --output-plot experiment_wB/evaluation/epoch_quality_finetune_same_test.png \
+  --output-csv experiment_wB/evaluation/cache/split_${split_seed}/epoch_quality_finetune_same_test.csv \
+  --output-plot experiment_wB/evaluation/cache/split_${split_seed}/epoch_quality_finetune_same_test.png \
   --title "Epoch Quality Test: BLYP Pretrain + CCSDT Finetune"
 
-CUDA_VISIBLE_DEVICES=7 python utils/epoch_quality_finetune_same_dataset.py \
-  --pretrain-checkpoints-dir experiment_wA/checkpoints \
+CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/epoch_quality_finetune_same_dataset.py \
+  --pretrain-checkpoints-dir experiment_wA/checkpoints_${split_seed} \
   --pretrain-experiment-name mace \
-  --finetune-checkpoints-dir experiment_wB/checkpoints \
+  --finetune-checkpoints-dir experiment_wB/checkpoints_${split_seed} \
   --finetune-experiment-name mace \
-  --split-path dataset/water/ccsdt/train.xyz \
+  --split-path dataset/water_${split_seed}/ccsdt/train.xyz \
   --energy-key REF_energy \
   --device cuda \
   --batch-size 16 \
   --every-n-epochs-pretrain 5 \
   --every-n-epochs-finetune 5 \
   --free-scale \
-  --output-csv experiment_wB/evaluation/epoch_quality_finetune_same_train.csv \
-  --output-plot experiment_wB/evaluation/epoch_quality_finetune_same_train.png \
+  --output-csv experiment_wB/evaluation/cache/split_${split_seed}/epoch_quality_finetune_same_train.csv \
+  --output-plot experiment_wB/evaluation/cache/split_${split_seed}/epoch_quality_finetune_same_train.png \
   --title "Epoch Quality Train: BLYP Pretrain + CCSDT Finetune"
 
-CUDA_VISIBLE_DEVICES=7 python utils/epoch_quality_finetune_mixed_dataset.py \
-  --pretrain-checkpoints-dir experiment_wA/checkpoints \
+CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/epoch_quality_finetune_mixed_dataset.py \
+  --pretrain-checkpoints-dir experiment_wA/checkpoints_${split_seed} \
   --pretrain-experiment-name mace \
-  --pretrain-split-path dataset/water/blyp/test.xyz \
+  --pretrain-split-path dataset/water_${split_seed}/blyp/test.xyz \
   --pretrain-energy-key REF_energy \
-  --finetune-checkpoints-dir experiment_wB/checkpoints \
+  --finetune-checkpoints-dir experiment_wB/checkpoints_${split_seed} \
   --finetune-experiment-name mace \
-  --finetune-split-path dataset/water/ccsdt/test.xyz \
+  --finetune-split-path dataset/water_${split_seed}/ccsdt/test.xyz \
   --finetune-energy-key REF_energy \
   --device cuda \
   --batch-size 16 \
   --every-n-epochs-pretrain 5 \
   --every-n-epochs-finetune 5 \
   --free-scale \
-  --output-csv experiment_wB/evaluation/epoch_quality_finetune_mixed_test.csv \
-  --output-plot experiment_wB/evaluation/epoch_quality_finetune_mixed_test.png \
+  --output-csv experiment_wB/evaluation/cache/split_${split_seed}/epoch_quality_finetune_mixed_test.csv \
+  --output-plot experiment_wB/evaluation/cache/split_${split_seed}/epoch_quality_finetune_mixed_test.png \
   --title "Epoch Quality Test: BLYP Pretrain + CCSDT Finetune"
 
-CUDA_VISIBLE_DEVICES=7 python utils/epoch_quality_finetune_mixed_dataset.py \
-  --pretrain-checkpoints-dir experiment_wA/checkpoints \
+CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/epoch_quality_finetune_mixed_dataset.py \
+  --pretrain-checkpoints-dir experiment_wA/checkpoints_${split_seed} \
   --pretrain-experiment-name mace \
-  --pretrain-split-path dataset/water/blyp/train.xyz \
+  --pretrain-split-path dataset/water_${split_seed}/blyp/train.xyz \
   --pretrain-energy-key REF_energy \
-  --finetune-checkpoints-dir experiment_wB/checkpoints \
+  --finetune-checkpoints-dir experiment_wB/checkpoints_${split_seed} \
   --finetune-experiment-name mace \
-  --finetune-split-path dataset/water/ccsdt/train.xyz \
+  --finetune-split-path dataset/water_${split_seed}/ccsdt/train.xyz \
   --finetune-energy-key REF_energy \
   --device cuda \
   --batch-size 16 \
   --every-n-epochs-pretrain 5 \
   --every-n-epochs-finetune 5 \
   --free-scale \
-  --output-csv experiment_wB/evaluation/epoch_quality_finetune_mixed_train.csv \
-  --output-plot experiment_wB/evaluation/epoch_quality_finetune_mixed_train.png \
+  --output-csv experiment_wB/evaluation/cache/split_${split_seed}/epoch_quality_finetune_mixed_train.csv \
+  --output-plot experiment_wB/evaluation/cache/split_${split_seed}/epoch_quality_finetune_mixed_train.png \
   --title "Epoch Quality Train: BLYP Pretrain + CCSDT Finetune"
 
-CUDA_VISIBLE_DEVICES=7 python utils/distribution.py \
-  --checkpoints-dir experiment_wB/checkpoints \
-  --results-dir experiment_wB/results \
+CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/distribution.py \
+  --checkpoints-dir experiment_wB/checkpoints_${split_seed} \
+  --results-dir experiment_wB/results_${split_seed} \
   --experiment-name mace \
-  --split-path dataset/water/ccsdt/test.xyz \
+  --split-path dataset/water_${split_seed}/ccsdt/test.xyz \
   --energy-key REF_energy \
   --selection-key loss \
   --selection-mode min \
   --trim 0.005 \
   --device cuda \
   --batch-size 16 \
-  --output-csv experiment_wB/evaluation/distribution_test.csv \
-  --output-plot experiment_wB/evaluation/distribution_test.png
+  --output-csv experiment_wB/evaluation/cache/split_${split_seed}/distribution_test.csv \
+  --output-plot experiment_wB/evaluation/cache/split_${split_seed}/distribution_test.png
 
-CUDA_VISIBLE_DEVICES=7 python utils/distribution.py \
-  --checkpoints-dir experiment_wB/checkpoints \
-  --results-dir experiment_wB/results \
+CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/distribution.py \
+  --checkpoints-dir experiment_wB/checkpoints_${split_seed} \
+  --results-dir experiment_wB/results_${split_seed} \
   --experiment-name mace \
-  --split-path dataset/water/ccsdt/train.xyz \
+  --split-path dataset/water_${split_seed}/ccsdt/train.xyz \
   --energy-key REF_energy \
   --selection-key loss \
   --selection-mode min \
   --trim 0.005 \
   --device cuda \
   --batch-size 16 \
-  --output-csv experiment_wB/evaluation/distribution_train.csv \
-  --output-plot experiment_wB/evaluation/distribution_train.png
+  --output-csv experiment_wB/evaluation/cache/split_${split_seed}/distribution_train.csv \
+  --output-plot experiment_wB/evaluation/cache/split_${split_seed}/distribution_train.png
+}
+
+for split_seed in $EVAL_SPLIT_SEEDS; do
+  printf 'Evaluating experiment_wB on dataset split %s\n' "$split_seed"
+  run_split "$split_seed"
+done
+
+aggregate_args=()
+aggregate_args+=(--log-log-reliability --reliability-axis-min 1e-4 --reliability-axis-max 1e-1)
+aggregate_split_caches experiment_wB "${aggregate_args[@]}"

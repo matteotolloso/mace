@@ -15,10 +15,13 @@ scripts=(
   "experiment_F/eval_F.sh"
 )
 
+gpus=(6 7 5 4 3 2)
+
 pids=()
 
-for script in "${scripts[@]}"; do
-  bash "$script" &
+for i in "${!scripts[@]}"; do
+  script=${scripts[$i]}
+  bash "$script" "${gpus[$i]}" &
   pids+=("$!")
 done
 

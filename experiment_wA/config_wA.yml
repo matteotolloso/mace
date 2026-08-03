@@ -1,14 +1,14 @@
 model: "MACE"
 
 name: "mace"
-model_dir: "experiment_wA/models"
-log_dir: "experiment_wA/logs"
-checkpoints_dir: "experiment_wA/checkpoints"
-results_dir: "experiment_wA/results"
+model_dir: "experiment_wA/models_0"
+log_dir: "experiment_wA/logs_0"
+checkpoints_dir: "experiment_wA/checkpoints_0"
+results_dir: "experiment_wA/results_0"
 
-train_file: "dataset/water/blyp/train.xyz"
-valid_file: "dataset/water/blyp/val.xyz"
-test_file: "dataset/water/blyp/test.xyz"
+train_file: "dataset/water_0/blyp/train.xyz"
+valid_file: "dataset/water_0/blyp/val.xyz"
+test_file: "dataset/water_0/blyp/test.xyz"
 energy_key: "REF_energy"
 # forces_key: "REF_forces"
 

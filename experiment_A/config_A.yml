@@ -2,14 +2,14 @@
 model: "MACE"
 
 name: "mace"
-model_dir: "experiment_A/models"
-log_dir: "experiment_A/logs"
-checkpoints_dir: "experiment_A/checkpoints"
-results_dir: "experiment_A/results"
+model_dir: "experiment_A/models_0"
+log_dir: "experiment_A/logs_0"
+checkpoints_dir: "experiment_A/checkpoints_0"
+results_dir: "experiment_A/results_0"
 
-train_file: "dataset/ani1x_system_split/dft_train.xyz"
-valid_file: "dataset/ani1x_system_split/dft_val.xyz"
-test_file: "dataset/ani1x_system_split/dft_test_id.xyz"
+train_file: "dataset/ani1x_system_split_0/dft_train.xyz"
+valid_file: "dataset/ani1x_system_split_0/dft_val.xyz"
+test_file: "dataset/ani1x_system_split_0/dft_test_id.xyz"
 energy_key: "wb97x_tz.energy"
 
 lr: 0.01

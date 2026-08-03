@@ -1,14 +1,14 @@
 model: "MACE"
 
 name: "mace"
-model_dir: "experiment_F/models"
-log_dir: "experiment_F/logs"
-checkpoints_dir: "experiment_F/checkpoints"
-results_dir: "experiment_F/results"
+model_dir: "experiment_F/models_0"
+log_dir: "experiment_F/logs_0"
+checkpoints_dir: "experiment_F/checkpoints_0"
+results_dir: "experiment_F/results_0"
 
-train_file: "dataset/ani1x_energy_split/cc_train.xyz"
-valid_file: "dataset/ani1x_energy_split/cc_val.xyz"
-test_file: "dataset/ani1x_energy_split/cc_test_id.xyz"
+train_file: "dataset/ani1x_energy_split_0/cc_train.xyz"
+valid_file: "dataset/ani1x_energy_split_0/cc_val.xyz"
+test_file: "dataset/ani1x_energy_split_0/cc_test_id.xyz"
 energy_key: "ccsd(t)_cbs.energy"
 
 lr: 0.01

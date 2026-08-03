@@ -1,58 +1,16 @@
 #!/bin/bash
 
+set -euo pipefail
 
-# # Store PIDs of background processes
-# CUDA_VISIBLE_DEVICES=7 python mace/cli/run_train.py --config experiment_A/config_A.yml --seed 0 --wandb_name mace_seed_0 &
-# PID1=$!
-# sleep 300
+REPO_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+source "${REPO_ROOT}/utils/train_split_member.sh"
 
-# CUDA_VISIBLE_DEVICES=7 python mace/cli/run_train.py --config experiment_A/config_A.yml --seed 1 --wandb_name mace_seed_1 &
-# PID2=$!
-# sleep 300
+EXPERIMENT_DIR="experiment_A"
+CONFIG_FILE="experiment_A/config_A.yml"
+DATASET_PREFIX="dataset/ani1x_system_split"
+TRAIN_RELATIVE_PATH="dft_train.xyz"
+VALID_RELATIVE_PATH="dft_val.xyz"
+TEST_RELATIVE_PATH="dft_test_id.xyz"
+FOUNDATION_EXPERIMENT_DIR=""
 
-# CUDA_VISIBLE_DEVICES=6 python mace/cli/run_train.py --config experiment_A/config_A.yml --seed 2 --wandb_name mace_seed_2 &
-# PID3=$!
-# sleep 300
-
-# CUDA_VISIBLE_DEVICES=6  python mace/cli/run_train.py --config experiment_A/config_A.yml --seed 3 --wandb_name mace_seed_3 &
-# PID4=$!
-# sleep 300
-
-# CUDA_VISIBLE_DEVICES=5 python mace/cli/run_train.py --config experiment_A/config_A.yml --seed 4 --wandb_name mace_seed_4 &
-# PID5=$!
-
-
-# # Kill both processes on Ctrl+C
-# trap "kill $PID1 $PID2 $PID3 $PID4 $PID5 2>/dev/null" INT
-
-# wait
-
-
-
-# ----------
-
-# Store PIDs of background processes
-CUDA_VISIBLE_DEVICES=7 python mace/cli/run_train.py --config experiment_A/config_A.yml --seed 5 --wandb_name mace_seed_5 &
-PID1=$!
-sleep 300
-
-CUDA_VISIBLE_DEVICES=7 python mace/cli/run_train.py --config experiment_A/config_A.yml --seed 6 --wandb_name mace_seed_6 &
-PID2=$!
-sleep 300
-
-CUDA_VISIBLE_DEVICES=6 python mace/cli/run_train.py --config experiment_A/config_A.yml --seed 7 --wandb_name mace_seed_7 &
-PID3=$!
-sleep 300
-
-CUDA_VISIBLE_DEVICES=6  python mace/cli/run_train.py --config experiment_A/config_A.yml --seed 8 --wandb_name mace_seed_8 &
-PID4=$!
-sleep 300
-
-CUDA_VISIBLE_DEVICES=5 python mace/cli/run_train.py --config experiment_A/config_A.yml --seed 9 --wandb_name mace_seed_9 &
-PID5=$!
-
-
-# Kill both processes on Ctrl+C
-trap "kill $PID1 $PID2 $PID3 $PID4 $PID5 2>/dev/null" INT
-
-wait
+run_split_member "$@"

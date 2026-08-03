@@ -1,17 +1,17 @@
 model: "MACE"
 
-# foundation_model is specified per seed in train_wB.sh.
+# foundation_model is selected by train_wB.sh from experiment_wA/checkpoints_<split_seed>/mace_run-<member_seed>.model.
 multiheads_finetuning: False
 
 name: "mace"
-model_dir: "experiment_wB/models"
-log_dir: "experiment_wB/logs"
-checkpoints_dir: "experiment_wB/checkpoints"
-results_dir: "experiment_wB/results"
+model_dir: "experiment_wB/models_0"
+log_dir: "experiment_wB/logs_0"
+checkpoints_dir: "experiment_wB/checkpoints_0"
+results_dir: "experiment_wB/results_0"
 
-train_file: "dataset/water/ccsdt/train.xyz"
-valid_file: "dataset/water/ccsdt/val.xyz"
-test_file: "dataset/water/ccsdt/test.xyz"
+train_file: "dataset/water_0/ccsdt/train.xyz"
+valid_file: "dataset/water_0/ccsdt/val.xyz"
+test_file: "dataset/water_0/ccsdt/test.xyz"
 energy_key: "REF_energy"
 # forces_key: "REF_forces"
 

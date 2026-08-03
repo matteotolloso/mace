@@ -1,54 +1,16 @@
 #!/bin/bash
 
+set -euo pipefail
 
-# # Store PIDs of background processes
-# CUDA_VISIBLE_DEVICES=2 python mace/cli/run_train.py --config experiment_F/config_F.yml --seed 0 --wandb_name mace_seed_0 &
-# PID1=$!
-# sleep 100
+REPO_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+source "${REPO_ROOT}/utils/train_split_member.sh"
 
-# CUDA_VISIBLE_DEVICES=3 python mace/cli/run_train.py --config experiment_F/config_F.yml --seed 1 --wandb_name mace_seed_1 &
-# PID2=$!
-# sleep 100
+EXPERIMENT_DIR="experiment_F"
+CONFIG_FILE="experiment_F/config_F.yml"
+DATASET_PREFIX="dataset/ani1x_energy_split"
+TRAIN_RELATIVE_PATH="cc_train.xyz"
+VALID_RELATIVE_PATH="cc_val.xyz"
+TEST_RELATIVE_PATH="cc_test_id.xyz"
+FOUNDATION_EXPERIMENT_DIR=""
 
-# CUDA_VISIBLE_DEVICES=3 python mace/cli/run_train.py --config experiment_F/config_F.yml --seed 2 --wandb_name mace_seed_2 &
-# PID3=$!
-# sleep 100
-
-# CUDA_VISIBLE_DEVICES=4 python mace/cli/run_train.py --config experiment_F/config_F.yml --seed 3 --wandb_name mace_seed_3 &
-# PID4=$!
-# sleep 100
-
-# CUDA_VISIBLE_DEVICES=4 python mace/cli/run_train.py --config experiment_F/config_F.yml --seed 4 --wandb_name mace_seed_4 &
-# PID5=$!
-
-
-# trap "kill $PID1 $PID2 $PID3 $PID4 $PID5 2>/dev/null" INT
-
-# wait
-
-
-# -------------------------
-
-CUDA_VISIBLE_DEVICES=0 python mace/cli/run_train.py --config experiment_F/config_F.yml --seed 5 --wandb_name mace_seed_5 &
-PID1=$!
-sleep 100
-
-CUDA_VISIBLE_DEVICES=0 python mace/cli/run_train.py --config experiment_F/config_F.yml --seed 6 --wandb_name mace_seed_6 &
-PID2=$!
-sleep 100
-
-CUDA_VISIBLE_DEVICES=1 python mace/cli/run_train.py --config experiment_F/config_F.yml --seed 7 --wandb_name mace_seed_7 &
-PID3=$!
-sleep 100
-
-CUDA_VISIBLE_DEVICES=1 python mace/cli/run_train.py --config experiment_F/config_F.yml --seed 8 --wandb_name mace_seed_8 &
-PID4=$!
-sleep 100
-
-CUDA_VISIBLE_DEVICES=2 python mace/cli/run_train.py --config experiment_F/config_F.yml --seed 9 --wandb_name mace_seed_9 &
-PID5=$!
-
-
-trap "kill $PID1 $PID2 $PID3 $PID4 $PID5 2>/dev/null" INT
-
-wait
+run_split_member "$@"
