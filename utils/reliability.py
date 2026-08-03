@@ -264,6 +264,23 @@ def parse_args() -> argparse.Namespace:
         help="Output reliability plot path.",
     )
     parser.add_argument(
+        "--log-log-scale",
+        action="store_true",
+        help="Plot the reliability diagram with logarithmic x and y axes.",
+    )
+    parser.add_argument(
+        "--axis-min",
+        type=float,
+        default=None,
+        help="Optional shared lower axis limit for RMV/RMSE reliability plots.",
+    )
+    parser.add_argument(
+        "--axis-max",
+        type=float,
+        default=None,
+        help="Optional shared upper axis limit for RMV/RMSE reliability plots.",
+    )
+    parser.add_argument(
         "--output-csv-raw",
         type=str,
         default="unc_vs_error_raw.csv",
@@ -1143,6 +1160,9 @@ def write_plot(
     per_atom: bool,
     isotonic_calibration: bool,
     raw_rows: List[Dict[str, float]],
+    log_log_scale: bool = False,
+    axis_min_override: Optional[float] = None,
+    axis_max_override: Optional[float] = None,
 ) -> None:
     start_time = time.perf_counter()
     if not binned_rows:
@@ -1155,9 +1175,6 @@ def write_plot(
     ax = fig.add_subplot(grid[0, 0])
     text_ax = fig.add_subplot(grid[0, 1])
     text_ax.set_axis_off()
-    axis_min = 0.0
-    axis_max = 0.1
-
     style_map = {
         "aleatoric": {"marker": "o", "label": "Aleatoric", "color": "tab:blue"},
         "epistemic": {"marker": "s", "label": "Epistemic", "color": "tab:orange"},
@@ -1166,6 +1183,39 @@ def write_plot(
     ence_summary = compute_ence_summary(binned_rows)
     spearman_summary = compute_spearman_summary(raw_rows)
     ause_summary = compute_ause_summary(raw_rows)
+
+    if axis_min_override is not None or axis_max_override is not None:
+        if axis_min_override is None or axis_max_override is None:
+            raise ValueError("--axis-min and --axis-max must be provided together.")
+        if not np.isfinite(axis_min_override) or not np.isfinite(axis_max_override):
+            raise ValueError("--axis-min and --axis-max must be finite.")
+        if axis_min_override >= axis_max_override:
+            raise ValueError("--axis-min must be smaller than --axis-max.")
+        if log_log_scale and axis_min_override <= 0.0:
+            raise ValueError("--axis-min must be positive when --log-log-scale is used.")
+        axis_min = axis_min_override
+        axis_max = axis_max_override
+    elif log_log_scale:
+        positive_values = []
+        for row in binned_rows:
+            for key in ("rmv", "rmse"):
+                value = float(row[key])
+                if np.isfinite(value) and value > 0.0:
+                    positive_values.append(value)
+        if positive_values:
+            min_positive = min(positive_values)
+            max_positive = max(positive_values)
+            axis_min = 10.0 ** np.floor(np.log10(min_positive))
+            axis_max = 10.0 ** np.ceil(np.log10(max_positive))
+            if axis_min >= axis_max:
+                axis_min = min_positive / 10.0
+                axis_max = max_positive * 10.0
+        else:
+            axis_min = 1.0e-8
+            axis_max = 1.0
+    else:
+        axis_min = 0.0
+        axis_max = 0.1
 
     def plot_curve_with_clipped_markers(
         x_values: np.ndarray,
@@ -1178,6 +1228,8 @@ def write_plot(
         x = np.array(x_values, dtype=float)
         y = np.array(y_values, dtype=float)
         finite_mask = np.isfinite(x) & np.isfinite(y)
+        if log_log_scale:
+            finite_mask &= (x > 0.0) & (y > 0.0)
         if not np.any(finite_mask):
             return
 
@@ -1233,13 +1285,16 @@ def write_plot(
         )
 
     ax.plot([axis_min, axis_max], [axis_min, axis_max], linestyle="--", color="black", label="Ideal", alpha=0.5)
+    if log_log_scale:
+        ax.set_xscale("log")
+        ax.set_yscale("log")
     ax.set_xlim(axis_min, axis_max)
     ax.set_ylim(axis_min, axis_max)
     ax.set_aspect("equal", adjustable="box")
     ax.set_xlabel("RMV", fontsize=uniform_fontsize)
     ax.set_ylabel("RMSE", fontsize=uniform_fontsize)
     ax.tick_params(axis="both", labelsize=uniform_fontsize)
-    ax.grid(alpha=0.3)
+    ax.grid(alpha=0.3, which="both" if log_log_scale else "major")
     ax.legend(fontsize=uniform_fontsize)
 
     display_names = {
@@ -1424,6 +1479,9 @@ def main() -> None:
             per_atom=args.per_atom,
             isotonic_calibration=args.isotonic_calibration,
             raw_rows=plot_rows,
+            log_log_scale=args.log_log_scale,
+            axis_min_override=args.axis_min,
+            axis_max_override=args.axis_max,
         )
         LOGGER.info("Total runtime: %.2fs", time.perf_counter() - main_start)
         print(f"Saved raw CSV: {args.output_csv_raw}")
@@ -1463,6 +1521,9 @@ def main() -> None:
             per_atom=args.per_atom,
             isotonic_calibration=args.isotonic_calibration,
             raw_rows=plot_rows,
+            log_log_scale=args.log_log_scale,
+            axis_min_override=args.axis_min,
+            axis_max_override=args.axis_max,
         )
         LOGGER.info("Total runtime: %.2fs", time.perf_counter() - main_start)
         print(f"Saved raw CSV: {args.output_csv_raw}")
@@ -1506,6 +1567,9 @@ def main() -> None:
             per_atom=args.per_atom,
             isotonic_calibration=args.isotonic_calibration,
             raw_rows=[],
+            log_log_scale=args.log_log_scale,
+            axis_min_override=args.axis_min,
+            axis_max_override=args.axis_max,
         )
         LOGGER.info("Total runtime: %.2fs", time.perf_counter() - main_start)
         print(f"Saved raw CSV: {args.output_csv_raw}")
@@ -1525,6 +1589,9 @@ def main() -> None:
         per_atom=args.per_atom,
         isotonic_calibration=args.isotonic_calibration,
         raw_rows=plot_rows,
+        log_log_scale=args.log_log_scale,
+        axis_min_override=args.axis_min,
+        axis_max_override=args.axis_max,
     )
 
     LOGGER.info("Total runtime: %.2fs", time.perf_counter() - main_start)

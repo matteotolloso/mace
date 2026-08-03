@@ -12,7 +12,8 @@ CUDA_VISIBLE_DEVICES=6 python utils/train_curves.py \
   --every-n-epochs 5 \
   --device cuda \
   --output-csv experiment_wA/evaluation/train_curves.csv \
-  --output-plot experiment_wA/evaluation/train_curves.png
+  --output-plot experiment_wA/evaluation/train_curves.png \
+  --batch-size 16
 
 CUDA_VISIBLE_DEVICES=6 python utils/reliability.py \
   --checkpoints-dir experiment_wA/checkpoints \
@@ -27,13 +28,16 @@ CUDA_VISIBLE_DEVICES=6 python utils/reliability.py \
   --num-bins 15 \
   --trim 0.005 \
   --isotonic-calibration True \
+  --log-log-scale \
+  --axis-min 1e-4 \
+  --axis-max 1e-1 \
   --output-csv-raw experiment_wA/evaluation/reliability_test_cal_raw.csv \
   --output-csv-bins experiment_wA/evaluation/reliability_test_cal_bins.csv \
   --output-plot experiment_wA/evaluation/reliability_test_cal.png \
   --log-level INFO \
   --log-every-batches 1 \
   --device cuda \
-  --batch-size 256
+  --batch-size 16
 
 CUDA_VISIBLE_DEVICES=6 python utils/reliability.py \
   --checkpoints-dir experiment_wA/checkpoints \
@@ -48,13 +52,64 @@ CUDA_VISIBLE_DEVICES=6 python utils/reliability.py \
   --num-bins 15 \
   --trim 0.005 \
   --isotonic-calibration False \
+  --log-log-scale \
+  --axis-min 1e-4 \
+  --axis-max 1e-1 \
   --output-csv-raw experiment_wA/evaluation/reliability_test_nocal_raw.csv \
   --output-csv-bins experiment_wA/evaluation/reliability_test_nocal_bins.csv \
   --output-plot experiment_wA/evaluation/reliability_test_nocal.png \
   --log-level INFO \
   --log-every-batches 1 \
   --device cuda \
-  --batch-size 256
+  --batch-size 16
+
+CUDA_VISIBLE_DEVICES=6 python utils/reliability.py \
+  --checkpoints-dir experiment_wA/checkpoints \
+  --results-dir experiment_wA/results \
+  --experiment-name mace \
+  --validation-split dataset/water/blyp/val.xyz \
+  --test-split dataset/water/blyp/train.xyz \
+  --energy-key-val REF_energy \
+  --energy-key-test REF_energy \
+  --selection-key loss \
+  --selection-mode min \
+  --num-bins 15 \
+  --trim 0.005 \
+  --isotonic-calibration True \
+  --log-log-scale \
+  --axis-min 1e-4 \
+  --axis-max 1e-1 \
+  --output-csv-raw experiment_wA/evaluation/reliability_train_cal_raw.csv \
+  --output-csv-bins experiment_wA/evaluation/reliability_train_cal_bins.csv \
+  --output-plot experiment_wA/evaluation/reliability_train_cal.png \
+  --log-level INFO \
+  --log-every-batches 1 \
+  --device cuda \
+  --batch-size 16
+
+CUDA_VISIBLE_DEVICES=6 python utils/reliability.py \
+  --checkpoints-dir experiment_wA/checkpoints \
+  --results-dir experiment_wA/results \
+  --experiment-name mace \
+  --validation-split dataset/water/blyp/val.xyz \
+  --test-split dataset/water/blyp/train.xyz \
+  --energy-key-val REF_energy \
+  --energy-key-test REF_energy \
+  --selection-key loss \
+  --selection-mode min \
+  --num-bins 15 \
+  --trim 0.005 \
+  --isotonic-calibration False \
+  --log-log-scale \
+  --axis-min 1e-4 \
+  --axis-max 1e-1 \
+  --output-csv-raw experiment_wA/evaluation/reliability_train_nocal_raw.csv \
+  --output-csv-bins experiment_wA/evaluation/reliability_train_nocal_bins.csv \
+  --output-plot experiment_wA/evaluation/reliability_train_nocal.png \
+  --log-level INFO \
+  --log-every-batches 1 \
+  --device cuda \
+  --batch-size 16
 
 CUDA_VISIBLE_DEVICES=6 python utils/epoch_raw.py \
   --checkpoints-dir experiment_wA/checkpoints \
@@ -62,7 +117,7 @@ CUDA_VISIBLE_DEVICES=6 python utils/epoch_raw.py \
   --split-path dataset/water/blyp/train.xyz \
   --energy-key REF_energy \
   --device cuda \
-  --batch-size 256 \
+  --batch-size 16 \
   --every-n-epochs 10 \
   --output-csv experiment_wA/evaluation/epoch_raw_train.csv \
   --output-plot experiment_wA/evaluation/epoch_raw_train.png
@@ -73,7 +128,7 @@ CUDA_VISIBLE_DEVICES=6 python utils/epoch_quality.py \
   --split-path dataset/water/blyp/test.xyz \
   --energy-key REF_energy \
   --device cuda \
-  --batch-size 256 \
+  --batch-size 16 \
   --every-n-epochs 5 \
   --free-scale \
   --output-csv experiment_wA/evaluation/epoch_quality_test.csv \
@@ -85,7 +140,7 @@ CUDA_VISIBLE_DEVICES=6 python utils/epoch_quality.py \
   --split-path dataset/water/blyp/train.xyz \
   --energy-key REF_energy \
   --device cuda \
-  --batch-size 256 \
+  --batch-size 16 \
   --every-n-epochs 5 \
   --free-scale \
   --output-csv experiment_wA/evaluation/epoch_quality_train.csv \
@@ -101,7 +156,7 @@ CUDA_VISIBLE_DEVICES=6 python utils/distribution.py \
   --selection-mode min \
   --trim 0.005 \
   --device cuda \
-  --batch-size 256 \
+  --batch-size 16 \
   --output-csv experiment_wA/evaluation/distribution_test.csv \
   --output-plot experiment_wA/evaluation/distribution_test.png
 
@@ -115,6 +170,6 @@ CUDA_VISIBLE_DEVICES=6 python utils/distribution.py \
   --selection-mode min \
   --trim 0.005 \
   --device cuda \
-  --batch-size 256 \
+  --batch-size 16 \
   --output-csv experiment_wA/evaluation/distribution_train.csv \
   --output-plot experiment_wA/evaluation/distribution_train.png
