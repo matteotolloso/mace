@@ -1,0 +1,19 @@
+bash experiment_F/train_F.sh 4 4 4 &
+sleep 30
+bash experiment_F/train_F.sh 4 5 6 &
+sleep 30
+bash experiment_F/train_F.sh 4 6 7 &
+sleep 30
+bash experiment_F/train_F.sh 4 7 4 &
+sleep 30
+bash experiment_F/train_F.sh 4 8 6 &
+sleep 30
+bash experiment_F/train_F.sh 4 9 7 &
+sleep 30
+
+bash experiment_F/train_F.sh 1 2 4 &
+sleep 30
+bash experiment_F/train_F.sh 1 3 5 &
+sleep 30
+bash experiment_F/train_F.sh 1 4 6 &
+wait
