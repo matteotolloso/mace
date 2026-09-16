@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 from common import (
-    BUDGET, CASES, CONTROL, ENERGY_KEY, HERE, MEMBERS, REGIMES, ROOT,
+    AL_EPOCHS, AL_LEARNING_RATE, BUDGET, CASES, CONTROL, ENERGY_KEY, HERE, MEMBERS, REGIMES, ROOT,
     augment_training, comparison, inventory, load_cached, load_json, prepare_data,
     save_cached, save_json, select_ids, sha256, verify_inventory,
 )
@@ -31,6 +31,8 @@ def settings(args):
     return {"schema": 1, "split_seed": args.split_seed, "seed": args.seed,
             "budget": BUDGET, "members": list(MEMBERS), "pool_fraction": 0.5,
             "epochs_override": args.epochs, "selection_key": "loss", "selection_mode": "min",
+            "learning_rate": AL_LEARNING_RATE,
+            "additional_epochs": args.epochs if args.epochs is not None else AL_EPOCHS,
             "uncertainty": "raw AU + population EU, per-atom variance (eV/atom)^2",
             "warm_start": "full model, fresh optimizer/scheduler, original validation"}
 
@@ -222,6 +224,8 @@ def train(run, manifest, args):
                 config.pop(key, None)
             config.update({
                 "name": "mace", "seed": member, "device": args.device,
+                "lr": AL_LEARNING_RATE,
+                "max_num_epochs": AL_EPOCHS,
                 "train_file": str(run / "acquisition" / acquisition / "train.xyz"),
                 "valid_file": str(Path(manifest["source_dataset"]) / "cc_val.xyz"),
                 "wandb": False, "plot": False, "log_epoch_outputs": False,
@@ -380,7 +384,7 @@ def parse_args():
     parser.add_argument("--name", help="Isolated run directory name (no paths)")
     parser.add_argument("--device", choices=("cuda", "cpu"), default="cuda")
     parser.add_argument("--batch-size", type=int, default=64, help="Inference batch size only")
-    parser.add_argument("--epochs", type=int, help="Override BOTH regimes' additional epochs; default: F=300, D=100")
+    parser.add_argument("--epochs", type=int, help="Override BOTH regimes' additional epochs; default: 100 for both")
     parser.add_argument("--common-evaluator", action="store_true")
     parser.add_argument("--case", choices=(*CASES, CONTROL), help="Select one case for train/evaluate stages")
     parser.add_argument("--members", nargs="+", type=int, choices=MEMBERS, help="Train these member seeds only")

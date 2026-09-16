@@ -14,7 +14,8 @@ import five_splits as five
 
 
 def fixtures():
-    settings = {"seed": 0, "epochs_override": None, "budget": 500}
+    settings = {"seed": 0, "epochs_override": None, "budget": 500,
+                "learning_rate": 0.001, "additional_epochs": 100}
     reports = []
     for split in range(5):
         rows = []
@@ -127,6 +128,26 @@ class AggregationTests(unittest.TestCase):
             launch.assert_called_once()
             self.assertTrue(launch.call_args.args[0][2].endswith("plot_results.py"))
             self.assertTrue(launch.call_args.args[0][-1].endswith("runs/aggregate/summary_ci95.json"))
+
+    def test_legacy_learning_rate_is_not_silently_reused(self):
+        reports, _ = fixtures()
+        del reports[0]["settings"]["learning_rate"]
+        with patch("sys.argv", ["five_splits.py", "--gpu", "2"]), \
+                patch.object(five, "read_report", return_value=reports[0]), \
+                patch.object(five.subprocess, "run") as launch:
+            with self.assertRaisesRegex(ValueError, "shared AL learning rate"):
+                five.main()
+            launch.assert_not_called()
+
+    def test_legacy_epoch_limit_is_not_silently_reused(self):
+        reports, _ = fixtures()
+        del reports[0]["settings"]["additional_epochs"]
+        with patch("sys.argv", ["five_splits.py", "--gpu", "2"]), \
+                patch.object(five, "read_report", return_value=reports[0]), \
+                patch.object(five.subprocess, "run") as launch:
+            with self.assertRaisesRegex(ValueError, "shared AL epoch limit"):
+                five.main()
+            launch.assert_not_called()
 
 
 if __name__ == "__main__":

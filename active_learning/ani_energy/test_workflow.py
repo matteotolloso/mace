@@ -278,8 +278,8 @@ class OrchestrationTests(unittest.TestCase):
                 self.assertEqual(config["valid_file"], str(source / "cc_val.xyz"))
                 self.assertNotIn("test_file", config)
                 self.assertFalse(config["wandb"])
-                self.assertEqual(config["lr"], 0.01 if regime == "hf_only" else 0.001)
-                self.assertEqual(config["max_num_epochs"], 300 if regime == "hf_only" else 100)
+                self.assertEqual(config["lr"], 0.001)
+                self.assertEqual(config["max_num_epochs"], args.epochs if args.epochs is not None else 100)
                 path = cwd / "models" / "best.model"
                 save_json(path, {"case": case, "member": member})
                 save_json(cwd / "finished.json", {"model": str(path), "artifacts": inventory([path])})

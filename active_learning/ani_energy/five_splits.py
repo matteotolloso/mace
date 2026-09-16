@@ -15,7 +15,7 @@ import time
 from collections import defaultdict
 from pathlib import Path
 
-from common import HERE, comparison, inventory, load_json, save_json, verify_inventory
+from common import AL_EPOCHS, AL_LEARNING_RATE, HERE, comparison, inventory, load_json, save_json, verify_inventory
 
 T95_DF4 = 2.7764451051977987
 TESTS = ("energy_ood", "energy_id")
@@ -168,6 +168,17 @@ def main():
             existing = read_report(runs[split])
             if existing is not None:
                 saved = existing["settings"]
+                if saved.get("learning_rate") != AL_LEARNING_RATE:
+                    raise ValueError(
+                        f"Split {split}: saved run predates the shared AL learning rate. "
+                        "Existing results are unchanged; use --aggregate-only to summarize them."
+                    )
+                expected_epochs = args.epochs if args.epochs is not None else AL_EPOCHS
+                if saved.get("additional_epochs") != expected_epochs:
+                    raise ValueError(
+                        f"Split {split}: saved run does not match the shared AL epoch limit. "
+                        "Existing results are unchanged; use --aggregate-only to summarize them."
+                    )
                 if saved["split_seed"] != split or saved["seed"] != args.seed or saved["epochs_override"] != args.epochs:
                     raise ValueError(f"Split {split}: saved settings differ from this invocation.")
                 if not args.common_evaluator or len(existing.get("common_evaluator", [])) == 2:

@@ -39,8 +39,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--split-seeds", type=int, nargs="+", default=[0, 1, 2, 3, 4])
     parser.add_argument("--distribution-bins", type=int, default=50)
     parser.add_argument("--log-log-reliability", action="store_true")
-    parser.add_argument("--reliability-axis-min", type=float, default=None)
-    parser.add_argument("--reliability-axis-max", type=float, default=None)
+    parser.add_argument("--reliability-axis-min", type=float, default=None,
+                        help="Shared RMV/RMSE lower limit; defaults to 0 for linear plots, automatic for log plots.")
+    parser.add_argument("--reliability-axis-max", type=float, default=None,
+                        help="Shared RMV/RMSE upper limit; defaults to 0.10 for linear plots, automatic for log plots.")
     parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="INFO")
     return parser.parse_args()
 
@@ -247,7 +249,7 @@ def aggregate_reliability(
         if np.isfinite(float(row[field])) and (not log_log or float(row[field]) > 0)
     ]
     low = axis_min if axis_min is not None else (10 ** np.floor(np.log10(min(all_values))) if log_log else 0.0)
-    high = axis_max if axis_max is not None else (10 ** np.ceil(np.log10(max(all_values))) if log_log else max(all_values) * 1.05)
+    high = axis_max if axis_max is not None else (10 ** np.ceil(np.log10(max(all_values))) if log_log else 0.1)
     ax.plot([low, high], [low, high], "--", color="black", alpha=0.5, label="Ideal")
     if log_log:
         ax.set_xscale("log")

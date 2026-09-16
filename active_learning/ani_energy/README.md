@@ -149,8 +149,27 @@ Follow live progress with `tail -f` on the printed member `console.log` path.
 
 | Regime | Initial ensemble | Additional training protocol |
 |---|---|---|
-| HF-only | `experiment_F/checkpoints_<split>` | F: LR 0.01, up to 300 epochs |
-| LF->HF | `experiment_D/checkpoints_<split>` | D: LR 0.001, up to 100 epochs |
+| HF-only | `experiment_F/checkpoints_<split>` | AL LR 0.001, up to 100 epochs |
+| LF->HF | `experiment_D/checkpoints_<split>` | AL LR 0.001, up to 100 epochs |
+
+**Both regimes start post-acquisition training at LR 0.001**, overriding the
+learning rate inherited from their source configs. This also applies to the
+optional common-evaluator control. Original F/D training configs are unchanged.
+The schedulers can subsequently reduce the LR. Both regimes default to at most
+100 additional epochs; `--epochs N` overrides this limit for both, including the
+optional common-evaluator control. Other training settings remain inherited from F/D.
+
+Existing results produced before this change retain their original protocol
+(originally HF-only LR 0.01 / 300 epochs, LF->HF LR 0.001 / 100 epochs);
+they have not been rerun or relabeled. New manifests record the shared AL
+learning rate and effective additional epoch limit. Old run directories cannot be
+resumed as the new protocol, and `run_all.sh` rejects silent reuse of their
+completed reports in training mode. `--aggregate-only` can still summarize the
+old results. For a future new-protocol single-split run, use a separate
+`--name NAME` directory; do not overwrite the old artifacts.
+This protection means the runner raises a protocol-mismatch error instead of
+silently treating old completed models as models trained with the new defaults.
+It does not delete, update, or retrain those models.
 
 Initial checkpoints are selected independently per member by **minimum original
 HF validation loss**, exactly as in `eval_D.sh` / `eval_F.sh`. The selected checkpoint
@@ -169,16 +188,68 @@ state is deliberately reset for this new round, identically across methods.
 No OOD or ID test loader is passed to training. Best post-acquisition epochs are
 again chosen by minimum original validation loss.
 
-The default epoch budgets differ between regimes because they retain F/D's
-existing protocols. For a shorter run or equal-budget sensitivity check:
+**Epoch budgets and checkpoint selection are different things.** Each dataset
+split has 10 ensemble members. Before acquisition, each member independently
+uses its best original HF validation checkpoint, so their epoch numbers can
+differ. After acquisition, each member trains on the original HF training data
+plus the selected 500 configurations, and its best additional-training checkpoint
+is again selected independently. "Best" here means minimum validation Gaussian
+NLL, not minimum validation RMSE. The 5 dataset splits, not the 10 members, are
+the replicates used for the reported confidence intervals.
+
+**Post-AL evaluation uses these independently selected checkpoints:** for every
+condition and every dataset split, each of the 10 members contributes its own
+minimum-validation-NLL checkpoint, saved as `best.model`. Their selected epochs
+may differ. The same selected ensemble is evaluated on both the held-out OOD
+test and the existing ID test. Neither test is used to select checkpoints;
+evaluation does not automatically use the last epoch or choose a common epoch
+for all members.
+
+The default epoch limit is 100 for both regimes. For a shorter run:
 
 ```bash
 bash active_learning/ani_energy/run.sh 7 --epochs 20
 ```
 
-This sets 20 additional epochs for **both** regimes and automatically uses
+This limits post-acquisition training to 20 additional epochs **per member in
+both regimes**, instead of the shared default of 100. The option is spelled
+`--epochs` (plural). It does not retrain the original models or force selection of the last
+epoch: one member might be selected at additional epoch 7 and another at epoch
+15. Equal epoch limits are not necessarily equal wall-clock or compute budgets.
+For the default dataset split 0, this command automatically uses
 `runs/split_0_epochs_20/`. It is a different experiment, not the default
 protocol. The optional `--name NAME` chooses another isolated run directory.
+
+### Original ANI Splits (Before Active Learning)
+
+The settings below are those in [`dataset/make_dataset.sh`](../../dataset/make_dataset.sh),
+not the standalone Python splitters' default arguments. Dataset seeds 0 through
+4 generate the five versions of each split.
+
+- **A/B/E use the system split:** approximately 60% of systems are assigned to
+  the seen domain. Their configurations are randomly partitioned into candidate
+  train/validation/ID-test pools in proportions 60%/20%/20%. The remaining
+  systems supply OOD configurations. This tests generalization to unseen systems,
+  not a high-energy threshold.
+- **C/D/F use the energy split:** configurations are ranked by DFT energy
+  (`wb97x_tz.energy`) separately within each system. Empirical ranks at or below
+  0.50 supply the low-energy domain; ranks at or above 0.55 supply the high-energy
+  OOD domain. The intermediate band is discarded. Low-energy configurations are
+  randomly partitioned into candidate train/validation/ID pools in proportions
+  60%/20%/20%. These are per-system ranks, not a global absolute-energy cutoff
+  across molecules, and the ranking does not use CC labels.
+- The energy splitter excludes systems with fewer than four valid ranking
+  energies. For exactly four, the highest-energy configuration goes to OOD and
+  the lowest three are randomly assigned one each to train/validation/ID.
+- Final files are sampled from the candidate pools, with system-stratified
+  quotas and `max_per_system=64` as a **soft weighting cap**, not a strict maximum
+  file contribution. DFT train/validation/ID/OOD sizes are respectively
+  50000/10000/50000/50000; CC sizes are 5000/1000/5000/5000. Available CC-labeled
+  configurations are sampled within the corresponding DFT selection.
+
+Thus the original energy experiments deliberately separate low-energy training
+from higher-energy testing within systems. The AL partition below is a second,
+different operation applied only to the already-created CC OOD file.
 
 ### Data and Hidden Labels
 
@@ -189,6 +260,12 @@ protocol. The optional `--name NAME` chooses another isolated run directory.
   OOD system composition, using proportional half-sampling per system and seeded
   remainder allocation. Singleton systems cannot occur in both halves. No new
   energy threshold or label-based ranking is introduced.
+- In plain terms, a system contributing 100 original OOD configurations supplies
+  50 randomly chosen configurations to the pool and 50 to the held-out test.
+  Odd counts require reproducible rounding to keep the total pool size at 2500.
+  **The held-out test is not the higher-energy half of OOD.** Both halves sample
+  the same original OOD energy domain; their energy ranges can overlap, and pool
+  energies are not systematically lower than held-out energies.
 - All original LF/HF train, validation and ID-test XYZ files remain unchanged.
   Preparation checks that OOD IDs do not overlap any of those six inputs.
 - Stable IDs are `system:conf_idx`; pool and held-out IDs/source indices/system
@@ -205,6 +282,18 @@ protocol. The optional `--name NAME` chooses another isolated run directory.
 - Random acquisition is uniform without replacement, shared between regimes.
   TU acquisition is the global top 500 (stable ID tie-break), not system-capped.
 
+```text
+Original low-energy train / validation / ID test: unchanged
+Original CC Energy-OOD file: 5000 configurations
+    +-- 2500 acquisition-pool configurations (random, stratified by system)
+    |       +-- acquire 500 by TU or random sampling; append their CC labels
+    +-- 2500 held-out OOD test configurations (never acquired or trained on)
+```
+
+This tests acquisition within the original OOD domain. It does not test
+acquisition from a lower-energy pool followed by testing on an even higher-energy
+domain. Changing to that design would require a separate experimental partition.
+
 ### TU and RMSE
 
 The runner directly reuses `eval/reliability.py` for prediction and uncertainty:
@@ -215,9 +304,25 @@ EU = population_variance_m(energy_mean_m / N_atoms)    # unbiased=False
 TU = AU + EU
 ```
 
-The acquisition score is **raw per-atom TU variance**, with no calibration,
-trimming, error-based selection, or label-based filtering. Non-finite values fail
-the run instead of silently excluding configurations.
+The acquisition score is **one scalar per configuration**, namely raw TU variance
+of that configuration's energy per atom. In the formulas above, `energy_mean_m`
+and `variance_m` are member `m`'s predicted total configuration energy and its
+variance; `N_atoms` is the atom count of that configuration. "Per-atom" refers
+only to normalization by `N_atoms^2`, not to separate acquisition decisions for
+individual atoms. The 2500 whole configurations are ranked by their scores and
+500 whole configurations are selected.
+
+Unnormalized total-energy TU would instead be
+`mean_m(variance_m) + population_variance_m(energy_mean_m)`, equal to the current
+score times `N_atoms^2`. Both choices give one score per configuration, but they
+can produce different rankings when atom counts differ. The current normalization
+matches the existing project uncertainty and energy-per-atom RMSE definitions.
+Switching to total-energy TU would be a different acquisition experiment, not
+just a change of terminology.
+
+There is no calibration, trimming, error-based selection, or label-based
+filtering. Non-finite values fail the run instead of silently excluding
+configurations.
 
 All conditions use the same held-out Energy-OOD test and the unchanged existing
 `cc_test_id.xyz`. RMSE is that of the **ensemble-mean energy per atom**, averaged

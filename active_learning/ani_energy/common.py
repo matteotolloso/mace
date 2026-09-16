@@ -22,6 +22,8 @@ from ase.io import read, write
 
 ENERGY_KEY = "ccsd(t)_cbs.energy"
 BUDGET = 500
+AL_LEARNING_RATE = 0.001
+AL_EPOCHS = 100
 MEMBERS = tuple(range(10))
 REGIMES = {"hf_only": "F", "lf_hf": "D"}
 CASES = {
