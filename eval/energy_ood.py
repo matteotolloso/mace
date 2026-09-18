@@ -28,6 +28,7 @@ from typing import Dict, List
 
 import ase.io
 import matplotlib.pyplot as plt
+from plot_style import save_svg
 import numpy as np
 import torch
 
@@ -79,7 +80,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--log-every-batches", type=int, default=10)
     parser.add_argument("--output-csv-raw", type=str, default="energy_ood_raw.csv")
     parser.add_argument("--output-csv-bins", type=str, default="energy_ood_summary.csv")
-    parser.add_argument("--output-plot", type=str, default="energy_ood.png")
+    parser.add_argument("--output-plot", type=str, default="energy_ood.svg")
     parser.add_argument(
         "--log-level",
         type=str,
@@ -270,7 +271,7 @@ def build_summary_rows(raw_rows: List[Dict[str, object]]) -> List[Dict[str, obje
 
 def write_plot(path: Path, summary_rows: List[Dict[str, object]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    uniform_fontsize = 24
+    uniform_fontsize = 28
 
     rows = sorted(summary_rows, key=lambda row: int(row["x_index"]))
     x = np.array([int(row["x_index"]) for row in rows], dtype=float)
@@ -294,9 +295,7 @@ def write_plot(path: Path, summary_rows: List[Dict[str, object]]) -> None:
     ax.legend(fontsize=uniform_fontsize)
     ax.tick_params(axis="both", labelsize=uniform_fontsize)
     fig.tight_layout()
-    fig.savefig(path, dpi=200)
-    fig.savefig(path.with_suffix(".svg"))
-    fig.savefig(path.with_suffix(".pdf"))
+    save_svg(fig, path, bbox_inches="tight", pad_inches=0.2)
     plt.close(fig)
 
 

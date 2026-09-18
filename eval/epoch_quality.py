@@ -47,6 +47,7 @@ from typing import Dict, List, Optional
 
 import ase.io
 import matplotlib.pyplot as plt
+from plot_style import save_svg
 import numpy as np
 import torch
 import torch.nn
@@ -166,7 +167,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-plot",
         type=str,
-        default="epoch_unc_quality.png",
+        default="epoch_unc_quality.svg",
         help="Output plot path.",
     )
     parser.add_argument(
@@ -761,7 +762,7 @@ def write_plot(
         ("magnitude", "Uncertainty"),
     ]
 
-    uniform_fontsize = 26
+    uniform_fontsize = 30
 
     def plot_series_with_clipped_markers(
         ax,
@@ -908,9 +909,7 @@ def write_plot(
 
     axes[-1].set_xlabel("Epoch", fontsize=uniform_fontsize)
     fig.tight_layout()
-    fig.savefig(path, dpi=300, bbox_inches="tight", pad_inches=0.2)
-    fig.savefig(path.with_suffix(".svg"), bbox_inches="tight", pad_inches=0.2)
-    fig.savefig(path.with_suffix(".pdf"), bbox_inches="tight", pad_inches=0.2)
+    save_svg(fig, path, bbox_inches="tight", pad_inches=0.2)
     plt.close(fig)
 
 

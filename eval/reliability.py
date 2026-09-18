@@ -74,6 +74,7 @@ from typing import Dict, List, Optional, Tuple
 
 import ase.io
 import matplotlib.pyplot as plt
+from plot_style import save_svg
 import numpy as np
 import torch
 import torch.nn
@@ -260,7 +261,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-plot",
         type=str,
-        default="unc_vs_error.png",
+        default="unc_vs_error.svg",
         help="Output reliability plot path.",
     )
     parser.add_argument(
@@ -1169,9 +1170,9 @@ def write_plot(
         raise RuntimeError("Cannot create reliability plot from empty binned rows.")
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    uniform_fontsize = 28
-    fig = plt.figure(figsize=(14.5, 8.5))
-    grid = fig.add_gridspec(1, 2, width_ratios=[1.2, 0.52], wspace=0.05)
+    uniform_fontsize = 32
+    fig = plt.figure(figsize=(18, 11))
+    grid = fig.add_gridspec(1, 2, width_ratios=[1.2, 0.7], wspace=0.15)
     ax = fig.add_subplot(grid[0, 0])
     text_ax = fig.add_subplot(grid[0, 1])
     text_ax.set_axis_off()
@@ -1346,9 +1347,7 @@ def write_plot(
         )
     
     # plt.tight_layout()
-    plt.savefig(path, dpi=300, bbox_inches='tight', pad_inches=0.2)
-    plt.savefig(path.with_suffix(".svg"), bbox_inches='tight', pad_inches=0.2)
-    plt.savefig(path.with_suffix(".pdf"), bbox_inches='tight', pad_inches=0.2)
+    save_svg(plt.gcf(), path, bbox_inches="tight", pad_inches=0.2)
     plt.close()
     LOGGER.info("Saved reliability plot to %s in %.2fs", path, time.perf_counter() - start_time)
 

@@ -6,13 +6,43 @@ under `active_learning/ani_energy/runs/` and are ignored by Git.
 
 ## Five Splits and Confidence Intervals
 
-One command runs/resumes splits 0..4 sequentially on GPU 2, evaluates all four
+One command runs/resumes splits 0..4 sequentially on GPU 2, evaluates all eight
 conditions for each split, then produces the aggregate reports and plots:
 
 ```bash
 conda activate mace
 bash active_learning/ani_energy/run_all.sh 2
 ```
+
+Replace `2` with the desired GPU number. The default batch compares **Random-500,
+AU-500, EU-500 and TU-500 for both HF-only and LF->HF**. All eight conditions use
+initial LR **0.001** and at most **100 additional epochs** per member. Across five
+splits this trains **400 members**, sequentially (no background training jobs),
+then aggregates the five-split results and generates the plots automatically.
+
+Default run directories are `runs/split_0/` through `runs/split_4/`, with no
+version suffix. The old AL results were removed before this fresh run.
+TU and Random are trained again from the original selected D/F
+checkpoints, not from the previous post-AL models. The pool/held-out partition
+and acquisition RNG are unchanged, so the dataset setup remains comparable.
+The single Random-500 batch is shared across regimes and serves as the baseline
+for AU, EU and TU; no redundant Random training is needed for each metric.
+
+For an independently named repeat use `--run-tag NAME`; by default there is no
+tag. Rerunning the same command resumes the matching batch.
+
+To choose the additional epoch limit for every member of both regimes:
+
+```bash
+bash active_learning/ani_energy/run_all.sh 2 --epochs 20
+```
+
+Replace `20` with the desired positive integer. Omitting `--epochs` uses 100.
+Explicit overrides use `runs/split_<seed>_epochs_<N>/` and
+`runs/aggregate_epochs_<N>/`, keeping different budgets separate. Use the same
+option when resuming. The old HF-only AL protocol used 300 additional epochs;
+that explains its 300 epoch checkpoints. Original F pretraining-from-scratch
+checkpoints are separate and are not affected by the AL epoch option.
 
 Completed split reports are reused without launching training or GPU inference.
 Incomplete splits resume through the existing single-split runner.
@@ -32,7 +62,7 @@ with Ctrl-C. Omit `--wait` to require all reports immediately.
 Outputs: `runs/aggregate/summary_ci95.{csv,json,md}`. They include all five
 individual values, their mean and approximate 95% Student-t confidence interval:
 `mean +/- 2.776445105 * sample_SD / sqrt(5)`. The unit of repetition is the dataset
-split, not an ensemble member. Improvements, TU-over-random gains, and the
+split, not an ensemble member. Improvements, AU/EU/TU-over-random gains, and the
 LF->HF-minus-HF-only gain are computed within each split before aggregation.
 Missing reports, mismatched settings and non-finite statistics fail validation;
 undefined percentage improvements yield no CI rather than a smaller-sample CI.
@@ -46,27 +76,39 @@ it is not another layer of experimental repetitions or folder names. The legacy
 `--seed` option remains available, but changing it requires separate runs rather
 than mixing old and new acquisitions. Ensemble member seeds remain 0..9.
 The optional control has separate aggregate output under `common_evaluator/`.
-Renamed runs are `runs/split_0/` through `runs/split_4/`. Their ten members remain
+Default runs are `runs/split_0/` through `runs/split_4/`. Their ten members remain
 under `cases/<condition>/member_0/` through `member_9/`. Confidence intervals use
 the five splits, not the members.
 
 ### Graphical Results
 
 `run_all.sh` automatically invokes `plot_results.py` after aggregation, including
-in `--aggregate-only` mode. The `runs/aggregate/plots/` folder contains PNG and PDF
+in `--aggregate-only` mode. The `runs/aggregate/plots/` folder contains SVG
 versions of:
 
-- `rmse`: before acquisition, Random-500 and TU-500, for both regimes and tests.
+- `rmse`: before acquisition, Random-500, AU-500, EU-500 and TU-500, for both regimes and tests.
 - `improvement`: relative improvements from the within-split baseline.
-- `tu_gain`: paired TU-over-random gains in meV/atom and percentage points.
-- `regime_contrast`: LF->HF's TU gain minus HF-only's TU gain, the key comparison.
+- `acquisition_gain`: paired AU/EU/TU-over-random gains in meV/atom and percentage points.
+- `regime_contrast`: LF->HF's gain minus HF-only's gain, separately for AU/EU/TU.
 - `common_evaluator`: the optional control, when those results are available.
 
 Diamonds show means with approximate 95% Student-t intervals; grey points show
-all five individual split values. No outliers are removed. OOD RMSE uses a
-symmetric-log display to retain the wide dynamic range and negative confidence
-bounds; the intervals themselves are still calculated on the original scale.
-ID RMSE is linear, with scales shared between regimes within each test.
+all five individual split values. No outliers are removed. OOD RMSE defaults to
+a logarithmic axis with a **geometric mean and log-space Student-t interval**:
+`exp(mean(log(RMSE)) +/- 2.776445105 * sample_SD(log(RMSE)) / sqrt(5))`.
+This gives positive, multiplicative intervals symmetric in log coordinates.
+It changes the displayed estimator, not merely the axis: the plotted center is
+the geometric mean, not the arithmetic mean. Both OOD regime panels fall back
+to linear arithmetic intervals if any required value is nonpositive, missing,
+or cannot be represented safely. No epsilon, clipping or dropped splits is used.
+
+ID RMSE, improvements, gains, and contrasts remain linear with arithmetic means
+and intervals; signed quantities are not log-transformed. Scales are shared
+between regimes within each test. The aggregate `summary_ci95.*` files retain
+their original arithmetic statistics. Displayed RMSE estimates are additionally
+saved to `plots/rmse_display.json` with explicit estimator labels.
+`--ood-rmse-scale linear` or `--ood-rmse-scale symlog` restores arithmetic OOD
+intervals; their visual asymmetry on a symmetric-log axis is expected.
 
 To redraw only the plots (no GPU needed), or choose a linear OOD RMSE axis:
 
@@ -76,10 +118,11 @@ python -B active_learning/ani_energy/plot_results.py --ood-rmse-scale linear
 ```
 
 Plot caching fingerprints the aggregate report, plot code and display settings.
-The September 2026 folder migration preserves the original metadata in
-`runs/migration_backup/original_metadata.tar.gz` and records its changes in
-`runs/migration_backup/complete.json`. Paths and dependent cache digests were
-updated; checkpoints, selected configurations and numerical results were not.
+The previous five AL run directories and their aggregate results were deleted
+at the user's request before restarting with the corrected protocol. Auxiliary
+cache, verification and migration-backup directories were preserved; they are
+not used as new experiment results. Original A-F artifacts and datasets were
+not deleted.
 
 ## Run
 
@@ -90,7 +133,7 @@ conda activate mace
 bash active_learning/ani_energy/run.sh 7
 ```
 
-This prepares the data, scores the pool, selects/reveals labels, trains all four
+This prepares the data, scores the pool, selects/reveals labels, trains all eight
 10-member ensembles **sequentially**, evaluates them, and writes the report.
 GPU 7 is exposed as local `cuda:0`. `PYTHON=/path/to/python` overrides the interpreter.
 No ANI HDF5 file, original evaluation caches, or new dependencies are needed;
@@ -142,7 +185,7 @@ bash active_learning/ani_energy/run.sh 6 --stage train --case hf_only_random --m
 
 Available cases: `hf_only_random`, `hf_only_tu`, `lf_hf_random`, `lf_hf_tu`.
 Evaluation requires all 10 members of the requested case. `--case` also works with
-`--stage evaluate`; the final report requires all four default cases.
+`--stage evaluate`; the final report requires all eight default cases.
 Follow live progress with `tail -f` on the printed member `console.log` path.
 
 ## Experimental Choices
@@ -159,14 +202,12 @@ The schedulers can subsequently reduce the LR. Both regimes default to at most
 100 additional epochs; `--epochs N` overrides this limit for both, including the
 optional common-evaluator control. Other training settings remain inherited from F/D.
 
-Existing results produced before this change retain their original protocol
-(originally HF-only LR 0.01 / 300 epochs, LF->HF LR 0.001 / 100 epochs);
-they have not been rerun or relabeled. New manifests record the shared AL
-learning rate and effective additional epoch limit. Old run directories cannot be
-resumed as the new protocol, and `run_all.sh` rejects silent reuse of their
-completed reports in training mode. `--aggregate-only` can still summarize the
-old results. For a future new-protocol single-split run, use a separate
-`--name NAME` directory; do not overwrite the old artifacts.
+The old AL results (originally HF-only LR 0.01 / 300 epochs, LF->HF LR 0.001 /
+100 epochs) were deleted; they are not relabeled as corrected results. Manifests
+record the shared AL learning rate and effective additional epoch limit.
+The runner rejects reuse of incompatible settings. Use `--name NAME` for a
+custom single-split directory, or `run_all.sh --run-tag NAME` for a coordinated
+five-split batch.
 This protection means the runner raises a protocol-mismatch error instead of
 silently treating old completed models as models trained with the new defaults.
 It does not delete, update, or retrain those models.
@@ -280,13 +321,15 @@ different operation applied only to the already-created CC OOD file.
   labels. Augmented files begin with an unchanged copy of the original HF training
   file. New configurations use its training `config_type` and are equally weighted.
 - Random acquisition is uniform without replacement, shared between regimes.
-  TU acquisition is the global top 500 (stable ID tie-break), not system-capped.
+  Each AU/EU/TU acquisition is the global top 500 of its own score (stable ID
+  tie-break), not system-capped. The selected batches can overlap; they are
+  alternative single-round conditions, not sequential acquisitions.
 
 ```text
 Original low-energy train / validation / ID test: unchanged
 Original CC Energy-OOD file: 5000 configurations
     +-- 2500 acquisition-pool configurations (random, stratified by system)
-    |       +-- acquire 500 by TU or random sampling; append their CC labels
+    |       +-- acquire 500 by AU, EU, TU or random sampling; append their CC labels
     +-- 2500 held-out OOD test configurations (never acquired or trained on)
 ```
 
@@ -294,7 +337,7 @@ This tests acquisition within the original OOD domain. It does not test
 acquisition from a lower-energy pool followed by testing on an even higher-energy
 domain. Changing to that design would require a separate experimental partition.
 
-### TU and RMSE
+### Acquisition Scores and RMSE
 
 The runner directly reuses `eval/reliability.py` for prediction and uncertainty:
 
@@ -304,8 +347,11 @@ EU = population_variance_m(energy_mean_m / N_atoms)    # unbiased=False
 TU = AU + EU
 ```
 
-The acquisition score is **one scalar per configuration**, namely raw TU variance
-of that configuration's energy per atom. In the formulas above, `energy_mean_m`
+Each acquisition score is **one scalar per configuration**: AU uses the raw
+aleatoric variance, EU uses the population ensemble variance, and TU uses their
+sum. All are variances of the configuration's energy per atom. They come from
+the same cached ensemble predictions, with no extra inference per metric.
+In the formulas above, `energy_mean_m`
 and `variance_m` are member `m`'s predicted total configuration energy and its
 variance; `N_atoms` is the atom count of that configuration. "Per-atom" refers
 only to normalization by `N_atoms^2`, not to separate acquisition decisions for
@@ -331,12 +377,14 @@ meV/atom. Individual predictions and AU/EU/TU are retained in inference caches.
 
 ```text
 relative improvement (%) = 100 * (RMSE_before - RMSE_after) / RMSE_before
-TU gain (meV/atom) = RMSE_random - RMSE_TU
-TU gain (percentage points) = improvement_TU - improvement_random
+method gain (meV/atom) = RMSE_random - RMSE_method
+method gain (percentage points) = improvement_method - improvement_random
+# method is AU, EU or TU
 ```
 
-Positive gain favors TU. The report also gives LF->HF's TU gain minus HF-only's TU
-gain on each test: positive values support the acquisition-quality hypothesis.
+Positive gain favors the uncertainty method over random. The report also gives
+LF->HF's gain minus HF-only's gain for each method and test: positive values
+support the acquisition-quality hypothesis.
 Negative improvements/gains are retained. A zero baseline RMSE produces `null`
 percentage improvements, not a division by zero.
 
@@ -351,7 +399,8 @@ the HF-only TU batch. Its comparator is the existing `lf_hf_tu` branch, which is
 already exactly the requested LF->HF evaluator on the LF->HF-selected batch.
 Reusing that branch avoids 10 redundant, identically initialized training runs.
 The control therefore adds 10 members, not 20. It is reported separately and can
-be enabled after the default run finishes; the four default cases are reused.
+be enabled after the default run finishes; the eight default cases are reused.
+This optional control still compares TU acquisitions only.
 Include `--common-evaluator` for subsequent control train/evaluate/report stages.
 
 ## Artifacts
@@ -362,7 +411,7 @@ runs/<name>/
   data/                         public pool, held-out OOD, oracle, split/ID manifest
   initial/{hf_only,lf_hf}/       frozen 10-member ensembles, configs and source logs
   inference/                    cached pool and test predictions, input fingerprints
-  acquisition/{random,hf_only_tu,lf_hf_tu}/
+  acquisition/{random,hf_only_au,hf_only_eu,hf_only_tu,lf_hf_au,lf_hf_eu,lf_hf_tu}/
     selection.json              selected IDs, method, seed, score provenance
     train.xyz                   original HF train + 500 revealed configurations
     augmented.json              counts and file hashes
@@ -412,7 +461,7 @@ reveal and leakage guards, selection budgets/ties, cache invalidation, reporting
 formulas, the actual shared TU calculation, and one epoch of genuine small MVE
 checkpoint continuation through the existing MACE training loop. A separate
 orchestration test uses synthetic predictions and a stub trainer to verify all
-four branches, resume behavior, shared tests and the optional control; it does
+eight branches, resume behavior, shared tests and the optional control; it does
 not produce scientific results.
 Reporting tests cover default folder names, recursive path/hash migration,
 unchanged numerical values, paired confidence intervals, and nonblank/cached plots.

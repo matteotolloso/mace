@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ $# -lt 1 || ! $1 =~ ^[0-9]+$ ]]; then
-  echo "Usage: bash active_learning/ani_energy/run_all.sh <gpu_number> [--aggregate-only --wait] [--seed N] [--epochs N] [--common-evaluator]" >&2
+  echo "Usage: bash active_learning/ani_energy/run_all.sh <gpu_number> [--aggregate-only --wait] [--seed N] [--epochs N] [--run-tag NAME] [--common-evaluator]" >&2
   exit 2
 fi
 GPU="$1"

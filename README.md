@@ -275,9 +275,22 @@ The aggregation procedure computes each metric independently for each
 
 Confidence intervals are two-sided 95% Student-t intervals. With five finite
 replicates, the calculation uses 4 degrees of freedom. Line plots show the
-five-split mean and a shaded 95% confidence band. Bar and distribution plots
+five-split arithmetic mean and a shaded 95% confidence band on linear axes. Bar and distribution plots
 use equivalent replicate-level intervals. Reliability summaries compute RMSE,
 Spearman correlation, AUSE, and ENCE per split before averaging them.
+
+For strictly positive quantities displayed on logarithmic axes, aggregate plots
+instead show the **geometric mean and a 95% log-space Student-t interval**:
+`exp(mean(log(x)) +/- t * sd(log(x)) / sqrt(n))`. These multiplicative bounds
+are symmetric in log coordinates and stay positive. They estimate the geometric
+mean, not the arithmetic mean; affected axes are labeled accordingly. Existing
+arithmetic CSV columns are preserved, with extra `<metric>_geometric_*` columns.
+If any replicate is zero, negative or missing, that panel uses arithmetic
+intervals on a linear axis; values are not dropped or replaced by an epsilon.
+Reliability text summaries remain arithmetic. AL OOD RMSE plots also default
+to geometric means with log-space t intervals; ID RMSE and signed gains remain
+linear with arithmetic intervals. AL aggregate reports are unchanged; separate
+`plots/rmse_display.json` records the displayed estimates and their estimators.
 
 Evaluation programs live in [`eval/`](eval) and include:
 
@@ -286,8 +299,10 @@ Evaluation programs live in [`eval/`](eval) and include:
 - `epoch_quality_finetune_mixed_dataset.py`: concatenated low-fidelity pretrain
   and high-fidelity fine-tune trajectories evaluated on their respective
   targets.
-- `epoch_quality_finetune_same_dataset.py`: pretrain/fine-tune trajectory on a
-  common evaluation target.
+- `epoch_quality_finetune_same_dataset.py`: retained as a shared implementation
+  dependency of the mixed version, but no experiment script runs the same-target
+  evaluation. Legacy `epoch_quality_finetune_same*.csv` caches are preserved and
+  skipped by aggregation.
 - `reliability.py`: calibrated or uncalibrated RMV-versus-RMSE reliability
   diagrams.
 - `train_curves.py`, `epoch_raw.py`, `distribution.py`, `finetune.py`, and
@@ -343,6 +358,19 @@ bash eval.sh
 map: `A=6`, `B=7`, `C=5`, `D=4`, `E=3`, and `F=2`. Edit the `gpus` array in
 `eval.sh` when a different assignment is required.
 
+To regenerate only the final figures and aggregate tables from existing caches,
+without model inference, training or a GPU:
+
+```bash
+bash eval.sh --plots-only
+```
+
+This handles A-F and water experiments with existing caches, plus available AL
+aggregate reports. Experiments with no split-0 cache are announced and skipped;
+incomplete five-split caches fail rather than silently using fewer splits.
+Per-split diagnostic figures can be regenerated with the individual `eval_X.sh`
+scripts (they reuse CSV caches). Finetuning epoch-quality figures are mixed-only.
+
 ### Recommended end-to-end order
 
 1. Generate all five dataset splits.
@@ -366,7 +394,8 @@ map: `A=6`, `B=7`, `C=5`, `D=4`, `E=3`, and `F=2`. Edit the `gpus` array in
   and member seed.
 - The water XYZ files contain periodic cells and PBC metadata and should not be
   converted to a non-periodic format before MACE training.
-- Most final figures are written as PNG, SVG, and PDF.
+- Evaluation figures are SVG-only, with larger fonts. Old PNG/PDF/SVG figures
+  may be removed without removing the CSV/JSON caches used to redraw them.
 
 [![GitHub release](https://img.shields.io/github/release/ACEsuit/mace.svg)](https://GitHub.com/ACEsuit/mace/releases/)
 [![Paper](https://img.shields.io/badge/Paper-NeurIPs2022-blue)](https://openreview.net/forum?id=YPpSngE-ZU)

@@ -35,7 +35,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/train_curves.py \
   --every-n-epochs 5 \
   --device cuda \
   --output-csv experiment_A/evaluation/cache/split_${split_seed}/train_curves.csv \
-  --output-plot experiment_A/evaluation/cache/split_${split_seed}/train_curves.png
+  --output-plot experiment_A/evaluation/cache/split_${split_seed}/train_curves.svg
 
 # reliability digram ID
 
@@ -55,7 +55,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/reliability.py \
   --isotonic-calibration True \
   --output-csv-raw experiment_A/evaluation/cache/split_${split_seed}/reliability_id_cal_raw.csv \
   --output-csv-bins experiment_A/evaluation/cache/split_${split_seed}/reliability_id_cal_bins.csv \
-  --output-plot experiment_A/evaluation/cache/split_${split_seed}/reliability_id_cal.png \
+  --output-plot experiment_A/evaluation/cache/split_${split_seed}/reliability_id_cal.svg \
   --log-level INFO \
   --log-every-batches 1 \
   --device cuda \
@@ -77,7 +77,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/reliability.py \
   --isotonic-calibration False \
   --output-csv-raw experiment_A/evaluation/cache/split_${split_seed}/reliability_id_nocal_raw.csv \
   --output-csv-bins experiment_A/evaluation/cache/split_${split_seed}/reliability_id_nocal_bins.csv \
-  --output-plot experiment_A/evaluation/cache/split_${split_seed}/reliability_id_nocal.png \
+  --output-plot experiment_A/evaluation/cache/split_${split_seed}/reliability_id_nocal.svg \
   --log-level INFO \
   --log-every-batches 1 \
   --device cuda \
@@ -103,7 +103,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/reliability.py \
   --isotonic-calibration True \
   --output-csv-raw experiment_A/evaluation/cache/split_${split_seed}/reliability_ood_cal_raw.csv \
   --output-csv-bins experiment_A/evaluation/cache/split_${split_seed}/reliability_ood_cal_bins.csv \
-  --output-plot experiment_A/evaluation/cache/split_${split_seed}/reliability_ood_cal.png \
+  --output-plot experiment_A/evaluation/cache/split_${split_seed}/reliability_ood_cal.svg \
   --log-level INFO \
   --log-every-batches 1 \
   --device cuda \
@@ -125,7 +125,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/reliability.py \
   --isotonic-calibration False \
   --output-csv-raw experiment_A/evaluation/cache/split_${split_seed}/reliability_ood_nocal_raw.csv \
   --output-csv-bins experiment_A/evaluation/cache/split_${split_seed}/reliability_ood_nocal_bins.csv \
-  --output-plot experiment_A/evaluation/cache/split_${split_seed}/reliability_ood_nocal.png \
+  --output-plot experiment_A/evaluation/cache/split_${split_seed}/reliability_ood_nocal.svg \
   --log-level INFO \
   --log-every-batches 1 \
   --device cuda \
@@ -146,7 +146,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/reliability.py \
   --batch-size 256 \
   --every-n-epochs 10 \
   --output-csv experiment_A/evaluation/cache/split_${split_seed}/epoch_raw_train.csv \
-  --output-plot experiment_A/evaluation/cache/split_${split_seed}/epoch_raw_train.png
+  --output-plot experiment_A/evaluation/cache/split_${split_seed}/epoch_raw_train.svg
 
 
 # train diagram metrics 
@@ -163,7 +163,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/epoch_quality.py \
   --every-n-epochs 5 \
   --free-scale \
   --output-csv experiment_A/evaluation/cache/split_${split_seed}/epoch_quality_id.csv \
-  --output-plot experiment_A/evaluation/cache/split_${split_seed}/epoch_quality_id.png
+  --output-plot experiment_A/evaluation/cache/split_${split_seed}/epoch_quality_id.svg
 
 # OOD
 
@@ -177,7 +177,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/epoch_quality.py \
   --every-n-epochs 5 \
   --free-scale \
   --output-csv experiment_A/evaluation/cache/split_${split_seed}/epoch_quality_ood.csv \
-  --output-plot experiment_A/evaluation/cache/split_${split_seed}/epoch_quality_ood.png
+  --output-plot experiment_A/evaluation/cache/split_${split_seed}/epoch_quality_ood.svg
 
 # on train set
 
@@ -191,7 +191,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/epoch_quality.py \
   --every-n-epochs 5 \
   --free-scale \
   --output-csv experiment_A/evaluation/cache/split_${split_seed}/epoch_quality_train.csv \
-  --output-plot experiment_A/evaluation/cache/split_${split_seed}/epoch_quality_train.png
+  --output-plot experiment_A/evaluation/cache/split_${split_seed}/epoch_quality_train.svg
 
 
 # distributions
@@ -208,7 +208,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/distribution.py \
   --device cuda \
   --batch-size 256 \
   --output-csv experiment_A/evaluation/cache/split_${split_seed}/distribution_id.csv \
-  --output-plot experiment_A/evaluation/cache/split_${split_seed}/distribution_id.png
+  --output-plot experiment_A/evaluation/cache/split_${split_seed}/distribution_id.svg
 
 CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/distribution.py \
   --checkpoints-dir experiment_A/checkpoints_${split_seed} \
@@ -222,7 +222,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/distribution.py \
   --device cuda \
   --batch-size 256 \
   --output-csv experiment_A/evaluation/cache/split_${split_seed}/distribution_ood.csv \
-  --output-plot experiment_A/evaluation/cache/split_${split_seed}/distribution_ood.png
+  --output-plot experiment_A/evaluation/cache/split_${split_seed}/distribution_ood.svg
 
 CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/distribution.py \
   --checkpoints-dir experiment_A/checkpoints_${split_seed} \
@@ -236,7 +236,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/distribution.py \
   --device cuda \
   --batch-size 256 \
   --output-csv experiment_A/evaluation/cache/split_${split_seed}/distribution_train.csv \
-  --output-plot experiment_A/evaluation/cache/split_${split_seed}/distribution_train.png
+  --output-plot experiment_A/evaluation/cache/split_${split_seed}/distribution_train.svg
 }
 
 for split_seed in $EVAL_SPLIT_SEEDS; do

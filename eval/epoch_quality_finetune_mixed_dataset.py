@@ -76,7 +76,7 @@ def parse_args() -> argparse.Namespace:
         help="Use total-system quantities instead of per-atom ones.",
     )
     parser.add_argument("--output-csv", type=str, default="epoch_quality_finetune_mixed.csv")
-    parser.add_argument("--output-plot", type=str, default="epoch_quality_finetune_mixed.png")
+    parser.add_argument("--output-plot", type=str, default="epoch_quality_finetune_mixed.svg")
     parser.add_argument(
         "--title",
         type=str,

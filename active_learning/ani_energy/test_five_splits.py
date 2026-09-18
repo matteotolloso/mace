@@ -15,7 +15,8 @@ import five_splits as five
 
 def fixtures():
     settings = {"seed": 0, "epochs_override": None, "budget": 500,
-                "learning_rate": 0.001, "additional_epochs": 100}
+                "learning_rate": 0.001, "additional_epochs": 100,
+                "acquisition_metrics": ["au", "eu", "tu"]}
     reports = []
     for split in range(5):
         rows = []
@@ -23,14 +24,35 @@ def fixtures():
             for regime in five.REGIMES:
                 before = 100 + 10 * split
                 gain = 2 + split + (10 if regime == "lf_hf" else 0)
-                rows.append({"regime": regime, "test": test, "count": 100,
-                             **comparison(before, before - 10, before - 10 - gain)})
+                stats = {}
+                for method in settings["acquisition_metrics"]:
+                    stats.update(comparison(before, before - 10, before - 10 - gain, method))
+                rows.append({"regime": regime, "test": test, "count": 100, **stats})
         reports.append({"settings": {**settings, "split_seed": split}, "rows": rows,
                         "inputs": {}, "common_evaluator": []})
     return reports, settings
 
 
 class AggregationTests(unittest.TestCase):
+    def test_legacy_tu_reports_still_aggregate(self):
+        reports, settings = fixtures()
+        del settings["acquisition_metrics"]
+        for report in reports:
+            del report["settings"]["acquisition_metrics"]
+        rows = five.aggregate(reports, settings)
+        self.assertEqual(len(rows), 32)
+        self.assertFalse(any("au_gain" in row["metric"] or "eu_gain" in row["metric"] for row in rows))
+
+    def test_missing_acquisition_methods_are_not_reused(self):
+        reports, _ = fixtures()
+        reports[0]["settings"]["acquisition_metrics"] = ["tu"]
+        with patch("sys.argv", ["five_splits.py", "--gpu", "2"]), \
+                patch.object(five, "read_report", return_value=reports[0]), \
+                patch.object(five.subprocess, "run") as launch:
+            with self.assertRaisesRegex(ValueError, "acquisition methods differ"):
+                five.main()
+            launch.assert_not_called()
+
     def test_ci_and_paired_contrast(self):
         result = five.confidence_interval([1, 2, 3, 4, 5])
         self.assertEqual(result["mean"], 3)
@@ -42,7 +64,7 @@ class AggregationTests(unittest.TestCase):
         self.assertEqual(paired["split_values"], [10] * 5)
         self.assertEqual(paired["ci95_lower"], 10)
         self.assertEqual(paired["ci95_upper"], 10)
-        self.assertEqual(len(rows), 32)
+        self.assertEqual(len(rows), 72)
 
     def test_reject_partial_mismatched_and_invalid_results(self):
         reports, settings = fixtures()
@@ -81,7 +103,7 @@ class AggregationTests(unittest.TestCase):
             stamp = (output / "summary_ci95.json").stat().st_mtime_ns
             five.write_report(output, rows, {"version": 1}, settings)
             self.assertEqual(stamp, (output / "summary_ci95.json").stat().st_mtime_ns)
-            self.assertEqual(len(load_json(output / "summary_ci95.json")["rows"]), 32)
+            self.assertEqual(len(load_json(output / "summary_ci95.json")["rows"]), 72)
             save_json(metric, {"rmse": 2})
             with self.assertRaises(RuntimeError):
                 five.read_report(run)
@@ -112,9 +134,25 @@ class AggregationTests(unittest.TestCase):
             five.main()
             self.assertEqual(launch.call_count, 6)
             for split, call in enumerate(launch.call_args_list[:5]):
-                self.assertEqual(call.args[0][2:], ["2", "--split-seed", str(split), "--seed", "0"])
+                self.assertEqual(call.args[0][2:], ["2", "--split-seed", str(split), "--seed", "0",
+                                                   "--name", f"split_{split}"])
             self.assertTrue(launch.call_args_list[-1].args[0][2].endswith("plot_results.py"))
             write.assert_called_once()
+
+    def test_epoch_override_is_forwarded_to_every_split(self):
+        reports, _ = fixtures()
+        for report in reports:
+            report["settings"].update(epochs_override=20, additional_epochs=20)
+            report["_verified_inputs"] = {}
+        with patch("sys.argv", ["five_splits.py", "--gpu", "3", "--epochs", "20"]), \
+                patch.object(five, "read_report", side_effect=[None] * 5 + reports), \
+                patch.object(five.subprocess, "run") as launch, \
+                patch.object(five, "write_report"), redirect_stdout(io.StringIO()):
+            five.main()
+            for split, call in enumerate(launch.call_args_list[:5]):
+                self.assertEqual(call.args[0][2:], ["3", "--split-seed", str(split), "--seed", "0",
+                                                  "--name", f"split_{split}_epochs_20", "--epochs", "20"])
+            self.assertTrue(launch.call_args.args[0][-1].endswith("aggregate_epochs_20/summary_ci95.json"))
 
     def test_completed_runs_only_aggregate_and_plot(self):
         reports, _ = fixtures()

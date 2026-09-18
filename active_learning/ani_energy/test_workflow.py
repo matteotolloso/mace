@@ -88,6 +88,8 @@ class DataTests(unittest.TestCase):
         scores = {key: float(i) for i, key in enumerate(ids)}
         chosen = select_ids(ids, "tu", 0, scores)
         self.assertEqual(chosen, list(reversed(ids))[:BUDGET])
+        for method in ("au", "eu"):
+            self.assertEqual(select_ids(ids, method, 0, scores), chosen)
         random = select_ids(ids, "random", 3)
         self.assertEqual(random, select_ids(ids, "random", 3))
         self.assertEqual(len(set(random)), BUDGET)
@@ -226,7 +228,7 @@ class RuntimeTests(unittest.TestCase):
 
 
 class OrchestrationTests(unittest.TestCase):
-    def test_four_cases_optional_control_and_resume(self):
+    def test_eight_cases_optional_control_and_resume(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             source, run = root / "source", root / "run"
@@ -258,7 +260,10 @@ class OrchestrationTests(unittest.TestCase):
                 self.assertEqual(len(models), 10)
                 rows = []
                 for i, atoms in enumerate(read(xyz, index=":")):
-                    row = {"al_id": config_id(atoms), "total_var": float(i if "hf_only" in name else 1200 - i)}
+                    au = float(i if "hf_only" in name else 1200 - i)
+                    eu = float(1200 - au) * 2
+                    row = {"al_id": config_id(atoms), "aleatoric_var": au,
+                           "epistemic_var": eu, "total_var": au + eu}
                     if labeled:
                         error = 1.0 if name.startswith("before") else (0.8 if "random" in name else 0.6)
                         row["sq_error"] = error ** 2
@@ -288,10 +293,22 @@ class OrchestrationTests(unittest.TestCase):
                     patch("workflow.subprocess.run", side_effect=fake_training) as trainer, \
                     redirect_stdout(io.StringIO()):
                 workflow.acquire(run, manifest, args)
+                pool_ids = load_json(run / "data" / "split.json")["pool_ids"]
+                for regime in REGIMES:
+                    for method, field in (("au", "aleatoric_var"), ("eu", "epistemic_var"), ("tu", "total_var")):
+                        selected = load_json(run / "acquisition" / f"{regime}_{method}" / "selection.json")["data"]
+                        predictions = load_json(run / "inference" / f"pool_{regime}.json")["data"]
+                        expected = select_ids(pool_ids, method, 0, {r["al_id"]: r[field] for r in predictions})
+                        self.assertEqual(selected["ids"], expected)
+                        self.assertEqual(selected["method"], method)
+                        self.assertEqual(selected["acquirer"], regime)
+                    au = load_json(run / "acquisition" / f"{regime}_au" / "selection.json")["data"]["ids"]
+                    eu = load_json(run / "acquisition" / f"{regime}_eu" / "selection.json")["data"]["ids"]
+                    self.assertNotEqual(au, eu)
                 workflow.train(run, manifest, args)
-                self.assertEqual(trainer.call_count, 40)
+                self.assertEqual(trainer.call_count, 80)
                 workflow.train(run, manifest, args)
-                self.assertEqual(trainer.call_count, 40)
+                self.assertEqual(trainer.call_count, 80)
                 workflow.evaluate(run, manifest, args)
                 workflow.report(run, args)
                 summary = load_json(run / "report" / "summary.json")
@@ -300,7 +317,7 @@ class OrchestrationTests(unittest.TestCase):
                 self.assertEqual(summary["common_evaluator"], [])
                 args.common_evaluator = True
                 workflow.train(run, manifest, args)
-                self.assertEqual(trainer.call_count, 50)
+                self.assertEqual(trainer.call_count, 90)
                 workflow.evaluate(run, manifest, args)
                 workflow.report(run, args)
                 self.assertEqual(len(load_json(run / "report" / "summary.json")["common_evaluator"]), 2)

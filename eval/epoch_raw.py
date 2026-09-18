@@ -38,6 +38,7 @@ from typing import Dict, List, Optional, Tuple
 
 import ase.io
 import matplotlib.pyplot as plt
+from plot_style import save_svg
 import numpy as np
 import torch
 import torch.nn
@@ -147,7 +148,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-plot",
         type=str,
-        default="epoch_au_eu.png",
+        default="epoch_au_eu.svg",
         help="Output plot path.",
     )
     parser.add_argument(
@@ -633,7 +634,7 @@ def write_plot(
 
     ax1.legend(handles, labels)
     fig.tight_layout()
-    fig.savefig(path, dpi=200)
+    save_svg(fig, path, bbox_inches="tight", pad_inches=0.2)
     plt.close(fig)
 
 def release_models(models: List[torch.nn.Module], device: torch.device) -> None:

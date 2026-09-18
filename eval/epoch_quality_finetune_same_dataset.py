@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 import matplotlib.pyplot as plt
+from plot_style import save_svg
 import numpy as np
 
 from csv_cache_utils import load_cached_csv_rows, parse_float, parse_int, parse_str
@@ -100,7 +101,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-plot",
         type=str,
-        default="epoch_quality_finetune_same.png",
+        default="epoch_quality_finetune_same.svg",
     )
     parser.add_argument(
         "--title",
@@ -312,7 +313,7 @@ def write_plot(
         ("magnitude", "Uncertainty"),
     ]
 
-    uniform_fontsize = 24
+    uniform_fontsize = 28
 
     def plot_series_with_clipped_markers(
         ax,
@@ -463,9 +464,7 @@ def write_plot(
     axes[5].tick_params(axis="both", labelsize=uniform_fontsize)
 
     fig.tight_layout()
-    fig.savefig(path, dpi=300, bbox_inches="tight", pad_inches=0.2)
-    fig.savefig(path.with_suffix(".svg"), bbox_inches="tight", pad_inches=0.2)
-    fig.savefig(path.with_suffix(".pdf"), bbox_inches="tight", pad_inches=0.2)
+    save_svg(fig, path, bbox_inches="tight", pad_inches=0.2)
     plt.close(fig)
 
 

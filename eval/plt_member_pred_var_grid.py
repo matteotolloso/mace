@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
+from plot_style import save_svg
 import numpy as np
 
 from csv_cache_utils import load_cached_csv_rows, parse_float, parse_int, parse_str
@@ -90,7 +91,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output_plot",
         type=str,
-        default="member_pred_var_grid.png",
+        default="member_pred_var_grid.svg",
         help="Output figure path.",
     )
     parser.add_argument(
@@ -575,7 +576,7 @@ def write_plot(path: Path, rows: List[Dict[str, object]], per_atom: bool) -> Non
         fontsize=14,
     )
     fig.tight_layout(rect=[0, 0, 1, 0.97])
-    fig.savefig(path, dpi=200)
+    save_svg(fig, path, bbox_inches="tight", pad_inches=0.2)
     plt.close(fig)
 
 

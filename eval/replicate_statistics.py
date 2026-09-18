@@ -133,17 +133,34 @@ def aggregate_rows(
             row_out[metric] = stats["mean"]
             for suffix in ("mean", "std", "ci95_low", "ci95_high", "n"):
                 row_out[f"{metric}_{suffix}"] = stats[suffix]
+            log_stats = summarize_log(grouped[key][metric])
+            for suffix, value in log_stats.items():
+                row_out[f"{metric}_geometric_{suffix}"] = value
         output.append(row_out)
     return output
 
 
 def confidence_arrays(
-    rows: Sequence[Dict[str, object]], metric: str
+    rows: Sequence[Dict[str, object]], metric: str, *, geometric: bool = False
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    if geometric:
+        return tuple(np.asarray([float(row[f"{metric}_geometric_{key}"]) for row in rows])
+                     for key in ("mean", "ci95_low", "ci95_high"))
     mean = np.asarray([float(row.get(f"{metric}_mean", row[metric])) for row in rows])
     low = np.asarray([float(row.get(f"{metric}_ci95_low", np.nan)) for row in rows])
     high = np.asarray([float(row.get(f"{metric}_ci95_high", np.nan)) for row in rows])
     return mean, low, high
+
+
+def summarize_log(values: Iterable[float]) -> Dict[str, float | int]:
+    """Back-transformed t interval for mean log(value), not arithmetic mean."""
+    values = np.asarray(list(values), dtype=float)
+    if values.size < 2 or not np.all(np.isfinite(values) & (values > 0)):
+        return {"mean": float("nan"), "ci95_low": float("nan"),
+                "ci95_high": float("nan"), "n": 0}
+    stats = summarize(np.log(values))
+    return {**{key: float(np.exp(stats[key])) for key in ("mean", "ci95_low", "ci95_high")},
+            "n": stats["n"]}
 
 
 def _sort_value(value: str) -> Tuple[int, object]:

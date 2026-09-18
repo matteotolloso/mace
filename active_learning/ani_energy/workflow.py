@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 from common import (
-    AL_EPOCHS, AL_LEARNING_RATE, BUDGET, CASES, CONTROL, ENERGY_KEY, HERE, MEMBERS, REGIMES, ROOT,
+    ACQUISITION_METRICS, RUN_TAG, AL_EPOCHS, AL_LEARNING_RATE, BUDGET, CASES, CONTROL, ENERGY_KEY, HERE, MEMBERS, REGIMES, ROOT,
     augment_training, comparison, inventory, load_cached, load_json, prepare_data,
     save_cached, save_json, select_ids, sha256, verify_inventory,
 )
@@ -32,6 +32,7 @@ def settings(args):
             "budget": BUDGET, "members": list(MEMBERS), "pool_fraction": 0.5,
             "epochs_override": args.epochs, "selection_key": "loss", "selection_mode": "min",
             "learning_rate": AL_LEARNING_RATE,
+            "acquisition_metrics": list(ACQUISITION_METRICS),
             "additional_epochs": args.epochs if args.epochs is not None else AL_EPOCHS,
             "uncertainty": "raw AU + population EU, per-atom variance (eV/atom)^2",
             "warm_start": "full model, fresh optimizer/scheduler, original validation"}
@@ -155,7 +156,8 @@ def acquire(run, manifest, args):
         rows, score_path = inference(run, f"pool_{regime}", models, run / "data" / "pool.xyz", args, labeled=False)
         if [row["al_id"] for row in rows] != pool_ids:
             raise RuntimeError("Cached prediction IDs do not match the acquisition pool.")
-        selections[f"{regime}_tu"] = ("tu", {row["al_id"]: row["total_var"] for row in rows}, score_path)
+        for method, field in ACQUISITION_METRICS.items():
+            selections[f"{regime}_{method}"] = (method, {row["al_id"]: row[field] for row in rows}, score_path)
     for name, (method, scores, score_path) in selections.items():
         directory = run / "acquisition" / name
         selection_path = directory / "selection.json"
@@ -166,7 +168,7 @@ def acquire(run, manifest, args):
         if selected is None:
             selected = {"ids": select_ids(pool_ids, method, args.seed, scores),
                         "method": method, "seed": args.seed, "budget": BUDGET,
-                        "acquirer": name.removesuffix("_tu") if method == "tu" else "shared_random"}
+                        "acquirer": name.removesuffix(f"_{method}") if method != "random" else "shared_random"}
             save_cached(selection_path, inputs, selected)
         augmented_path = directory / "train.xyz"
         augmented_inputs = inventory([selection_path, run / "data" / "oracle.json",
@@ -317,20 +319,23 @@ def report(run, args):
         test_metrics = []
         for regime in REGIMES:
             values = [metric(name, test) for name in
-                      (f"before_{regime}", f"{regime}_random", f"{regime}_tu")]
+                      (f"before_{regime}", f"{regime}_random", *(f"{regime}_{m}" for m in ACQUISITION_METRICS))]
             test_metrics.extend(values)
-            stats = comparison(*(item["rmse_meV_per_atom"] for item in values))
+            stats = {}
+            for method, item in zip(ACQUISITION_METRICS, values[2:]):
+                stats.update(comparison(values[0]["rmse_meV_per_atom"], values[1]["rmse_meV_per_atom"],
+                                        item["rmse_meV_per_atom"], method))
             current[regime] = stats
             rows.append({"regime": regime, "test": test, "count": values[0]["count"], **stats})
         matched(test_metrics)
         hf, lf = current["hf_only"], current["lf_hf"]
-        gain_comparison[test] = {
-            "lf_hf_minus_hf_only_tu_gain_meV_per_atom":
-                lf["tu_gain_over_random_meV_per_atom"] - hf["tu_gain_over_random_meV_per_atom"],
-            "lf_hf_minus_hf_only_tu_gain_percentage_points":
-                lf["tu_gain_over_random_percentage_points"] - hf["tu_gain_over_random_percentage_points"]
-                if all(item["tu_gain_over_random_percentage_points"] is not None for item in (hf, lf)) else None,
-        }
+        gain_comparison[test] = {}
+        for method in ACQUISITION_METRICS:
+            for unit in ("meV_per_atom", "percentage_points"):
+                key = f"{method}_gain_over_random_{unit}"
+                gain_comparison[test][f"lf_hf_minus_hf_only_{method}_gain_{unit}"] = (
+                    lf[key] - hf[key] if lf[key] is not None and hf[key] is not None else None
+                )
     control = []
     if args.common_evaluator:
         for test in ("energy_ood", "energy_id"):
@@ -344,26 +349,28 @@ def report(run, args):
     destination.mkdir(exist_ok=True)
     save_json(destination / "summary.json", {
         "settings": load_json(run / "manifest.json")["settings"], "rows": rows,
-        "cross_regime_tu_gain": gain_comparison, "common_evaluator": control,
-        "inputs": inventory(metrics_used), "positive_gain_favors": "TU / LF->HF",
+        "cross_regime_gain": gain_comparison, "common_evaluator": control,
+        "inputs": inventory(metrics_used), "positive_gain_favors": "uncertainty acquisition / LF->HF",
         "scope": "One dataset split, one acquisition seed; no significance claim or CI.",
     })
     with (destination / "summary.csv").open("w", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
-    lines = ["# ANI Energy-OOD Active Learning", "", "RMSE in meV/atom; positive gain favors TU.", "",
-             "| Regime | Test | Before | Random-500 | TU-500 | Random improvement % | TU improvement % | TU gain |",
-             "|---|---|---:|---:|---:|---:|---:|---:|"]
+    lines = ["# ANI Energy-OOD Active Learning", "", "RMSE in meV/atom; positive gain favors uncertainty acquisition.", "",
+             "| Regime | Test | Method | Before | Random-500 | Acquired-500 | Random improvement % | Method improvement % | Gain over random |",
+             "|---|---|---|---:|---:|---:|---:|---:|---:|"]
     for row in rows:
-        values = [row[key] for key in ("rmse_before_meV_per_atom", "rmse_random500_meV_per_atom",
-                  "rmse_tu500_meV_per_atom", "relative_improvement_random_percent",
-                  "relative_improvement_tu_percent", "tu_gain_over_random_meV_per_atom")]
-        lines.append("| " + " | ".join([row["regime"], row["test"],
-                     *("n/a" if value is None else f"{value:.4f}" for value in values)]) + " |")
-    lines += ["", "LF->HF minus HF-only TU gain (positive supports the POC hypothesis):"]
+        for method in ACQUISITION_METRICS:
+            values = [row[key] for key in ("rmse_before_meV_per_atom", "rmse_random500_meV_per_atom",
+                      f"rmse_{method}500_meV_per_atom", "relative_improvement_random_percent",
+                      f"relative_improvement_{method}_percent", f"{method}_gain_over_random_meV_per_atom")]
+            lines.append("| " + " | ".join([row["regime"], row["test"], method.upper(),
+                         *("n/a" if value is None else f"{value:.4f}" for value in values)]) + " |")
+    lines += ["", "LF->HF minus HF-only acquisition gain (positive supports the POC hypothesis):"]
     for test, values in gain_comparison.items():
-        lines.append(f"- {test}: {values['lf_hf_minus_hf_only_tu_gain_meV_per_atom']:.4f} meV/atom")
+        for method in ACQUISITION_METRICS:
+            lines.append(f"- {test}, {method.upper()}: {values[f'lf_hf_minus_hf_only_{method}_gain_meV_per_atom']:.4f} meV/atom")
     if control:
         lines += ["", "Common LF->HF evaluator; positive gain favors the LF->HF-selected batch:"]
         for item in control:
@@ -396,7 +403,7 @@ def parse_args():
     if args.members and args.stage != "train":
         parser.error("--members is supported with --stage train only.")
     if args.name is None:
-        args.name = f"split_{args.split_seed}" + (f"_epochs_{args.epochs}" if args.epochs else "")
+        args.name = f"split_{args.split_seed}" + (f"_{RUN_TAG}" if RUN_TAG else "") + (f"_epochs_{args.epochs}" if args.epochs else "")
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", args.name):
         parser.error("--name must be a simple directory name, not a path.")
     return args

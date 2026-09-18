@@ -8,6 +8,7 @@ import csv
 import fcntl
 import io
 import math
+import re
 import statistics
 import subprocess
 import sys
@@ -15,7 +16,7 @@ import time
 from collections import defaultdict
 from pathlib import Path
 
-from common import AL_EPOCHS, AL_LEARNING_RATE, HERE, comparison, inventory, load_json, save_json, verify_inventory
+from common import ACQUISITION_METRICS, RUN_TAG, AL_EPOCHS, AL_LEARNING_RATE, HERE, comparison, inventory, load_json, save_json, verify_inventory
 
 T95_DF4 = 2.7764451051977987
 TESTS = ("energy_ood", "energy_id")
@@ -61,6 +62,7 @@ def aggregate(reports, settings, common_evaluator=False):
     if len(reports) != 5:
         raise ValueError("All five split reports are required.")
     groups = defaultdict(list)
+    methods = settings.get("acquisition_metrics", ["tu"])
     for split, report in enumerate(reports):
         actual = dict(report["settings"])
         if actual.pop("split_seed") != split or actual != settings:
@@ -74,18 +76,21 @@ def aggregate(reports, settings, common_evaluator=False):
                 raise ValueError("Regimes have different test-set counts.")
             for regime in REGIMES:
                 row = rows[(regime, test)]
-                stats[regime] = comparison(*(row[key] for key in (
-                    "rmse_before_meV_per_atom", "rmse_random500_meV_per_atom", "rmse_tu500_meV_per_atom"
-                )))
+                stats[regime] = {}
+                for method in methods:
+                    stats[regime].update(comparison(*(row[key] for key in (
+                        "rmse_before_meV_per_atom", "rmse_random500_meV_per_atom", f"rmse_{method}500_meV_per_atom"
+                    )), method=method))
                 for metric, value in stats[regime].items():
                     groups[(regime, test, metric)].append(value)
             # Form paired differences within each split, not differences of CI bounds.
-            for unit in ("meV_per_atom", "percentage_points"):
-                key = f"tu_gain_over_random_{unit}"
-                hf, lf = stats["hf_only"][key], stats["lf_hf"][key]
-                groups[("cross_regime", test, f"lf_hf_minus_hf_only_tu_gain_{unit}")].append(
-                    None if hf is None or lf is None else lf - hf
-                )
+            for method in methods:
+                for unit in ("meV_per_atom", "percentage_points"):
+                    key = f"{method}_gain_over_random_{unit}"
+                    hf, lf = stats["hf_only"][key], stats["lf_hf"][key]
+                    groups[("cross_regime", test, f"lf_hf_minus_hf_only_{method}_gain_{unit}")].append(
+                        None if hf is None or lf is None else lf - hf
+                    )
         if common_evaluator:
             control = report.get("common_evaluator", [])
             if len(control) != 2 or {row["test"] for row in control} != set(TESTS):
@@ -151,23 +156,29 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--epochs", type=int)
+    parser.add_argument("--epochs", type=int, help="Additional epochs per member for BOTH regimes (default: 100)")
+    parser.add_argument("--run-tag", default=RUN_TAG,
+                        help="Optional isolated batch suffix; default: no suffix")
     parser.add_argument("--common-evaluator", action="store_true")
     parser.add_argument("--aggregate-only", action="store_true", help="Never launch training/evaluation")
     parser.add_argument("--wait", action="store_true", help="Wait for five reports; requires --aggregate-only")
     parser.add_argument("--poll-seconds", type=float, default=60)
     args = parser.parse_args()
+    if args.run_tag and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", args.run_tag):
+        parser.error("--run-tag must be a simple name, not a path")
     if args.gpu < 0 or args.seed < 0 or args.poll_seconds <= 0 or (args.epochs is not None and args.epochs <= 0):
         parser.error("GPU/seed must be nonnegative; epochs/poll interval must be positive.")
     if args.wait and not args.aggregate_only:
         parser.error("--wait requires --aggregate-only.")
-    suffix = f"_epochs_{args.epochs}" if args.epochs is not None else ""
+    suffix = (f"_{args.run_tag}" if args.run_tag else "") + (f"_epochs_{args.epochs}" if args.epochs is not None else "")
     runs = [HERE / "runs" / f"split_{split}{suffix}" for split in range(5)]
     if not args.aggregate_only:
         for split in range(5):
             existing = read_report(runs[split])
             if existing is not None:
                 saved = existing["settings"]
+                if saved.get("acquisition_metrics") != list(ACQUISITION_METRICS):
+                    raise ValueError(f"Split {split}: acquisition methods differ; use a new --run-tag.")
                 if saved.get("learning_rate") != AL_LEARNING_RATE:
                     raise ValueError(
                         f"Split {split}: saved run predates the shared AL learning rate. "
@@ -185,7 +196,7 @@ def main():
                     print(f"Split {split}/4 already evaluated; reusing its report.", flush=True)
                     continue
             command = ["bash", str(HERE / "run.sh"), str(args.gpu),
-                       "--split-seed", str(split), "--seed", str(args.seed)]
+                       "--split-seed", str(split), "--seed", str(args.seed), "--name", runs[split].name]
             if args.epochs is not None:
                 command += ["--epochs", str(args.epochs)]
             if args.common_evaluator:

@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
+from plot_style import save_svg
 import numpy as np
 
 from csv_cache_utils import load_cached_csv_rows, parse_float, parse_int
@@ -68,7 +69,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output_plot",
         type=str,
-        default="au_members_vs_epoch.png",
+        default="au_members_vs_epoch.svg",
         help="Output plot path.",
     )
     parser.add_argument(
@@ -330,7 +331,7 @@ def write_plot(
 
     axes[-1].set_xlabel("Epoch")
     fig.tight_layout()
-    fig.savefig(path, dpi=200)
+    save_svg(fig, path, bbox_inches="tight", pad_inches=0.2)
     plt.close(fig)
 
 

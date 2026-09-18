@@ -18,6 +18,7 @@ import argparse
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+from plot_style import save_svg
 import numpy as np
 
 
@@ -84,14 +85,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=str,
-        default="plots/idealized_au_eu_cases.png",
-        help="Output image path.",
-    )
-    parser.add_argument(
-        "--output-pdf",
-        type=str,
-        default="plots/idealized_au_eu_cases.pdf",
-        help="Optional PDF output path.",
+        default="plots/idealized_au_eu_cases.svg",
+        help="Output SVG path.",
     )
     parser.add_argument(
         "--dpi",
@@ -166,7 +161,7 @@ def add_case_panel(ax: plt.Axes, case: dict[str, object]) -> None:
 
 def main() -> None:
     args = parse_args()
-    output_path = Path(args.output)
+    output_path = Path(args.output).with_suffix(".svg")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig, axes = plt.subplots(1, 4, figsize=(16.8, 4.6), constrained_layout=True)
     axes = axes.ravel()
@@ -180,16 +175,10 @@ def main() -> None:
     # fig.suptitle("Idealized aleatoric and epistemic uncertainty regimes")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_path, dpi=args.dpi, bbox_inches="tight")
-    if args.output_pdf is not None:
-        pdf_path = Path(args.output_pdf)
-        pdf_path.parent.mkdir(parents=True, exist_ok=True)
-        fig.savefig(pdf_path, bbox_inches="tight", format="pdf", dpi=300)
+    save_svg(fig, output_path, bbox_inches="tight")
     plt.close(fig)
 
     print(f"Saved figure: {output_path}")
-    if args.output_pdf is not None:
-        print(f"Saved PDF: {args.output_pdf}")
 
 
 if __name__ == "__main__":

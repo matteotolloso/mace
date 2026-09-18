@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Dict, List
 
 import matplotlib.pyplot as plt
+from plot_style import save_svg
 import numpy as np
 import torch
 
@@ -78,7 +79,7 @@ def parse_args() -> argparse.Namespace:
         help="Use total-system quantities instead of per-atom ones.",
     )
     parser.add_argument("--output-csv", type=str, default="train_curves.csv")
-    parser.add_argument("--output-plot", type=str, default="train_curves.png")
+    parser.add_argument("--output-plot", type=str, default="train_curves.svg")
     parser.add_argument(
         "--log-level",
         type=str,
@@ -259,7 +260,7 @@ def write_plot(path: Path, rows: List[Dict[str, float]]) -> None:
     rmse_ax.tick_params(axis="both", labelsize=13)
 
     fig.tight_layout()
-    fig.savefig(path, dpi=200)
+    save_svg(fig, path, bbox_inches="tight", pad_inches=0.2)
     plt.close(fig)
 
 

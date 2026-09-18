@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import math
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,7 +11,7 @@ from unittest.mock import patch
 from common import inventory, load_json, save_json, verify_inventory
 from five_splits import aggregate
 from migrate_run_names import remap, transform_graph
-from plot_results import render
+from plot_results import log_interval, render
 from test_five_splits import fixtures
 
 
@@ -60,23 +61,41 @@ class MigrationTests(unittest.TestCase):
 
 
 class PlotTests(unittest.TestCase):
+    def test_log_interval_is_symmetric_in_log_coordinates(self):
+        original = {"split_values": [0.01, 0.1, 1, 10, 100], "mean": 22.222}
+        result = log_interval(original)
+        self.assertAlmostEqual(result["mean"], 1)
+        self.assertAlmostEqual(math.log(result["mean"] / result["ci95_lower"]),
+                               math.log(result["ci95_upper"] / result["mean"]))
+        self.assertEqual(original["mean"], 22.222)
+        for bad in (0, -1, None, float("nan")):
+            with self.assertRaises(ValueError):
+                log_interval({"split_values": [bad, 1, 2, 3, 4]})
+
     def test_plots_are_nonblank_and_cached(self):
         reports, settings = fixtures()
         rows = aggregate(reports, settings)
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             summary = root / "summary_ci95.json"
-            save_json(summary, {"rows": rows})
+            save_json(summary, {"rows": rows, "settings": settings})
+            source_hash = inventory([summary])
             render(summary)
-            from PIL import Image, ImageStat
+            self.assertEqual(source_hash, inventory([summary]))
+            display = load_json(root / "plots/rmse_display.json")
+            self.assertEqual(display["ood_scale"], "log")
+            for row in display["rows"]:
+                self.assertEqual(row["estimator"], "geometric_mean_log_t" if row["test"] == "energy_ood" else "arithmetic_mean_t")
+            import xml.etree.ElementTree as ET
             plots = root / "plots"
-            images = list(plots.glob("*.png"))
+            images = list(plots.glob("*.svg"))
             self.assertEqual(len(images), 4)
-            self.assertEqual(len(list(plots.glob("*.pdf"))), 4)
+            self.assertEqual(len(list(plots.glob("*.pdf"))), 0)
+            self.assertEqual(len(list(plots.glob("*.png"))), 0)
             for path in images:
-                with Image.open(path) as image:
-                    self.assertGreater(image.width, 1000)
-                    self.assertGreater(min(ImageStat.Stat(image.convert("RGB")).stddev), 5)
+                root_svg = ET.parse(path).getroot()
+                self.assertGreater(len(root_svg.findall(".//{http://www.w3.org/2000/svg}path")), 20)
+                self.assertGreater(len(root_svg.findall(".//{http://www.w3.org/2000/svg}text")), 10)
             metadata = load_json(plots / "plots.json")
             verify_inventory(metadata["artifacts"])
             before = inventory(images)
@@ -84,6 +103,10 @@ class PlotTests(unittest.TestCase):
             render(summary)
             self.assertEqual(stamp, (plots / "plots.json").stat().st_mtime_ns)
             self.assertEqual(before, inventory(images))
+            images[0].unlink()
+            render(summary)
+            self.assertTrue(all(path.is_file() for path in images))
+            verify_inventory(load_json(plots / "plots.json")["artifacts"])
 
 
 if __name__ == "__main__":

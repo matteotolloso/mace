@@ -24,13 +24,13 @@ ENERGY_KEY = "ccsd(t)_cbs.energy"
 BUDGET = 500
 AL_LEARNING_RATE = 0.001
 AL_EPOCHS = 100
+RUN_TAG = ""
+ACQUISITION_METRICS = {"au": "aleatoric_var", "eu": "epistemic_var", "tu": "total_var"}
 MEMBERS = tuple(range(10))
 REGIMES = {"hf_only": "F", "lf_hf": "D"}
 CASES = {
-    "hf_only_random": ("hf_only", "random"),
-    "hf_only_tu": ("hf_only", "hf_only_tu"),
-    "lf_hf_random": ("lf_hf", "random"),
-    "lf_hf_tu": ("lf_hf", "lf_hf_tu"),
+    f"{regime}_{method}": (regime, "random" if method == "random" else f"{regime}_{method}")
+    for regime in REGIMES for method in ("random", *ACQUISITION_METRICS)
 }
 CONTROL = "lf_hf_from_hf_only_tu"
 
@@ -166,10 +166,10 @@ def select_ids(pool_ids, method, seed, scores=None):
         rng = np.random.default_rng(np.random.SeedSequence([seed, 1]))
         chosen = rng.choice(len(pool_ids), BUDGET, replace=False)
         return [pool_ids[int(index)] for index in chosen]
-    if method != "tu" or scores is None or set(scores) != set(pool_ids):
-        raise ValueError("TU selection requires exactly one score for every pool ID.")
+    if method not in ACQUISITION_METRICS or scores is None or set(scores) != set(pool_ids):
+        raise ValueError("Uncertainty selection requires exactly one score for every pool ID.")
     if any(not math.isfinite(value) or value < 0 for value in scores.values()):
-        raise ValueError("TU contains negative/non-finite values; no samples may be silently dropped.")
+        raise ValueError("Uncertainty contains negative/non-finite values; no samples may be silently dropped.")
     # A stable ID tie-break avoids any dependence on file/dictionary iteration order.
     return sorted(pool_ids, key=lambda key: (-scores[key], key))[:BUDGET]
 
@@ -210,7 +210,9 @@ def augment_training(base, pool_path, oracle_path, selected_ids, heldout_ids, de
             "selected_system_counts": dict(Counter(pool[key].info["system"] for key in selected_ids))}
 
 
-def comparison(before, random, tu):
+def comparison(before, random, tu, method="tu"):
+    if method not in ACQUISITION_METRICS:
+        raise ValueError(f"Unknown acquisition metric: {method}")
     if not all(math.isfinite(value) and value >= 0 for value in (before, random, tu)):
         raise ValueError("RMSEs must be finite and non-negative.")
     random_percent = 100 * (before - random) / before if before else None
@@ -218,9 +220,9 @@ def comparison(before, random, tu):
     return {
         "rmse_before_meV_per_atom": before,
         "rmse_random500_meV_per_atom": random,
-        "rmse_tu500_meV_per_atom": tu,
+        f"rmse_{method}500_meV_per_atom": tu,
         "relative_improvement_random_percent": random_percent,
-        "relative_improvement_tu_percent": tu_percent,
-        "tu_gain_over_random_meV_per_atom": random - tu,
-        "tu_gain_over_random_percentage_points": tu_percent - random_percent if before else None,
+        f"relative_improvement_{method}_percent": tu_percent,
+        f"{method}_gain_over_random_meV_per_atom": random - tu,
+        f"{method}_gain_over_random_percentage_points": tu_percent - random_percent if before else None,
     }

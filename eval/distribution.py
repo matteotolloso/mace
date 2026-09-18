@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Dict, List
 
 import matplotlib.pyplot as plt
+from plot_style import save_svg
 import numpy as np
 import torch
 
@@ -99,7 +100,7 @@ def parse_args() -> argparse.Namespace:
         action="store_false",
         help="Use total-system quantities instead of per-atom ones.",
     )
-    parser.add_argument("--output-plot", type=str, default="distribution.png")
+    parser.add_argument("--output-plot", type=str, default="distribution.svg")
     parser.add_argument("--output-csv", type=str, default="distribution.csv")
     parser.add_argument(
         "--log-level",
@@ -157,7 +158,7 @@ def _finite_array(rows: List[Dict[str, float]], key: str) -> np.ndarray:
 
 def write_plot(path: Path, rows: List[Dict[str, float]], per_atom: bool, num_bins: int) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    uniform_fontsize = 26
+    uniform_fontsize = 30
 
     au = _finite_array(rows, "aleatoric_var")
     eu = _finite_array(rows, "epistemic_var")
@@ -209,9 +210,7 @@ def write_plot(path: Path, rows: List[Dict[str, float]], per_atom: bool, num_bin
 
     # fig.suptitle("Uncertainty and Error Distributions", y=0.98, fontsize=uniform_fontsize)
     fig.tight_layout(rect=(0, 0, 1, 0.97))
-    fig.savefig(path, dpi=200)
-    fig.savefig(path.with_suffix(".svg"))
-    fig.savefig(path.with_suffix(".pdf"))
+    save_svg(fig, path, bbox_inches="tight", pad_inches=0.2)
     plt.close(fig)
 
 

@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Dict, List
 
 import matplotlib.pyplot as plt
+from plot_style import save_svg
 import numpy as np
 import torch
 
@@ -119,7 +120,7 @@ def parse_args() -> argparse.Namespace:
         help="Use total-system quantities instead of per-atom ones.",
     )
     parser.add_argument("--output-csv", type=str, default="finetune.csv")
-    parser.add_argument("--output-plot", type=str, default="finetune.png")
+    parser.add_argument("--output-plot", type=str, default="finetune.svg")
     parser.add_argument(
         "--log-level",
         type=str,
@@ -277,7 +278,7 @@ def write_plot(path: Path, rows: List[Dict[str, object]], per_atom: bool) -> Non
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 0.93), ncol=2, frameon=False)
     fig.tight_layout(rect=(0, 0, 1, 0.86))
-    fig.savefig(path, dpi=200)
+    save_svg(fig, path, bbox_inches="tight", pad_inches=0.2)
     plt.close(fig)
 
 

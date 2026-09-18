@@ -18,6 +18,7 @@ from reliability import (
     compute_spearman_summary,
 )
 from replicate_statistics import aggregate_rows, confidence_arrays, read_csv, summarize, write_csv
+from plot_style import save_svg
 
 
 LOGGER = logging.getLogger(__name__)
@@ -61,27 +62,35 @@ def load_replicates(cache_dir: Path, seeds: Sequence[int], filename: str) -> Lis
 def save_figure(fig, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.tight_layout()
-    fig.savefig(path, dpi=300, bbox_inches="tight", pad_inches=0.2)
-    fig.savefig(path.with_suffix(".svg"), bbox_inches="tight", pad_inches=0.2)
-    fig.savefig(path.with_suffix(".pdf"), bbox_inches="tight", pad_inches=0.2)
+    save_svg(fig, path, bbox_inches="tight", pad_inches=0.2)
     plt.close(fig)
 
 
 def save_figure_without_closing(fig, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.tight_layout()
-    fig.savefig(path, dpi=300, bbox_inches="tight", pad_inches=0.2)
-    fig.savefig(path.with_suffix(".svg"), bbox_inches="tight", pad_inches=0.2)
-    fig.savefig(path.with_suffix(".pdf"), bbox_inches="tight", pad_inches=0.2)
+    save_svg(fig, path, bbox_inches="tight", pad_inches=0.2)
 
 
 def plot_band(ax, x, rows, metric: str, *, color: str, label: str, marker: str = "o") -> None:
-    mean, low, high = confidence_arrays(rows, metric)
+    mean, low, high = confidence_arrays(rows, metric, geometric=ax.get_yscale() == "log")
     finite = np.isfinite(x) & np.isfinite(mean)
     ax.plot(x[finite], mean[finite], color=color, marker=marker, linewidth=2.3, label=label)
     band = finite & np.isfinite(low) & np.isfinite(high)
     if np.any(band):
-        ax.fill_between(x[band], low[band], high[band], color=color, alpha=0.2, linewidth=0)
+        ax.fill_between(x, low, high, where=band, color=color, alpha=0.2, linewidth=0)
+
+
+def use_log_intervals(ax, rows, metrics):
+    """Use geometric summaries only if every plotted replicate group is positive."""
+    valid = all(np.isfinite(float(row.get(f"{metric}_geometric_{key}", np.nan)))
+                and float(row[f"{metric}_geometric_{key}"]) > 0
+                for row in rows for metric in metrics for key in ("mean", "ci95_low", "ci95_high"))
+    if valid:
+        ax.set_yscale("log")
+        return True
+    LOGGER.warning("Nonpositive/missing replicate values: using arithmetic intervals on a linear axis.")
+    return False
 
 
 def aggregate_epoch_quality(
@@ -107,21 +116,21 @@ def aggregate_epoch_quality(
         ("ence", "ENCE"),
         ("magnitude", "Uncertainty"),
     ]
-    fig, axes = plt.subplots(6, 1, figsize=(10, 20), sharex=True)
+    fig, axes = plt.subplots(6, 1, figsize=(14, 26), sharex=True)
     for ax, (prefix, ylabel) in zip(axes[:4], panel_specs):
+        if prefix == "magnitude":
+            use_log_intervals(ax, rows, [f"magnitude_{u}" for u in ("aleatoric", "epistemic")])
         for uncertainty in UNCERTAINTIES:
             metric = f"{prefix}_{uncertainty}"
             if metric in metrics and not (prefix == "magnitude" and uncertainty == "total"):
                 plot_band(ax, x, rows, metric, color=COLORS[uncertainty], label=LABELS[uncertainty])
-        if prefix == "magnitude":
-            ax.set_yscale("log")
-        ax.set_ylabel(ylabel)
+        ax.set_ylabel(ylabel + ("\n(geometric mean)" if ax.get_yscale() == "log" else ""))
         ax.grid(alpha=0.3)
         ax.legend()
     if "rmse_e_atom" in metrics:
+        use_log_intervals(axes[4], rows, ["rmse_e_atom"])
         plot_band(axes[4], x, rows, "rmse_e_atom", color="black", label="RMSE")
-        axes[4].set_yscale("log")
-    axes[4].set_ylabel("RMSE")
+    axes[4].set_ylabel("RMSE" + ("\n(geometric mean)" if axes[4].get_yscale() == "log" else ""))
     axes[4].grid(alpha=0.3)
     axes[4].legend()
     if "nll_energy" in metrics:
@@ -141,8 +150,10 @@ def aggregate_epoch_quality(
     axes[0].set_ylim(0.0, 1.0)
     axes[1].set_ylim(0.0, 0.5)
     axes[2].set_ylim(0.0, 2.0)
-    axes[3].set_ylim(1.0e-6, 1.0e2)
-    axes[4].set_ylim(1.0e-3, 1.0e0)
+    if axes[3].get_yscale() == "log":
+        axes[3].set_ylim(1.0e-6, 1.0e2)
+    if axes[4].get_yscale() == "log":
+        axes[4].set_ylim(1.0e-3, 1.0e0)
     axes[5].set_ylim(-0.5, 0.5)
     save_figure(fig, output_plot)
 
@@ -233,17 +244,23 @@ def aggregate_reliability(
     summary_name = filename.replace("_bins.csv", "_summary.csv")
     write_csv(output_dir / summary_name, summary_rows)
 
-    fig, (ax, text_ax) = plt.subplots(1, 2, figsize=(14.5, 8.5), gridspec_kw={"width_ratios": [1.2, 0.52]})
+    fig, (ax, text_ax) = plt.subplots(1, 2, figsize=(21, 12), gridspec_kw={"width_ratios": [1.2, 0.7]})
     text_ax.axis("off")
+    if log_log:
+        log_log = use_log_intervals(ax, rows, ["rmse", "rmv"])
+        if log_log:
+            ax.set_xscale("log")
+        else:
+            axis_min = 0.0
     for uncertainty in UNCERTAINTIES:
         subset = sorted(
             [row for row in rows if row["uncertainty_type"] == uncertainty],
             key=lambda row: float(row["bin_index"]),
         )
-        x, _, _ = confidence_arrays(subset, "rmv")
+        x, _, _ = confidence_arrays(subset, "rmv", geometric=log_log)
         plot_band(ax, x, subset, "rmse", color=COLORS[uncertainty], label=LABELS[uncertainty])
     all_values = [
-        float(row[field])
+        float(row[f"{field}_geometric_mean"] if log_log else row[field])
         for row in rows
         for field in ("rmv", "rmse")
         if np.isfinite(float(row[field])) and (not log_log or float(row[field]) > 0)
@@ -257,11 +274,11 @@ def aggregate_reliability(
     ax.set_xlim(low, high)
     ax.set_ylim(low, high)
     ax.set_aspect("equal", adjustable="box")
-    ax.set_xlabel("RMV")
-    ax.set_ylabel("RMSE")
+    ax.set_xlabel("RMV" + (" (geometric mean)" if log_log else ""))
+    ax.set_ylabel("RMSE" + (" (geometric mean)" if log_log else ""))
     ax.grid(alpha=0.3, which="both" if log_log else "major")
     ax.legend()
-    summary_lines = ["Mean [95% CI], n=5"]
+    summary_lines = ["Arithmetic mean [95% CI], n=5"]
     for row in summary_rows:
         mean = float(row["value"])
         lo = float(row["value_ci95_low"])
@@ -269,8 +286,8 @@ def aggregate_reliability(
         summary_lines.append(
             f"{row['metric']} {row['uncertainty_type']}:\n{mean:.3f} [{lo:.3f}, {hi:.3f}]"
         )
-    text_ax.text(0.02, 0.98, "\n\n".join(summary_lines), va="top", family="monospace", fontsize=11)
-    plot_name = filename.replace("_bins.csv", ".png")
+    text_ax.text(0.02, 0.98, "\n\n".join(summary_lines), va="top", family="monospace", fontsize=16)
+    plot_name = filename.replace("_bins.csv", ".svg")
     save_figure(fig, output_dir / plot_name)
 
 
@@ -319,7 +336,7 @@ def aggregate_distribution(
         ax.grid(alpha=0.3)
     axes[-1].set_xlabel("Value")
     write_csv(output_dir / filename, output_rows)
-    save_figure(fig, output_dir / Path(filename).with_suffix(".png"))
+    save_figure(fig, output_dir / Path(filename).with_suffix(".svg"))
 
 
 def aggregate_bar_csv(
@@ -353,7 +370,7 @@ def aggregate_bar_csv(
     plot_stem = Path(filename).stem
     if plot_stem.startswith("energy_ood_") and plot_stem.endswith("_bins"):
         plot_stem = plot_stem[: -len("_bins")]
-    save_figure(fig, output_dir / f"{plot_stem}.png")
+    save_figure(fig, output_dir / f"{plot_stem}.svg")
 
 
 def _float_or_text(value: str):
@@ -383,6 +400,8 @@ def main() -> None:
     for filename in filenames:
         if filename in processed:
             continue
+        if filename.startswith("epoch_quality_finetune_same"):
+            continue  # Preserve legacy CSV caches, but never regenerate these plots.
         replicates = load_replicates(args.cache_dir, args.split_seeds, filename)
         stem = Path(filename).stem
         LOGGER.info("Aggregating %s", filename)
@@ -402,9 +421,9 @@ def main() -> None:
             )
             processed.add(raw_filename)
         elif stem.startswith("epoch_quality"):
-            aggregate_epoch_quality(replicates, args.output_dir / filename, args.output_dir / f"{stem}.png")
+            aggregate_epoch_quality(replicates, args.output_dir / filename, args.output_dir / f"{stem}.svg")
         elif stem == "train_curves" or stem.startswith("epoch_raw_"):
-            aggregate_line_csv(stem, replicates, args.output_dir / filename, args.output_dir / f"{stem}.png")
+            aggregate_line_csv(stem, replicates, args.output_dir / filename, args.output_dir / f"{stem}.svg")
         elif stem.startswith("distribution_"):
             aggregate_distribution(filename, replicates, args.output_dir, args.distribution_bins)
         elif stem == "finetune" or stem.startswith("energy_ood_") and stem.endswith("_bins"):
