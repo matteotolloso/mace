@@ -25,6 +25,22 @@ LOGGER = logging.getLogger(__name__)
 UNCERTAINTIES = ("aleatoric", "epistemic", "total")
 COLORS = {"aleatoric": "tab:blue", "epistemic": "tab:orange", "total": "tab:green"}
 LABELS = {"aleatoric": "AU", "epistemic": "EU", "total": "Total"}
+LOG_EPOCH_QUALITY_LIMITS = {
+    "spearman": (-0.2, 0.8),
+    "ause": (1.0e-2, 1.0e0),
+    "ence": (1.0e-1, 1.0e2),
+    "magnitude": (1.0e-7, 1.0e5),
+    "rmse_e_atom": (1.0e-4, 1.0e2),
+    "nll_energy": (-8.0, 4.0),
+}
+STANDARD_EPOCH_QUALITY_LIMITS = {
+    "spearman": (0.0, 1.0),
+    "ause": (0.0, 0.5),
+    "ence": (0.0, 2.0),
+    "magnitude": (1.0e-6, 1.0e2),
+    "rmse_e_atom": (1.0e-3, 1.0e0),
+    "nll_energy": (-0.5, 0.5),
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -66,19 +82,29 @@ def save_figure(fig, path: Path) -> None:
     plt.close(fig)
 
 
-def save_figure_without_closing(fig, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fig.tight_layout()
-    save_svg(fig, path, bbox_inches="tight", pad_inches=0.2)
-
-
-def plot_band(ax, x, rows, metric: str, *, color: str, label: str, marker: str = "o") -> None:
+def plot_band(
+    ax, x, rows, metric: str, *, color: str, label: str, marker: str = "o",
+    y_limits=None,
+) -> None:
     mean, low, high = confidence_arrays(rows, metric, geometric=ax.get_yscale() == "log")
     finite = np.isfinite(x) & np.isfinite(mean)
-    ax.plot(x[finite], mean[finite], color=color, marker=marker, linewidth=2.3, label=label)
+    plotted_mean = np.clip(mean, *y_limits) if y_limits is not None else mean
+    ax.plot(x[finite], plotted_mean[finite], color=color, linewidth=2.3, label=label)
+    in_range = finite
+    if y_limits is not None:
+        in_range = finite & (mean >= y_limits[0]) & (mean <= y_limits[1])
+    if np.any(in_range):
+        ax.plot(x[in_range], plotted_mean[in_range], linestyle="None", marker=marker,
+                color=color, markersize=6.0)
+    outside = finite & ~in_range
+    if np.any(outside):
+        ax.plot(x[outside], plotted_mean[outside], linestyle="None", marker="x",
+                color=color, markersize=9.0, markeredgewidth=2.0, clip_on=False)
     band = finite & np.isfinite(low) & np.isfinite(high)
     if np.any(band):
-        ax.fill_between(x, low, high, where=band, color=color, alpha=0.2, linewidth=0)
+        plotted_low = np.clip(low, *y_limits) if y_limits is not None else low
+        plotted_high = np.clip(high, *y_limits) if y_limits is not None else high
+        ax.fill_between(x, plotted_low, plotted_high, where=band, color=color, alpha=0.2, linewidth=0)
 
 
 def use_log_intervals(ax, rows, metrics):
@@ -91,6 +117,76 @@ def use_log_intervals(ax, rows, metrics):
         return True
     LOGGER.warning("Nonpositive/missing replicate values: using arithmetic intervals on a linear axis.")
     return False
+
+
+def draw_epoch_quality(
+    rows: Sequence[Dict[str, object]],
+    metrics: Sequence[str],
+    *,
+    fixed_scales: bool,
+    log_positive_metrics: bool,
+):
+    """Draw one epoch-quality view with intervals matched to each axis scale."""
+    rows = sorted(rows, key=lambda row: float(row["epoch"]))
+    x = np.asarray([float(row["epoch"]) for row in rows])
+    panel_specs = [
+        ("spearman", "Spearman ↑"),
+        ("ause", "AUSE ↓"),
+        ("ence", "ENCE ↓"),
+        ("magnitude", "Uncertainty"),
+    ]
+    fig, axes = plt.subplots(6, 1, figsize=(14, 26), sharex=True)
+    for ax, (prefix, ylabel) in zip(axes[:4], panel_specs):
+        plotted = [f"{prefix}_{u}" for u in UNCERTAINTIES
+                   if f"{prefix}_{u}" in metrics and not (prefix == "magnitude" and u == "total")]
+        # Correlation is signed, so its panel remains linear. Positive metrics use
+        # a geometric center and a t interval in log space on logarithmic views.
+        if prefix == "magnitude" or (log_positive_metrics and prefix in ("ause", "ence")):
+            use_log_intervals(ax, rows, plotted)
+        y_limits = (LOG_EPOCH_QUALITY_LIMITS[prefix] if log_positive_metrics else
+                    STANDARD_EPOCH_QUALITY_LIMITS[prefix] if fixed_scales else None)
+        for uncertainty in UNCERTAINTIES:
+            metric = f"{prefix}_{uncertainty}"
+            if metric in metrics and not (prefix == "magnitude" and uncertainty == "total"):
+                plot_band(ax, x, rows, metric, color=COLORS[uncertainty],
+                          label=LABELS[uncertainty], y_limits=y_limits)
+        ax.set_ylabel(ylabel)
+        ax.grid(alpha=0.3, which="both" if ax.get_yscale() == "log" else "major")
+        ax.legend()
+        if log_positive_metrics:
+            ax.set_ylim(*LOG_EPOCH_QUALITY_LIMITS[prefix])
+    if "rmse_e_atom" in metrics:
+        use_log_intervals(axes[4], rows, ["rmse_e_atom"])
+        rmse_limits = (LOG_EPOCH_QUALITY_LIMITS["rmse_e_atom"] if log_positive_metrics else
+                       STANDARD_EPOCH_QUALITY_LIMITS["rmse_e_atom"] if fixed_scales else None)
+        plot_band(axes[4], x, rows, "rmse_e_atom", color="black", label="RMSE",
+                  y_limits=rmse_limits)
+    axes[4].set_ylabel("RMSE ↓")
+    axes[4].grid(alpha=0.3, which="both" if axes[4].get_yscale() == "log" else "major")
+    axes[4].legend()
+    if log_positive_metrics:
+        axes[4].set_ylim(*LOG_EPOCH_QUALITY_LIMITS["rmse_e_atom"])
+    if "nll_energy" in metrics:
+        nll_limits = (LOG_EPOCH_QUALITY_LIMITS["nll_energy"] if log_positive_metrics else
+                      STANDARD_EPOCH_QUALITY_LIMITS["nll_energy"] if fixed_scales else None)
+        plot_band(axes[5], x, rows, "nll_energy", color="black", label="GNLL",
+                  y_limits=nll_limits)
+    axes[5].set_ylabel("GNLL ↓")
+    axes[5].set_xlabel("Epoch")
+    axes[5].grid(alpha=0.3)
+    axes[5].legend()
+    if log_positive_metrics:
+        axes[5].set_ylim(*LOG_EPOCH_QUALITY_LIMITS["nll_energy"])
+    if "phase" in rows[0]:
+        finetune_epochs = [float(row["epoch"]) for row in rows if str(row["phase"]) == "finetune"]
+        if finetune_epochs:
+            for ax in axes:
+                ax.axvline(min(finetune_epochs), color="0.2", linestyle="--", linewidth=1.2)
+    if fixed_scales:
+        for ax, key in zip(axes, ("spearman", "ause", "ence", "magnitude",
+                                  "rmse_e_atom", "nll_energy")):
+            ax.set_ylim(*STANDARD_EPOCH_QUALITY_LIMITS[key])
+    return fig, axes
 
 
 def aggregate_epoch_quality(
@@ -108,54 +204,14 @@ def aggregate_epoch_quality(
     rows = aggregate_rows(replicate_rows, key_fields=key_fields, metric_fields=metrics)
     write_csv(output_csv, rows)
 
-    rows = sorted(rows, key=lambda row: float(row["epoch"]))
-    x = np.asarray([float(row["epoch"]) for row in rows])
-    panel_specs = [
-        ("spearman", "Spearman"),
-        ("ause", "AUSE"),
-        ("ence", "ENCE"),
-        ("magnitude", "Uncertainty"),
-    ]
-    fig, axes = plt.subplots(6, 1, figsize=(14, 26), sharex=True)
-    for ax, (prefix, ylabel) in zip(axes[:4], panel_specs):
-        if prefix == "magnitude":
-            use_log_intervals(ax, rows, [f"magnitude_{u}" for u in ("aleatoric", "epistemic")])
-        for uncertainty in UNCERTAINTIES:
-            metric = f"{prefix}_{uncertainty}"
-            if metric in metrics and not (prefix == "magnitude" and uncertainty == "total"):
-                plot_band(ax, x, rows, metric, color=COLORS[uncertainty], label=LABELS[uncertainty])
-        ax.set_ylabel(ylabel + ("\n(geometric mean)" if ax.get_yscale() == "log" else ""))
-        ax.grid(alpha=0.3)
-        ax.legend()
-    if "rmse_e_atom" in metrics:
-        use_log_intervals(axes[4], rows, ["rmse_e_atom"])
-        plot_band(axes[4], x, rows, "rmse_e_atom", color="black", label="RMSE")
-    axes[4].set_ylabel("RMSE" + ("\n(geometric mean)" if axes[4].get_yscale() == "log" else ""))
-    axes[4].grid(alpha=0.3)
-    axes[4].legend()
-    if "nll_energy" in metrics:
-        plot_band(axes[5], x, rows, "nll_energy", color="black", label="GNLL")
-    axes[5].set_ylabel("GNLL")
-    axes[5].set_xlabel("Epoch")
-    axes[5].grid(alpha=0.3)
-    axes[5].legend()
-    if "phase" in first:
-        finetune_epochs = [float(row["epoch"]) for row in rows if str(row["phase"]) == "finetune"]
-        if finetune_epochs:
-            for ax in axes:
-                ax.axvline(min(finetune_epochs), color="0.2", linestyle="--", linewidth=1.2)
-
     free_scale_path = output_plot.with_name(f"{output_plot.stem}-free-scale{output_plot.suffix}")
-    save_figure_without_closing(fig, free_scale_path)
-    axes[0].set_ylim(0.0, 1.0)
-    axes[1].set_ylim(0.0, 0.5)
-    axes[2].set_ylim(0.0, 2.0)
-    if axes[3].get_yscale() == "log":
-        axes[3].set_ylim(1.0e-6, 1.0e2)
-    if axes[4].get_yscale() == "log":
-        axes[4].set_ylim(1.0e-3, 1.0e0)
-    axes[5].set_ylim(-0.5, 0.5)
+    fig, _ = draw_epoch_quality(rows, metrics, fixed_scales=False, log_positive_metrics=False)
+    save_figure(fig, free_scale_path)
+    fig, _ = draw_epoch_quality(rows, metrics, fixed_scales=True, log_positive_metrics=False)
     save_figure(fig, output_plot)
+    log_scale_path = output_plot.with_name(f"{output_plot.stem}-log-scale{output_plot.suffix}")
+    fig, _ = draw_epoch_quality(rows, metrics, fixed_scales=False, log_positive_metrics=True)
+    save_figure(fig, log_scale_path)
 
 
 def aggregate_line_csv(

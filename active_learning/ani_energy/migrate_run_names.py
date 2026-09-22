@@ -28,7 +28,7 @@ def remap(text, mappings):
     return text
 
 
-def transform_graph(contents, mappings, source_hashes):
+def transform_graph(contents, mappings, source_hashes, content_updates=None):
     """Resolve dependent digests before rewriting their parents; never touch model binaries."""
     by_hash = {}
     for path, raw in contents.items():
@@ -56,10 +56,11 @@ def transform_graph(contents, mappings, source_hashes):
             raise ValueError(f"Cyclic metadata hashes: {path}")
         visiting.add(path)
         raw = contents[path]
-        data = json.loads(raw) if path.endswith(".json") else yaml.safe_load(raw)
+        updated = (content_updates or {}).get(path, raw)
+        data = json.loads(updated) if path.endswith(".json") else yaml.safe_load(updated)
         changed = rewrite(data)
         if changed == data:
-            result = raw
+            result = updated
         elif path.endswith(".json"):
             result = (json.dumps(changed, indent=2, sort_keys=True, allow_nan=False) + "\n").encode()
         else:

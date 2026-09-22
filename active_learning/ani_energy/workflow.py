@@ -347,7 +347,9 @@ def report(run, args):
                             "lf_hf_acquisition_gain_meV_per_atom": hf["rmse_meV_per_atom"] - lf["rmse_meV_per_atom"]})
     destination = run / "report"
     destination.mkdir(exist_ok=True)
+    exclusions = load_json(run / "manifest.json").get("evaluation_exclusions", [])
     save_json(destination / "summary.json", {
+        "evaluation_exclusions": exclusions,
         "settings": load_json(run / "manifest.json")["settings"], "rows": rows,
         "cross_regime_gain": gain_comparison, "common_evaluator": control,
         "inputs": inventory(metrics_used), "positive_gain_favors": "uncertainty acquisition / LF->HF",
@@ -377,6 +379,9 @@ def report(run, args):
             lines.append(f"- {item['test']}: HF-only selection {item['hf_only_acquisition_rmse_meV_per_atom']:.4f}, "
                          f"LF->HF selection {item['lf_hf_acquisition_rmse_meV_per_atom']:.4f}, "
                          f"gain {item['lf_hf_acquisition_gain_meV_per_atom']:.4f} meV/atom")
+    if exclusions:
+        lines += ["", "Post-hoc held-out exclusions (results are conditional on this modified test set):"]
+        lines += [f"- {item['al_id']}: {item['reason']}" for item in exclusions]
     lines += ["", "Single-round, single-split POC. No confidence interval or significance claim.", ""]
     (destination / "summary.md").write_text("\n".join(lines))
     print("\n".join(lines))

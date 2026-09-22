@@ -93,7 +93,9 @@ versions of:
 - `common_evaluator`: the optional control, when those results are available.
 
 Diamonds show means with approximate 95% Student-t intervals; grey points show
-all five individual split values. No outliers are removed. OOD RMSE defaults to
+all five individual split values. No split is dropped and no value is trimmed by
+its error; the separate geometric support filter described below is the only
+exclusion, and it never reads predictions. OOD RMSE defaults to
 a logarithmic axis with a **geometric mean and log-space Student-t interval**:
 `exp(mean(log(RMSE)) +/- 2.776445105 * sample_SD(log(RMSE)) / sqrt(5))`.
 This gives positive, multiplicative intervals symmetric in log coordinates.
@@ -123,6 +125,90 @@ at the user's request before restarting with the corrected protocol. Auxiliary
 cache, verification and migration-backup directories were preserved; they are
 not used as new experiment results. Original A-F artifacts and datasets were
 not deleted.
+
+## Geometric Support Filter
+
+Held-out Energy-OOD contains configurations compressed far below anything in the
+training data: minimum interatomic distances reach **0.646 A**, while no training
+file goes below about **0.83 A**. The models extrapolate catastrophically there.
+Because RMSE averages squares, one such configuration can supply over 99% of a
+reported OOD RMSE, and which of them land in the held-out half is close to a coin
+flip. That is what produced the very wide split-to-split scatter in the raw
+`aggregate_epochs_50` plots; it is an extrapolation artifact, not variance between
+experimental repetitions.
+
+`support_filter.py` recomputes every metric restricted to the region where the
+models have training support:
+
+```bash
+conda activate mace
+python -B active_learning/ani_energy/support_filter.py --output aggregate_epochs_50
+python -B active_learning/ani_energy/plot_results.py \
+    --summary active_learning/ani_energy/runs/aggregate_epochs_50/summary_ci95.json
+```
+
+`plot_results.py` defaults to `runs/aggregate/`, not `runs/aggregate_epochs_50/`,
+so the `--summary` path is required here.
+
+For each dataset split the threshold is the smallest interatomic distance
+occurring anywhere in **that split's own** `cc_train`, `cc_val`, `dft_train` and
+`dft_val` (0.825-0.846 A). Held-out configurations below it are excluded. This
+removes 6-10 of ~2500 Energy-OOD configurations per split (~0.3%) and 0-2
+Energy-ID configurations.
+
+The rule is derived from the training geometries alone. It never reads
+predictions, errors or uncertainties, and the same configurations are removed for
+every condition, regime and test within a split, so the paired within-split
+improvements and gains remain valid. The result is insensitive to the threshold:
+any cut between 0.80 and 1.00 A gives the same answer to within 0.4 percentage
+points, even though 1.00 A discards 37% of the test set. Only the handful of
+configurations below 0.80 A change anything.
+
+Effect on the five-split Energy-OOD statistics:
+
+| Metric | Raw | Support-filtered |
+|---|---|---|
+| LF->HF TU improvement | 20.3% +/- 74.8 | 14.2% +/- 3.7 |
+| LF->HF EU gain over random | 699 [-558, 1957] meV/atom | 2.50 [1.89, 3.11] meV/atom |
+| LF->HF pre-acquisition RMSE | 2777 meV/atom | 58.9 meV/atom |
+| HF-only pre-acquisition RMSE | 148 meV/atom | 75.5 meV/atom |
+
+All six AU/EU/TU-over-random OOD gains have intervals excluding zero after
+filtering; none did before. Energy-ID results are unchanged to within 0.0003
+meV/atom, since the ID test contains almost nothing below the support bound.
+
+Per-split runs, cached predictions, models and metrics are never modified. The
+cached predictions are read and verified against the SHA-256 hashes recorded in
+each run's `metrics/` before use, and no model inference, training or GPU is
+required. `runs/aggregate_epochs_50/support_filter.json` records the per-split
+threshold and every excluded ID.
+
+> **These support-filtered results now occupy the default aggregate directory,
+> `runs/aggregate_epochs_50/`, which `run_all.sh` and `five_splits.py` also write.
+> Those write the *unfiltered* aggregate and will silently overwrite the filtered
+> summary and plots.** After any `run_all.sh` invocation (including
+> `--aggregate-only`), rerun the two commands above to restore the filtered
+> results. The raw aggregate is never lost: it regenerates in seconds from the five
+> per-split reports with `bash active_learning/ani_energy/run_all.sh <gpu>
+> --aggregate-only`, which needs no GPU work when all five reports are present.
+
+The raw figures previously in this directory were deleted at the user's request
+after the filtered versions were verified. Regenerate them with `--aggregate-only`
+when the unfiltered comparison is needed; the before/after table above records the
+headline raw values.
+
+Report both the raw and the support-filtered numbers, and state the restriction
+as a domain-of-validity caveat: these models are not characterized below the
+smallest interatomic distance they were trained on.
+
+**Unrelated earlier exclusion.** `split_3_epochs_50` additionally had the single
+configuration `C1H5N1:887` deleted from `data/heldout_ood.xyz`, `data/split.json`
+and its ten cached Energy-OOD prediction files before this filter existed, so that
+split holds 2499 rather than 2500 held-out configurations. Its minimum interatomic
+distance is 0.646 A, so the support filter would exclude it anyway and the filtered
+split-3 numbers are identical either way (2493 retained with or without it). The
+raw split-3 values, however, are conditional on that deletion, and no backup of the
+original predictions exists.
 
 ## Run
 

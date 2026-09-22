@@ -109,14 +109,14 @@ def aggregate(reports, settings, common_evaluator=False):
             for (regime, test, metric), values in sorted(groups.items())]
 
 
-def write_report(destination, rows, inputs, settings):
+def write_report(destination, rows, inputs, settings, evaluation_exclusions=()):
     destination.mkdir(parents=True, exist_ok=True)
     with (destination / ".lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         summary_path = destination / "summary_ci95.json"
         if summary_path.exists():
             cached = load_json(summary_path)
-            if cached["inputs"] == inputs:
+            if cached["inputs"] == inputs and cached.get("evaluation_exclusions", []) == list(evaluation_exclusions):
                 verify_inventory(cached["artifacts"])
                 print(f"Using cached aggregate: {summary_path}", flush=True)
                 return
@@ -137,6 +137,10 @@ def write_report(destination, rows, inputs, settings):
             mean = "undefined" if row["mean"] is None else f"{row['mean']:.5g}"
             ci = "undefined" if row["mean"] is None else f"[{row['ci95_lower']:.5g}, {row['ci95_upper']:.5g}]"
             lines.append(f"| {row['regime']} | {row['test']} | {row['metric']} | {mean} | {ci} |")
+        if evaluation_exclusions:
+            lines += ["", "Post-hoc held-out exclusions: these results and CIs are conditional on the modified test sets."]
+            lines += [f"- Split {item['split_seed']}, {item['al_id']}: {item['reason']}"
+                      for item in evaluation_exclusions]
         artifacts = []
         for suffix, content in (("csv", buffer.getvalue()), ("md", "\n".join(lines) + "\n")):
             path = destination / f"summary_ci95.{suffix}"
@@ -145,6 +149,7 @@ def write_report(destination, rows, inputs, settings):
             temporary.replace(path)
             artifacts.append(path)
         save_json(summary_path, {"inputs": inputs, "artifacts": inventory(artifacts),
+                  "evaluation_exclusions": list(evaluation_exclusions),
                   "settings": settings, "rows": rows, "confidence_level": 0.95,
                   "method": "mean +/- t(df=4, p=.975) * sample_sd / sqrt(5)",
                   "paired": "Gains and relative improvements computed within each split first.",
@@ -226,7 +231,9 @@ def main():
     output = HERE / "runs" / f"aggregate{suffix}"
     if args.common_evaluator:
         output = output / "common_evaluator"
-    write_report(output, rows, inputs, settings)
+    exclusions = [dict(item, split_seed=split) for split, report in enumerate(reports)
+                  for item in report.get("evaluation_exclusions", [])]
+    write_report(output, rows, inputs, settings, exclusions)
     subprocess.run([sys.executable, "-B", str(HERE / "plot_results.py"),
                     "--summary", str(output / "summary_ci95.json")], check=True)
 
