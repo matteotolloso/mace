@@ -9,9 +9,8 @@ and an isolated ANI active-learning proof of concept.
 Start with this file. Read only the relevant parts of these canonical sources:
 
 - [`README.md`](README.md): experiment matrix, datasets, training, evaluation,
-  caching, and normal commands.
-- [`active_learning/ani_energy/README.md`](active_learning/ani_energy/README.md):
-  complete AL protocol, artifacts, caveats, and support filtering.
+  caching, normal commands, the complete AL protocol (section "ANI energy-OOD
+  active learning"), and the pipeline audit ("Audit notes and known issues").
 - [`_Nips26__UQ_MF-3.pdf`](_Nips26__UQ_MF-3.pdf): current paper narrative,
   figures, and appendix structure. Do not edit the manuscript unless asked.
 
@@ -124,6 +123,10 @@ and outputs separate unless the manuscript is explicitly extended.
   `[-8, 4]`. Spearman and GNLL remain linear because they can be negative.
 - A center outside a fixed range is clipped to the nearest boundary and marked
   with `x`; confidence bands are clipped to the visible range.
+- Reliability metrics (RMSE, Spearman, AUSE, ENCE) are all computed from the
+  same support-filtered per-configuration rows in `aggregate_replicates.py`.
+  `reliability.py --trim` is off for A-F: it selected on total uncertainty, the
+  quantity under evaluation. Do not re-enable it for paper numbers.
 - Labels use direction arrows where meaningful: Spearman up; AUSE, ENCE, RMSE,
   and GNLL down. Uncertainty magnitude has no intrinsic better direction.
 - Fine-tuning epoch-quality output is mixed-target only. The legacy
@@ -152,14 +155,17 @@ Important provenance:
 - `support_filter.py` provides a separate geometry-only domain-of-validity
   analysis based on each split's minimum training interatomic distance. It does
   not inspect prediction errors. Report raw and support-filtered AL results and
-  disclose the restriction.
-- Support-filtered output currently shares `aggregate_epochs_50/` with the raw
-  aggregator. Running `run_all.sh --aggregate-only` overwrites it with raw
-  aggregation; rerun `support_filter.py` to restore filtered summaries/plots.
+  disclose the restriction. The same rule now lives in `eval/support_filter.py`
+  and is applied by `eval/aggregate_replicates.py` to the A-F reliability
+  metrics; the AL copy still owns the AL runs.
+- Support-filtered output shares `aggregate_epochs_50/` with the raw aggregator,
+  but `five_splits.py` now refuses to overwrite it and says how to proceed.
+  Rerun `support_filter.py` to refresh, or pass `--overwrite-filtered` to
+  deliberately replace it with unfiltered numbers.
 - AL caches use hashes and manifests. Do not hand-edit or copy partial cache
   trees without updating the dependency graph and verifying fingerprints.
 
-Read the AL README before any AL mutation; it contains the exact formulas,
+Read the AL section of `README.md` before any AL mutation; it has the formulas,
 folder schema, resume rules, common-evaluator control, and leakage safeguards.
 
 ## Commands

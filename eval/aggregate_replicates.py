@@ -12,11 +12,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from reliability import (
+    build_binned_rows,
     compute_ause_summary,
     compute_ence_summary,
     compute_energy_rmse,
     compute_spearman_summary,
 )
+from support_filter import experiment_from_path, filter_raw_rows
 from replicate_statistics import aggregate_rows, confidence_arrays, read_csv, summarize, write_csv
 from plot_style import save_svg
 
@@ -55,6 +57,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--split-seeds", type=int, nargs="+", default=[0, 1, 2, 3, 4])
     parser.add_argument("--distribution-bins", type=int, default=50)
+    parser.add_argument("--num-bins", type=int, default=15,
+                        help="Reliability bins, matching reliability.py --num-bins.")
     parser.add_argument("--log-log-reliability", action="store_true")
     parser.add_argument("--reliability-axis-min", type=float, default=None,
                         help="Shared RMV/RMSE lower limit; defaults to 0 for linear plots, automatic for log plots.")
@@ -249,14 +253,40 @@ def aggregate_line_csv(
     save_figure(fig, output_plot)
 
 
-def reliability_summary_rows(
+def supported_replicates(
     raw_replicates: Sequence[Sequence[Dict[str, str]]],
-    bin_replicates: Sequence[Sequence[Dict[str, str]]],
+    experiment: str | None,
+    test: str,
+    split_seeds: Sequence[int],
+) -> List[List[Dict[str, float]]]:
+    """Per-split raw rows as floats, restricted to the training-support region.
+
+    Every reliability metric is computed from these rows, so RMSE, Spearman,
+    AUSE and ENCE always describe the same set of configurations. The filter
+    reads geometry only; see eval/support_filter.py.
+    """
+    filtered: List[List[Dict[str, float]]] = []
+    for raw_text, seed in zip(raw_replicates, split_seeds):
+        raw = [{key: _float_or_text(value) for key, value in row.items()} for row in raw_text]
+        if experiment is None:
+            filtered.append(raw)
+            continue
+        kept, removed = filter_raw_rows(raw, experiment, test, seed)
+        if removed:
+            LOGGER.info(
+                "Support filter: split %d %s dropped %d of %d configurations outside training support",
+                seed, test, removed, len(raw),
+            )
+        filtered.append(kept)
+    return filtered
+
+
+def reliability_summary_rows(
+    raw_replicates: Sequence[Sequence[Dict[str, float]]],
+    bin_replicates: Sequence[Sequence[Dict[str, float]]],
 ) -> List[Dict[str, object]]:
     replicate_summaries: List[List[Dict[str, object]]] = []
-    for raw_text, bins_text in zip(raw_replicates, bin_replicates):
-        raw = [{key: _float_or_text(value) for key, value in row.items()} for row in raw_text]
-        bins = [{key: _float_or_text(value) for key, value in row.items()} for row in bins_text]
+    for raw, bins in zip(raw_replicates, bin_replicates):
         summaries = {
             "ence": compute_ence_summary(bins),
             "spearman": compute_spearman_summary(raw),
@@ -280,14 +310,19 @@ def reliability_summary_rows(
 
 def aggregate_reliability(
     filename: str,
-    bin_replicates: Sequence[Sequence[Dict[str, str]]],
     raw_replicates: Sequence[Sequence[Dict[str, str]]],
     output_dir: Path,
     *,
+    experiment: str | None,
+    test: str,
+    split_seeds: Sequence[int],
+    num_bins: int,
     log_log: bool,
     axis_min: float | None,
     axis_max: float | None,
 ) -> None:
+    supported_raw = supported_replicates(raw_replicates, experiment, test, split_seeds)
+    bin_replicates = [build_binned_rows(raw, num_bins=num_bins) for raw in supported_raw]
     metrics = ["count", "rmse", "rmv", "mse", "mean_variance", "ence_term", "uncertainty_min", "uncertainty_max"]
     rows = aggregate_rows(
         bin_replicates,
@@ -296,7 +331,7 @@ def aggregate_reliability(
     )
     output_csv = output_dir / filename
     write_csv(output_csv, rows)
-    summary_rows = reliability_summary_rows(raw_replicates, bin_replicates)
+    summary_rows = reliability_summary_rows(supported_raw, bin_replicates)
     summary_name = filename.replace("_bins.csv", "_summary.csv")
     write_csv(output_dir / summary_name, summary_rows)
 
@@ -450,6 +485,10 @@ def main() -> None:
     if not split_zero.is_dir():
         raise RuntimeError(f"Missing first split cache directory: {split_zero}")
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    experiment = experiment_from_path(args.cache_dir)
+    if experiment is None:
+        LOGGER.warning("Cache dir %s is not inside an experiment_X directory; "
+                       "reliability rows will not be support-filtered.", args.cache_dir)
 
     filenames = sorted(path.name for path in split_zero.glob("*.csv"))
     processed = set()
@@ -466,11 +505,16 @@ def main() -> None:
         if stem.startswith("reliability_") and stem.endswith("_bins"):
             raw_filename = filename.replace("_bins.csv", "_raw.csv")
             raw_replicates = load_replicates(args.cache_dir, args.split_seeds, raw_filename)
+            # reliability_<test>_<nocal|cal>_bins -> test
+            test = stem.split("_")[1]
             aggregate_reliability(
                 filename,
-                replicates,
                 raw_replicates,
                 args.output_dir,
+                experiment=experiment,
+                test=test,
+                split_seeds=args.split_seeds,
+                num_bins=args.num_bins,
                 log_log=args.log_log_reliability,
                 axis_min=args.reliability_axis_min,
                 axis_max=args.reliability_axis_max,

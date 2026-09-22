@@ -7,7 +7,8 @@ multi-fidelity uncertainty pipeline for ANI-1x and periodic liquid water. The
 pipeline trains mean-variance estimation (MVE) ensembles, separates aleatoric
 uncertainty (AU) from ensemble epistemic uncertainty (EU), and repeats every
 experiment on five independently seeded dataset splits for statistical
-significance.
+significance. It also contains an isolated single-round active-learning (AL)
+proof of concept on the ANI energy split, documented in its own section below.
 
 The statistical design is:
 
@@ -22,6 +23,12 @@ The statistical design is:
   10 members inside one split are not treated as 10 independent statistical
   samples.
 
+Current training state (`./check_experiments.sh`): ANI-1x `A`-`F` are complete
+(300/300 members). Water `wA`/`wB`/`wC` currently have **split 0 only**
+(30/150 members), and their `evaluation/cache/` directories are empty, so no
+five-split water statistics exist yet. See
+[Audit notes and known issues](#audit-notes-and-known-issues).
+
 All project commands below are intended to be run from the repository root.
 
 ### Repository layout
@@ -29,14 +36,16 @@ All project commands below are intended to be run from the repository root.
 The project-specific files are organized as follows:
 
 ```text
-dataset/                         Dataset generation and converted data
-experiment_A/ ... experiment_F/ ANI-1x experiments
+dataset/                          Dataset generation and converted data
+experiment_A/ ... experiment_F/   ANI-1x experiments
 experiment_wA/ ... experiment_wC/ Water experiments
-eval/                            Evaluation, plotting, and aggregation programs
-utils/train_split_member.sh      Shared single-member training launcher
-check_experiments.sh             Training-completeness checker
-eval.sh                          ANI-1x evaluation launcher
-eval_water.sh                    Water evaluation launcher
+eval/                             Evaluation, plotting, and aggregation programs
+active_learning/ani_energy/       Isolated ANI energy-OOD active-learning POC
+new_figures/                      Rebuilt paper figures (support-filtered, 5 splits)
+utils/train_split_member.sh       Shared single-member training launcher
+check_experiments.sh              Training-completeness checker
+eval.sh                           ANI-1x evaluation launcher
+eval_water.sh                     Water evaluation launcher
 ```
 
 Each experiment directory contains:
@@ -97,6 +106,34 @@ The DFT target is `wb97x_tz.energy`; the high-fidelity target is
 the generated split metadata. `dataset/ani1x-processed` is a legacy export and
 is not used by the current generators, training scripts, or evaluation scripts.
 
+Splitter settings actually used by `dataset/make_dataset.sh` (these are not the
+standalone splitters' argument defaults):
+
+- **System split (`A`/`B`/`E`).** 60% of systems form the seen domain; their
+  configurations are partitioned 60/20/20 into candidate train/validation/ID
+  pools. The remaining systems supply OOD configurations. This tests
+  generalization to unseen systems, not a high-energy threshold.
+- **Energy split (`C`/`D`/`F`).** Configurations are ranked by DFT energy
+  (`wb97x_tz.energy`) *within each system*. Empirical ranks at or below
+  `--q-low 0.5` form the low-energy domain, ranks at or above `--q-high 0.55`
+  form the high-energy OOD domain, and the band between is discarded. The
+  low-energy configurations are partitioned 60/20/20 into candidate
+  train/validation/ID pools. The ranking never uses CC labels.
+- Systems with fewer than four valid ranking energies are dropped. With exactly
+  four, the highest-energy configuration goes to OOD and the other three are
+  assigned one each to train/validation/ID. This is why the seen domain contains
+  a few quantile values above 0.5 (up to 0.667): they come from very small
+  systems. Within every system the seen-domain configurations still lie strictly
+  below every OOD configuration (verified: 0 violations in 2148 shared systems).
+- Final files are sampled from the candidate pools with system-stratified quotas
+  and `max_per_system=64` as a **soft weighting cap**, not a hard per-file limit.
+  DFT train/validation/ID/OOD sizes are 50000/10000/50000/50000; CC sizes are
+  5000/1000/5000/5000. CC configurations are sampled inside the corresponding
+  DFT selection, so each CC file is an exact subset of the DFT file with the
+  same role (verified for all four roles).
+- Forces are deliberately not exported (`--dft-forces-key ' '`), and training is
+  energy-only (`forces_weight: 0.0`, `compute_forces: False`).
+
 #### Periodic liquid water
 
 `dataset/water_0` is the source tree. Its theory subdirectories contain n2p2
@@ -129,11 +166,71 @@ test.xyz
 
 Water extended XYZ files use `REF_energy` as the energy key.
 
+> **Caveat.** `convert_water_n2p2_to_extxyz.py` shuffles **each theory folder
+> with its own derived seed** (`seed + sum(ord(c) for c in theory_name)`), and
+> the theories contain different numbers of configurations. BLYP and CCSDT
+> splits are therefore not aligned: in `water_0`, 37 of the 50 CCSDT test
+> geometries also appear in the BLYP training set. See
+> [Audit notes and known issues](#audit-notes-and-known-issues).
+
 Set `PYTHON_BIN` when dataset scripts should use a specific Python executable:
 
 ```bash
 PYTHON_BIN=/path/to/python bash dataset/make_dataset_w.sh
 ```
+
+### MVE model and uncertainty definitions
+
+`model: "MACE"` in the experiment configs builds a `ScaleShiftMACE` (see
+`mace/tools/model_script_utils.py::_build_model`) with `predict_mve: True`.
+In that model (`mace/modules/models.py`):
+
+- the last readout emits `2 x n_heads` scalars, a mean and a raw variance
+  parameter per atom;
+- the per-atom variance is `softplus(raw) + 1e-12`, so it is strictly positive;
+- per-atom variances are summed over atoms, which is the variance of a sum of
+  independent per-atom contributions, and scaled by `scale^2`;
+- the `E0` baseline is deterministic, so `energy_var` equals the interaction
+  variance. Deterministic readouts contribute exactly zero variance.
+
+Training minimizes the Gaussian NLL of `mace/modules/loss.py`:
+
+```text
+0.5 * (err^2 / var + log(var) + log(2*pi)) / N_atoms
+```
+
+weighted by the configuration and energy weights. Forces are off
+(`forces_weight: 0.0`), so the loss is energy-only.
+
+Ensemble uncertainty (`eval/reliability.py::evaluate_split`, mirrored in
+`eval/epoch_quality.py` and the AL code) is computed per configuration, by
+default per atom:
+
+```text
+energy_m   = member m total energy / N_atoms
+var_m      = member m predicted variance / N_atoms^2
+AU         = mean_m(var_m)
+EU         = population variance over members of energy_m   (unbiased=False)
+TU         = AU + EU
+prediction = mean_m(energy_m)
+```
+
+Note that EU uses the **population** variance (denominator `M`), while Eq. 3 of
+the current manuscript shows `M-1`.
+
+Reported metrics (`eval/reliability.py`) are:
+
+- **RMSE** of the ensemble-mean per-atom energy.
+- **Spearman** rank correlation between uncertainty and squared error.
+- **AUSE**: MAE-based sparsification error, normalized by the all-configuration
+  MAE, integrated against the removed fraction, with the oracle ordering given
+  by the true absolute errors.
+- **ENCE**: 15 equal-count bins ordered by uncertainty, with
+  `mean_b |MV_b - MSE_b| / MV_b`. This matches Eq. 8 of the manuscript, which is
+  written in variance units rather than the more common RMV/RMSE form.
+- **Gaussian NLL** per configuration (epoch-quality outputs only).
+- Optional **isotonic recalibration**, fitted on the *validation* split mapping
+  predicted variance to squared error, then applied to the test split.
 
 ### Experiment definitions
 
@@ -164,6 +261,16 @@ experiment_wA/checkpoints_3/mace_run-7.model
 ```
 
 The training launcher checks this dependency before starting.
+
+What fine-tuning inherits (`mace/tools/finetuning_utils.py`,
+`mace/tools/model_script_utils.py`): the architecture is extracted from the
+parent model, including `predict_mve`; the embedding, interaction, product and
+**readout** weights are copied (`load_readout=args.foundation_filter_elements`,
+default `True`), as are the `scale_shift` buffers. Because
+`multiheads_finetuning: False`, the atomic reference energies are **re-fitted on
+the fine-tuning target** (`E0s: "average"` on `cc_train`), which absorbs the
+DFT-to-CC reference offset. Fine-tuning uses 1/10 of the pretraining learning
+rate and 100 epochs against 300.
 
 ### Training
 
@@ -206,6 +313,10 @@ done
 
 This example is sequential and uses GPU 0. Runs may instead be distributed
 manually across GPUs, provided each split/member pair is trained exactly once.
+
+The member seed is passed as `--seed`, so members of one split differ by weight
+initialization and batch order only. `save_all_checkpoints: True` keeps every
+epoch, which the epoch-quality analyses require. SWA/stage-two and EMA are off.
 
 ### Checking training completeness
 
@@ -262,6 +373,14 @@ the final tables and figures under `experiment_wA/evaluation/`. If any split
 evaluation fails or required training output is missing, `set -e` stops the
 script and aggregate plots are not rebuilt.
 
+**Checkpoint selection.** Every `eval_X.sh` passes `--selection-key loss
+--selection-mode min`, so each member independently contributes the checkpoint
+with the lowest **validation Gaussian NLL** recorded in its results JSONL. The
+ID and OOD test sets are never used for selection. (The training config's
+`test_file` is the ID test set; it is scored once at the end of training for the
+log only.) Epoch-quality analyses instead evaluate the whole 10-member ensemble
+at each common epoch.
+
 The aggregation procedure computes each metric independently for each
 10-member ensemble, then reports across the five dataset splits:
 
@@ -274,10 +393,11 @@ The aggregation procedure computes each metric independently for each
 ```
 
 Confidence intervals are two-sided 95% Student-t intervals. With five finite
-replicates, the calculation uses 4 degrees of freedom. Line plots show the
-five-split arithmetic mean and a shaded 95% confidence band on linear axes. Bar and distribution plots
-use equivalent replicate-level intervals. Reliability summaries compute RMSE,
-Spearman correlation, AUSE, and ENCE per split before averaging them.
+replicates, the calculation uses 4 degrees of freedom (`t = 2.776`, sample SD
+with `ddof=1`). Line plots show the five-split arithmetic mean and a shaded 95%
+confidence band on linear axes. Bar and distribution plots use equivalent
+replicate-level intervals. Reliability summaries compute RMSE, Spearman
+correlation, AUSE, and ENCE per split before averaging them.
 
 For strictly positive quantities displayed on logarithmic axes, aggregate plots
 instead show the **geometric mean and a 95% log-space Student-t interval**:
@@ -292,10 +412,41 @@ to geometric means with log-space t intervals; ID RMSE and signed gains remain
 linear with arithmetic intervals. AL aggregate reports are unchanged; separate
 `plots/rmse_display.json` records the displayed estimates and their estimators.
 
+**Training-support filter, not trimming.** Every reliability metric in the
+five-split aggregate is computed from the same population: the per-configuration
+rows restricted to the region where the models have training support. A test
+configuration is excluded when its smallest interatomic distance falls below the
+smallest one anywhere in that split's own `cc_train`, `cc_val`, `dft_train` and
+`dft_val`. The rule is implemented in [`eval/support_filter.py`](eval/support_filter.py),
+reads geometry only, and applies identically to every model and every signal, so
+it cannot select on the quantity under evaluation. It removes 13-16 of 5000
+Energy-OOD and 0-2 Energy-ID configurations per split, and 0-8 of 50000 on the
+system split. Water and any non-ANI family are never filtered.
+
+The filter needs a one-off geometry cache (CPU, about 5 minutes), stored in
+`eval/cache/geometry/` and shared with `new_figures/`:
+
+```bash
+python -B eval/support_filter.py --build     # build the cache
+python -B eval/support_filter.py --report    # per-split bound and removal counts
+```
+
+`eval/aggregate_replicates.py` rebuilds the reliability bins from the filtered
+rows, so ENCE, Spearman, AUSE and RMSE all describe the same configurations.
+
+`reliability.py --trim` still exists but is **off** (`--trim 0.0`) in the A-F
+eval scripts. It dropped the 0.5% lowest and highest **total-variance**
+configurations, which selected on the quantity being evaluated and applied a
+TU-based selection to the AU and EU rows as well. The per-split
+`reliability_*_bins.csv` caches and their SVGs remain unfiltered per-split
+diagnostics; the aggregate is the reportable artifact. The water eval scripts
+still pass `--trim 0.005`, since those experiments are out of scope for now.
+
 Evaluation programs live in [`eval/`](eval) and include:
 
 - `epoch_quality.py`: epoch-wise correlation, AUSE, ENCE, uncertainty
-  magnitude, RMSE, and Gaussian NLL.
+  magnitude, RMSE, and Gaussian NLL. It evaluates the full ensemble at epochs
+  available for every member, and applies no trimming.
 - `epoch_quality_finetune_mixed_dataset.py`: concatenated low-fidelity pretrain
   and high-fidelity fine-tune trajectories evaluated on their respective
   targets.
@@ -304,7 +455,8 @@ Evaluation programs live in [`eval/`](eval) and include:
   evaluation. Legacy `epoch_quality_finetune_same*.csv` caches are preserved and
   skipped by aggregation.
 - `reliability.py`: calibrated or uncalibrated RMV-versus-RMSE reliability
-  diagrams.
+  diagrams, and the per-configuration prediction caches every other analysis
+  reuses.
 - `train_curves.py`, `epoch_raw.py`, `distribution.py`, `finetune.py`, and
   `energy_ood.py`: supporting loss, uncertainty, distribution, transfer, and
   OOD analyses.
@@ -396,6 +548,547 @@ scripts (they reuse CSV caches). Finetuning epoch-quality figures are mixed-only
   converted to a non-periodic format before MACE training.
 - Evaluation figures are SVG-only, with larger fonts. Old PNG/PDF/SVG figures
   may be removed without removing the CSV/JSON caches used to redraw them.
+
+## ANI energy-OOD active learning
+
+Isolated, single-round proof of concept under
+[`active_learning/ani_energy/`](active_learning/ani_energy). Nothing in
+`experiment_*`, `dataset/`, `eval/`, or the shared MACE training code is
+modified, and all generated files live under
+`active_learning/ani_energy/runs/`, which Git ignores. This study is a later
+addition and is **not** part of the manuscript's main sections or listed
+appendix figures; keep its claims separate unless the paper is extended.
+
+### Five splits and confidence intervals
+
+One command runs or resumes splits 0-4 sequentially, evaluates all eight
+conditions per split, then writes the aggregate reports and plots:
+
+```bash
+conda activate mace
+bash active_learning/ani_energy/run_all.sh 2
+```
+
+Replace `2` with the GPU number. The default batch compares **Random-500,
+AU-500, EU-500 and TU-500 for both HF-only and LF->HF**. All eight conditions
+use AL learning rate **0.001** and at most **100 additional epochs** per member
+(the code default; the completed scientific runs used `--epochs 50`). Across
+five splits this trains 400 members sequentially, with no background training
+jobs. The single Random-500 batch is shared between regimes and is the baseline
+for AU, EU and TU.
+
+Default run directories are `runs/split_0/` ... `runs/split_4/` with aggregate
+`runs/aggregate/`. An explicit `--epochs N` switches to
+`runs/split_<seed>_epochs_<N>/` and `runs/aggregate_epochs_<N>/`, keeping
+budgets separate; use the same option when resuming. The existing completed runs
+are therefore `split_0_epochs_50` ... `split_4_epochs_50` with
+`aggregate_epochs_50`. Use `--run-tag NAME` for an independently named repeat.
+
+```bash
+bash active_learning/ani_energy/run_all.sh 2 --epochs 20
+```
+
+Completed split reports are reused without launching training or GPU inference,
+and incomplete splits resume through the single-split runner. Do not start two
+runners for the same splits. If the splits are already running, use wait-only
+mode, which uses no GPU and polls every 60 seconds until all five reports exist
+and their locks are released:
+
+```bash
+bash active_learning/ani_energy/run_all.sh 2 --aggregate-only --wait
+```
+
+Omit `--wait` to require all reports immediately. To aggregate completed reports
+only, with no training or GPU inference:
+
+```bash
+bash active_learning/ani_energy/run_all.sh <gpu> --aggregate-only --epochs 50
+```
+
+Outputs are `summary_ci95.{csv,json,md}` in the aggregate directory. They record
+all five split values, their mean and an approximate 95% Student-t interval,
+`mean +/- 2.776445105 * sample_SD / sqrt(5)`. The unit of repetition is the
+dataset split, not an ensemble member. Improvements, AU/EU/TU-over-random gains
+and the LF->HF-minus-HF-only gain are computed **within** each split before
+aggregation. Missing reports, mismatched settings and non-finite statistics fail
+validation; undefined percentage improvements yield no CI rather than a
+smaller-sample CI. Reports are cached by input hashes. Overlapping datasets and
+only five repetitions limit the independence and normality assumptions: these
+are approximate intervals, not an automatic significance claim.
+
+`--epochs N` and `--common-evaluator` must match across all five runs. The
+acquisition RNG defaults to 0 and is recorded in metadata for reproducibility;
+it is not another layer of repetitions. Ensemble member seeds remain 0-9.
+
+### Graphical results
+
+`run_all.sh` invokes `plot_results.py` after aggregation, including in
+`--aggregate-only` mode, writing SVGs to `<aggregate>/plots/`:
+
+- `rmse`: before acquisition, Random-500, AU-500, EU-500 and TU-500, for both
+  regimes and both tests.
+- `improvement`: relative improvements from the within-split baseline.
+- `acquisition_gain`: paired AU/EU/TU-over-random gains, in meV/atom and
+  percentage points.
+- `regime_contrast`: LF->HF's gain minus HF-only's gain, per signal.
+- `common_evaluator`: the optional control, when available.
+
+Diamonds are means with approximate 95% Student-t intervals; grey points are the
+five individual split values. No split is dropped and no value is trimmed by its
+error; the geometric support filter below is the only exclusion, and it never
+reads predictions. OOD RMSE defaults to a logarithmic axis with a **geometric
+mean and log-space Student-t interval**, which changes the plotted estimator and
+not merely the axis. Both OOD panels fall back to linear arithmetic intervals if
+any value is nonpositive or missing; no epsilon, clipping or dropped split is
+used. ID RMSE, improvements, gains and contrasts stay linear and arithmetic,
+since signed quantities are not log-transformed. Scales are shared between
+regimes within a test. `summary_ci95.*` keeps its arithmetic statistics, and
+`plots/rmse_display.json` records the displayed estimates with explicit
+estimator labels.
+
+To redraw only the plots (no GPU), or to choose a linear OOD RMSE axis:
+
+```bash
+python -B active_learning/ani_energy/plot_results.py
+python -B active_learning/ani_energy/plot_results.py --ood-rmse-scale linear
+```
+
+`plot_results.py` defaults to `runs/aggregate/`, so pass `--summary` explicitly
+for an `--epochs` run. Plot caching fingerprints the aggregate report, the plot
+code and the display settings.
+
+### Geometric support filter
+
+Held-out Energy-OOD contains configurations compressed far below anything in the
+training data: minimum interatomic distances reach **0.646 A**, while no training
+file goes below about **0.83 A**. The models extrapolate catastrophically there.
+Because RMSE averages squares, one such configuration can supply over 99% of a
+reported OOD RMSE, and which of them land in the held-out half is close to a coin
+flip. That produced the very wide split-to-split scatter in the raw
+`aggregate_epochs_50` plots; it is an extrapolation artifact, not variance between
+experimental repetitions.
+
+`support_filter.py` recomputes every metric restricted to the region where the
+models have training support:
+
+```bash
+conda activate mace
+python -B active_learning/ani_energy/support_filter.py --output aggregate_epochs_50
+python -B active_learning/ani_energy/plot_results.py \
+    --summary active_learning/ani_energy/runs/aggregate_epochs_50/summary_ci95.json
+```
+
+For each dataset split the threshold is the smallest interatomic distance
+occurring anywhere in **that split's own** `cc_train`, `cc_val`, `dft_train` and
+`dft_val` (0.825-0.846 A). Held-out configurations below it are excluded. This
+removes 6-10 of ~2500 held-out Energy-OOD configurations per split (~0.3%) and
+0-2 Energy-ID configurations.
+
+The rule reads training geometries alone. It never inspects predictions, errors
+or uncertainties, and the same configurations are removed for every condition,
+regime and test within a split, so the paired within-split improvements and gains
+remain valid. The result is insensitive to the threshold: any cut between 0.80
+and 1.00 A gives the same answer to within 0.4 percentage points, even though
+1.00 A discards 37% of the test set. Only the handful of configurations below
+0.80 A change anything.
+
+Effect on the five-split Energy-OOD statistics:
+
+| Metric | Raw | Support-filtered |
+|---|---|---|
+| LF->HF TU improvement | 20.3% +/- 74.8 | 14.2% +/- 3.7 |
+| LF->HF EU gain over random | 699 [-558, 1957] meV/atom | 2.50 [1.89, 3.11] meV/atom |
+| LF->HF pre-acquisition RMSE | 2777 meV/atom | 58.9 meV/atom |
+| HF-only pre-acquisition RMSE | 148 meV/atom | 75.5 meV/atom |
+
+All six AU/EU/TU-over-random OOD gains have intervals excluding zero after
+filtering; none did before. Energy-ID results are unchanged to within 0.0003
+meV/atom, since the ID test contains almost nothing below the support bound.
+
+Per-split runs, cached predictions, models and metrics are never modified. The
+cached predictions are verified against the SHA-256 hashes recorded in each run's
+`metrics/` before use, and no model inference, training or GPU is required.
+`runs/aggregate_epochs_50/support_filter.json` records the per-split threshold
+and every excluded ID.
+
+> **The support-filtered results currently occupy the default aggregate
+> directory, `runs/aggregate_epochs_50/`, which `run_all.sh` and
+> `five_splits.py` also write. Those write the *unfiltered* aggregate and will
+> silently overwrite the filtered summary and plots.** After any `run_all.sh`
+> invocation, including `--aggregate-only`, rerun the two commands above to
+> restore the filtered results. The raw aggregate is never lost: it regenerates
+> in seconds from the five per-split reports.
+
+Report both the raw and the support-filtered numbers, and state the restriction
+as a domain-of-validity caveat: these models are not characterized below the
+smallest interatomic distance they were trained on. The same rule, applied to
+the main A-F evaluations, is implemented in `new_figures/common.py`.
+
+**Unrelated earlier exclusion.** `split_3_epochs_50` additionally had the single
+configuration `C1H5N1:887` deleted from `data/heldout_ood.xyz`, `data/split.json`
+and its ten cached Energy-OOD prediction files before this filter existed, so that
+split holds 2499 rather than 2500 held-out configurations. Its minimum interatomic
+distance is 0.646 A, so the support filter would exclude it anyway and the filtered
+split-3 numbers are identical either way (2493 retained with or without it). The
+raw split-3 values, however, are conditional on that deletion, and no backup of the
+original predictions exists.
+
+### Running a single split
+
+```bash
+conda activate mace
+bash active_learning/ani_energy/run.sh 7
+```
+
+This prepares the data, scores the pool, selects and reveals labels, trains all
+eight 10-member ensembles **sequentially**, evaluates them and writes the report.
+GPU 7 is exposed as local `cuda:0`; `PYTHON=/path/to/python` overrides the
+interpreter. No ANI HDF5 file, original evaluation cache or new dependency is
+needed; the energy-split XYZ files, D/F checkpoints and training logs are.
+
+Defaults: dataset split 0, B=500, 10 members (seeds 0-9), 50/50 OOD pool/test
+partition, output `runs/split_0/`. Other splits use separate directories:
+
+```bash
+bash active_learning/ani_energy/run.sh 7 --split-seed 1
+```
+
+### Stages and restarting
+
+```bash
+# CPU-only preparation and freezing of initial checkpoints.
+python -B active_learning/ani_energy/workflow.py --stage prepare --device cpu
+
+bash active_learning/ani_energy/run.sh 7 --stage acquire
+bash active_learning/ani_energy/run.sh 7 --stage train
+bash active_learning/ani_energy/run.sh 7 --stage evaluate
+python -B active_learning/ani_energy/workflow.py --stage report
+```
+
+Rerunning the same command reuses completed work. Predictions, selections,
+augmented datasets and completed member models are cached, and source/artifact
+SHA-256 checks prevent silently mixing datasets, code, checkpoints or settings.
+Changing the inference device or batch size after scoring requires a new
+`--name`. Pass the same split and optional epoch override to every stage, and
+keep acquisition RNG settings unchanged so persisted batches stay reproducible.
+
+Interrupted member training restarts that member from its frozen initial model
+with a fresh optimizer in a new `attempt_NNN/`; completed members are skipped and
+old attempts are retained. The runner locks a run directory, so do not run two
+processes against the same run concurrently.
+
+For manual scheduling, train selected cases and members in successive calls:
+
+```bash
+bash active_learning/ani_energy/run.sh 7 --stage train --case hf_only_random --members 0 1
+bash active_learning/ani_energy/run.sh 6 --stage train --case hf_only_random --members 2 3
+```
+
+Available cases: `hf_only_random`, `hf_only_au`, `hf_only_eu`, `hf_only_tu`,
+`lf_hf_random`, `lf_hf_au`, `lf_hf_eu`, `lf_hf_tu`. Evaluation requires all 10
+members of the requested case; `--case` also works with `--stage evaluate`, and
+the final report requires all eight default cases. Follow live progress with
+`tail -f` on the printed member `console.log` path.
+
+### Experimental choices
+
+| Regime | Initial ensemble | Additional training protocol |
+|---|---|---|
+| HF-only | `experiment_F/checkpoints_<split>` | AL LR 0.001, up to 100 epochs |
+| LF->HF | `experiment_D/checkpoints_<split>` | AL LR 0.001, up to 100 epochs |
+
+**Both regimes start post-acquisition training at LR 0.001**, overriding the
+learning rate inherited from their source configs; this also applies to the
+optional common-evaluator control. The schedulers can subsequently reduce the LR.
+Original F/D training configs are unchanged, and other training settings are
+inherited from them. Manifests record the shared AL learning rate and effective
+epoch limit, and the runner raises a protocol-mismatch error rather than
+silently reusing models trained under different settings. It never deletes,
+updates or retrains those models.
+
+Initial checkpoints are selected independently per member by **minimum original
+HF validation loss**, exactly as in `eval_D.sh` / `eval_F.sh`. The selected
+checkpoint and its companion architecture are frozen as byte-identical AL-local
+copies, then loaded strictly for acquisition and training. LF->HF already
+contains the LF pretraining from experiment C, so C need not be evaluated or
+retrained first.
+
+Both acquisition branches of a regime start from identical member weights and
+use the same original HF validation set, member seeds, Gaussian NLL loss,
+optimizer parameter groups, batching, scheduler, clipping and epoch limit.
+Training calls the existing `mace.tools.train` implementation with all
+parameters trainable. Mean/variance heads, E0s and normalization buffers are
+preserved; the model is not rebuilt through the foundation-model CLI.
+Optimizer/scheduler state is deliberately reset for this round, identically
+across methods. No OOD or ID test loader is passed to training.
+
+**Epoch budgets and checkpoint selection are different things.** Before
+acquisition, each of the 10 members independently uses its best original HF
+validation checkpoint, so their epoch numbers can differ. After acquisition,
+each member trains on the original HF training data plus the selected 500
+configurations, and its best additional-training checkpoint is again selected
+independently by minimum validation Gaussian NLL (not validation RMSE) and saved
+as `best.model`. The same selected ensemble is evaluated on both the held-out
+OOD test and the existing ID test; neither test influences selection, and
+evaluation never falls back to the last epoch or to a common epoch. The 5
+dataset splits, not the 10 members, are the replicates behind the intervals.
+
+### Data and hidden labels
+
+- Only `cc_test_ood.xyz` of the selected ANI energy split is repartitioned. With
+  5000 configurations, 2500 form the acquisition pool and 2500 the held-out test.
+  The original file is never changed.
+- The existing ANI splitter's quota allocator and sampler preserve the source OOD
+  system composition, using proportional half-sampling per system and seeded
+  remainder allocation. Singleton systems cannot appear in both halves. No new
+  energy threshold or label-based ranking is introduced.
+- A system contributing 100 original OOD configurations supplies 50 randomly
+  chosen configurations to the pool and 50 to the held-out test; odd counts use
+  reproducible rounding to keep the pool at 2500. **The held-out test is not the
+  higher-energy half of OOD.** Both halves sample the same original OOD energy
+  domain, and pool energies are not systematically lower.
+- All original LF/HF train, validation and ID-test XYZ files remain unchanged.
+  Preparation checks that OOD IDs do not overlap any of those six inputs.
+- Stable IDs are `system:conf_idx`; pool and held-out IDs, source indices and
+  system counts are saved. The held-out set is never acquired or appended.
+- Public `pool.xyz` contains geometry, cell/PBC and IDs only: no CC/DFT energies,
+  forces, calculators, relative energies or quantiles. The offline CC oracle is
+  stored separately in `data/oracle.json` and contains **pool IDs only**.
+- Acquisition uses only public geometries and model predictions. The shared
+  evaluator's missing-label adapter uses a zero-weight placeholder, not CC labels;
+  placeholder errors and references are discarded and never used for selection.
+- Selection is persisted **before** the oracle is read to append the chosen 500
+  labels. Augmented files start from an unchanged copy of the original HF training
+  file, and new configurations use its training `config_type` and equal weights.
+- Random acquisition is uniform without replacement and shared between regimes.
+  Each AU/EU/TU acquisition is the global top 500 of its own score (stable ID
+  tie-break), not system-capped. Selected batches may overlap: they are
+  alternative single-round conditions, not sequential acquisitions.
+
+```text
+Original low-energy train / validation / ID test: unchanged
+Original CC Energy-OOD file: 5000 configurations
+    +-- 2500 acquisition-pool configurations (random, stratified by system)
+    |       +-- acquire 500 by AU, EU, TU or random sampling; append their CC labels
+    +-- 2500 held-out OOD test configurations (never acquired or trained on)
+```
+
+This tests acquisition within the original OOD domain. It does not test
+acquisition from a lower-energy pool followed by testing on an even higher-energy
+domain; that would require a separate partition.
+
+### Acquisition scores and RMSE
+
+The runner reuses `eval/reliability.py` for prediction and uncertainty:
+
+```text
+AU = mean_m(variance_m / N_atoms^2)
+EU = population_variance_m(energy_mean_m / N_atoms)    # unbiased=False
+TU = AU + EU
+```
+
+Each score is **one scalar per configuration**, from the same cached ensemble
+predictions, with no extra inference per signal. `energy_mean_m` and
+`variance_m` are member `m`'s predicted total configuration energy and its
+variance, and `N_atoms` is that configuration's atom count; "per-atom" refers
+only to the `N_atoms^2` normalization, not to per-atom acquisition decisions.
+The 2500 whole configurations are ranked and 500 whole configurations selected.
+
+Unnormalized total-energy TU would be
+`mean_m(variance_m) + population_variance_m(energy_mean_m)`, i.e. the current
+score times `N_atoms^2`. Both give one score per configuration but can rank
+differently when atom counts differ. The current normalization matches the
+project's uncertainty and energy-per-atom RMSE definitions; switching would be a
+different acquisition experiment, not a change of terminology.
+
+There is no calibration, trimming, error-based selection or label-based
+filtering. Non-finite values fail the run instead of silently excluding
+configurations.
+
+All conditions use the same held-out Energy-OOD test and the unchanged
+`cc_test_id.xyz`. RMSE is that of the **ensemble-mean energy per atom**, averaged
+equally over configurations, not an average of member RMSEs. Units are meV/atom.
+Individual predictions and AU/EU/TU are retained in the inference caches.
+
+```text
+relative improvement (%) = 100 * (RMSE_before - RMSE_after) / RMSE_before
+method gain (meV/atom)   = RMSE_random - RMSE_method
+method gain (pp)         = improvement_method - improvement_random
+# method is AU, EU or TU
+```
+
+Positive gain favors the uncertainty method over random. The report also gives
+LF->HF's gain minus HF-only's gain for each method and test: positive values
+support the acquisition-quality hypothesis. Negative improvements and gains are
+retained. A zero baseline RMSE produces `null` percentage improvements, not a
+division by zero.
+
+### Optional common evaluator
+
+```bash
+bash active_learning/ani_energy/run.sh 7 --common-evaluator
+```
+
+This adds `lf_hf_from_hf_only_tu`: the same D initial ensemble and protocol
+trained on the HF-only TU batch. Its comparator is the existing `lf_hf_tu`
+branch, so the control adds 10 members rather than 20. It is reported separately
+under `common_evaluator/`, can be enabled after the default run finishes, and
+compares TU acquisitions only. Include `--common-evaluator` in the subsequent
+train/evaluate/report stages.
+
+### AL artifacts
+
+```text
+runs/<name>/
+  manifest.json                 settings, source hashes, versions, checkpoint provenance
+  data/                         public pool, held-out OOD, oracle, split/ID manifest
+  initial/{hf_only,lf_hf}/      frozen 10-member ensembles, configs and source logs
+  inference/                    cached pool and test predictions, input fingerprints
+  acquisition/{random,hf_only_au,hf_only_eu,hf_only_tu,lf_hf_au,lf_hf_eu,lf_hf_tu}/
+    selection.json              selected IDs, method, seed, score provenance
+    train.xyz                   original HF train + 500 revealed configurations
+    augmented.json              counts and file hashes
+  cases/<case>/member_<seed>/
+    attempt_NNN/                local config, resolved arguments, logs, checkpoints, best model
+    complete.json               validated completion/cache marker
+  metrics/                      per-condition/test RMSE, counts and provenance
+  report/summary.{csv,json,md}  default comparisons and optional control
+```
+
+Each attempt retains every epoch checkpoint, matching the main protocol; budget
+disk space accordingly. Original checkpoint and config sources are read-only. No
+W&B run, shared evaluation cache or existing result directory is written.
+
+### AL scope and verification
+
+Each `run.sh` invocation is a single-round, single-split POC. `run_all.sh`
+aggregates five such splits with approximate confidence intervals, not a blanket
+significance claim. The 10 members form one uncertainty estimator, not 10
+independent AL repetitions. GPU floating-point kernels can prevent bitwise
+equality across machines despite the recorded seeds, versions and hashes.
+
+Some existing companion models contain CUDA-serialized TorchScript blocks, so
+even a CPU `torch.load` of them requires an available GPU. Preparation copies
+bytes without deserializing models and works on CPU; run acquisition, training
+and evaluation in a GPU-enabled session for those checkpoints.
+
+The pool comes from an already labeled, CC-available, previously used OOD
+dataset. Labels are hidden from this workflow, not retroactively from past
+experiments or from dataset construction. Treat the result as an offline POC,
+not a pristine prospective benchmark. The common-evaluator control helps
+separate acquisition quality from downstream-regime differences.
+
+Focused CPU tests:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python -B active_learning/ani_energy/test_workflow.py
+python -B active_learning/ani_energy/test_five_splits.py
+python -B active_learning/ani_energy/test_reporting.py
+bash -n active_learning/ani_energy/run.sh
+bash -n active_learning/ani_energy/run_all.sh
+```
+
+They cover deterministic balanced partitioning, hidden-label invariance, oracle
+reveal and leakage guards, selection budgets and ties, cache invalidation,
+reporting formulas, the shared TU calculation, and one epoch of genuine small
+MVE checkpoint continuation through the existing MACE training loop. A separate
+orchestration test uses synthetic predictions and a stub trainer to verify all
+eight branches, resume behavior, shared tests and the optional control; it
+produces no scientific results. Reporting tests cover folder names, recursive
+path/hash migration, unchanged numerical values, paired confidence intervals and
+nonblank/cached plots.
+
+## Audit notes and known issues
+
+Pipeline audit of 2026-09-22, from dataset generation to figures. Checks were
+run against the current working tree; no file was modified by the audit.
+
+**Verified sound**
+
+- **Split integrity.** Across system and energy splits (seeds 0 and 3 checked
+  exhaustively by `system:conf_idx`): no configuration is shared between train,
+  validation, ID test and OOD test; every CC file is an exact subset of the DFT
+  file with the same role; system-split OOD systems are disjoint from the seen
+  systems (0 of 1460 shared); energy-split OOD configurations lie above every
+  seen-domain configuration of the same system (0 violations in 2148 systems).
+- **MVE head and loss** as described in
+  [MVE model and uncertainty definitions](#mve-model-and-uncertainty-definitions).
+- **AU/EU/TU** match the documented formulas, including per-atom normalization
+  (`var / N^2`) and the population variance for EU.
+- **ENCE** matches manuscript Eq. 8 exactly, with 15 equal-count bins.
+- **AUSE** is the standard normalized sparsification-error area.
+- **Fine-tuning** copies body, readouts and scale/shift buffers from the matching
+  parent member and re-fits E0s on the high-fidelity training set; the launcher
+  refuses to start without the matching split/member parent.
+- **Checkpoint selection** uses validation Gaussian NLL only, per member.
+- **Completeness.** ANI `A`-`F`: 300/300 members, 5/5 split caches each.
+- **Tests.** `eval/test_plotting` (6), AL `test_workflow` (8),
+  `test_five_splits` (11), `test_reporting` (5) all pass.
+
+**Open issues (water only; out of scope for the current paper)**
+
+1. **Water fidelity splits are not aligned.**
+   `dataset/convert_water_n2p2_to_extxyz.py` shuffles each theory folder with its
+   own derived seed, and the theories hold different configuration counts. In
+   `water_0`, 37 of the 50 CCSDT test geometries are also in the BLYP training
+   set (and 80 of 130 CCSDT training geometries are). `wB` is therefore
+   fine-tuned from a `wA` model that saw most of `wB`'s own test geometries at
+   low fidelity, while `wC` saw none. Any `wB`-versus-`wC` comparison on the
+   water ID test is biased in favour of the multi-fidelity protocol. Fixing this
+   requires one shared configuration-level split reused by all theories, and
+   retraining water.
+2. **Water has one split, not five.** `wA`/`wB`/`wC` have 10 members for split 0
+   only, splits 1-4 are untrained, and `experiment_w*/evaluation/cache/` is empty.
+   No five-split water confidence interval can be produced from this tree.
+
+The water eval scripts still pass `--trim 0.005` and are not support-filtered,
+because water has no ANI geometry cache and is excluded from the current paper.
+
+**Manuscript-side, not fixable in code**
+
+3. **EU denominator.** The code uses the population variance (`unbiased=False`,
+   denominator `M`), while Eq. 3 of the current manuscript shows `M-1`. Align the
+   text with the code (the code is the intended estimator).
+4. **Fig. 4 panel rows are rotated in the ID and OOD columns.** Extracting the
+   plotted points from the PDF and correlating them with
+   `experiment_B/evaluation/cache/split_0/epoch_quality_finetune_mixed_*.csv`
+   gives `r = 1.000` for: row labelled "Spearman" = AUSE, row labelled "AUSE" =
+   ENCE, row labelled "ENCE" = Spearman. Those panels also carry the train
+   column's tick labels while using their own range. The train column is correct
+   and the underlying data match the caches exactly, so only the figure and its
+   panel references need redrawing.
+5. **Split-3 AL caveat.** `C1H5N1:887` was deleted post hoc from split 3's
+   held-out test and its cached predictions; raw split-3 numbers are conditional
+   on that deletion, with no backup. The support filter would exclude it anyway.
+
+**Fixed on 2026-09-22**
+
+- **One population for every reliability metric.** The TU trim is off for A-F
+  (`--trim 0.0`), and `eval/aggregate_replicates.py` now rebuilds the reliability
+  bins from support-filtered per-configuration rows, so RMSE, Spearman, AUSE and
+  ENCE describe the same configurations. Previously ENCE came from trimmed bins
+  while the other three came from untrimmed rows. The filter itself moved into
+  the shared `eval/support_filter.py`, which `new_figures/` also imports, and the
+  regenerated aggregates agree with the independently written figure code to all
+  printed digits (experiment D, Energy-OOD: RMSE 58.689 meV/atom, TU AUSE
+  0.143451, TU ENCE 3.071831, TU Spearman 0.640044).
+  The Energy-OOD tables change substantially, as expected: experiment D's
+  five-split OOD RMSE goes from 10.00 +/- 16.09 eV/atom, dominated by a few
+  out-of-support geometries, to 0.0587 +/- 0.0040 eV/atom, and its TU AUSE from
+  0.044 to 0.143. System-split numbers move only slightly (experiment B OOD TU
+  ENCE 0.313 -> 0.324), since the filter removes nothing there and only the trim
+  was dropped.
+- **MVE variance in the unused `MACE` class.** It treated the head output as a
+  log-variance, summed log-variances over atoms (a product of per-atom variances)
+  and gave each deterministic contribution `exp(0) = 1`, a constant variance floor
+  of about 3 energy units squared. It now matches `ScaleShiftMACE`: softplus
+  per-atom variances, summed over atoms, deterministic terms exactly zero.
+  Verified by running both classes on identical weights and inputs: identical
+  `energy_var`, equal to the sum of the per-atom variances. No trained model was
+  affected, since every experiment config builds `ScaleShiftMACE`.
+- **AL aggregate overwrite hazard.** `five_splits.py` now refuses to replace a
+  support-filtered aggregate with a raw one, naming the command to refresh it;
+  `--overwrite-filtered` is the deliberate escape hatch.
 
 [![GitHub release](https://img.shields.io/github/release/ACEsuit/mace.svg)](https://GitHub.com/ACEsuit/mace/releases/)
 [![Paper](https://img.shields.io/badge/Paper-NeurIPs2022-blue)](https://openreview.net/forum?id=YPpSngE-ZU)

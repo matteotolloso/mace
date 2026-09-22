@@ -5,7 +5,7 @@ Rebuilt versions of the main-text Figs. 2–6 of `_Nips26__UQ_MF-3.pdf`, followi
 
 ```bash
 conda activate mace
-python -B new_figures/build_geometry_cache.py          # once, CPU, ~5 min
+python -B eval/support_filter.py --build               # once, CPU, ~5 min
 python -B new_figures/run_epoch_predictions.py 0 2     # once, GPU 0, ~3.5 h (Figs. 3, 5 only)
 bash new_figures/make_all.sh                           # all figures, CPU, ~1 min
 ```
@@ -43,7 +43,11 @@ all printed digits). The new figures use all five splits.
   Fig. 17: calibrated LF→HF Energy-OOD RMSE 1.70 eV/atom, ENCE ≈ 4700).
   - Energy split: removes 13–16 of 5000 Energy-OOD and 0–2 Energy-ID configurations.
   - System split: removes nothing (its DFT training data covers compressed geometries).
-  - It is the same rule as `active_learning/ani_energy/support_filter.py` (Fig. 6).
+  - The rule lives in `eval/support_filter.py` and is shared with
+    `eval/aggregate_replicates.py`, so the repo's aggregate tables and these
+    figures now agree to all printed digits (checked on experiment D, Energy-OOD).
+    `active_learning/ani_energy/support_filter.py` applies the same rule to the
+    AL runs (Fig. 6).
 - Because of both changes, **numbers differ from the current paper text**, mostly
   in the system split (e.g. System-ID LF→HF RMSE 16.0 instead of 10.0 meV/atom,
   since the trim also removed legitimate hard configurations there).
@@ -110,9 +114,9 @@ Energy-ID HF-only 15.06, LF→HF 7.42.
 
 | File | Role |
 |---|---|
-| `common.py` | paths, support filter, metric recomputation, statistics, palette, style |
+| `common.py` | paths, metric recomputation, statistics, palette, style (filter from `eval/support_filter.py`) |
 | `epoch_data.py` | per-epoch metrics (cached CSVs for system, new predictions for energy) |
-| `build_geometry_cache.py` | min interatomic distance and energy quantile for every ANI file |
+| `build_geometry_cache.py` | wrapper for `eval/support_filter.py --build` (cache in `eval/cache/geometry/`) |
 | `epoch_predictions.py`, `run_epoch_predictions.py` | per-configuration per-epoch inference (GPU) |
 | `fig2_*.py` … `fig6_*.py` | one script per figure |
 

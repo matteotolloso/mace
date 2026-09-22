@@ -369,11 +369,15 @@ class MACE(torch.nn.Module):
         node_energies_list = [node_e0, pair_node_energy]
         
         ### MVE ###
-        eps = 1e-16
-        # log-variance contributions; deterministic terms start at 0
-        energies_logvar = [torch.zeros_like(e0), torch.zeros_like(pair_energy)]
-        node_energies_logvar_list = [torch.zeros_like(node_e0), torch.zeros_like(pair_node_energy)]
-        # optional: store which readout is the last (where we output mean+logvar)
+        eps = 1e-12
+        # Per-atom variance contributions, as in ScaleShiftMACE: deterministic
+        # terms contribute exactly zero variance, and the configuration variance
+        # is the sum of the per-atom variances (variance of a sum of independent
+        # contributions). Do not accumulate log-variances here: summing those
+        # would multiply the per-atom variances instead of adding them, and a
+        # zero log-variance would mean a variance of one, not zero.
+        node_energies_var_list = [torch.zeros_like(node_e0), torch.zeros_like(pair_node_energy)]
+        # the last readout is the one that outputs mean and raw variance
         last_readout_idx = len(self.readouts) - 1
         ### /MVE ###
         
@@ -416,19 +420,19 @@ class MACE(torch.nn.Module):
                 raw = raw.view(raw.shape[0], n_heads, 2)
 
                 node_es_mean = raw[:, :, 0][num_atoms_arange, node_heads]
-                node_es_logvar = raw[:, :, 1][num_atoms_arange, node_heads]
+                node_es_var_raw = raw[:, :, 1][num_atoms_arange, node_heads]
+                # Softplus keeps the variance positive without the extreme growth of exp.
+                node_es_var = torch.nn.functional.softplus(node_es_var_raw) + eps
             else:
                 node_es_mean = raw[num_atoms_arange, node_heads]
-                node_es_logvar = torch.zeros_like(node_es_mean)
+                node_es_var = torch.zeros_like(node_es_mean)
 
             energy_mean = scatter_sum(node_es_mean, data["batch"], dim=0, dim_size=num_graphs)
-            energy_logvar = scatter_sum(node_es_logvar, data["batch"], dim=0, dim_size=num_graphs)
 
             energies.append(energy_mean)
             node_energies_list.append(node_es_mean)
 
-            energies_logvar.append(energy_logvar)
-            node_energies_logvar_list.append(node_es_logvar)
+            node_energies_var_list.append(node_es_var)
             ### /MVE ###
 
         contributions = torch.stack(energies, dim=-1)
@@ -437,19 +441,15 @@ class MACE(torch.nn.Module):
         node_feats_out = torch.cat(node_feats_concat, dim=-1)
         
         ### MVE ###
-        # Total logvar: sum variances then log
+        # Sum the per-atom variances, then aggregate to the configuration.
         if self.predict_mve:
-            # graph-level
-            contributions_logvar = torch.stack(energies_logvar, dim=-1)            # [n_graphs, ..., n_contrib]
-            total_var = torch.sum(torch.exp(contributions_logvar), dim=-1)         # [n_graphs, ...]
-            total_logvar = torch.log(total_var + eps)                              # [n_graphs, ...]
-
-            # node-level
-            node_contrib_logvar = torch.stack(node_energies_logvar_list, dim=-1)   # [n_atoms, n_contrib]
-            node_var = torch.sum(torch.exp(node_contrib_logvar), dim=-1)           # [n_atoms]
-            node_logvar = torch.log(node_var + eps)                                # [n_atoms]
+            node_var = torch.sum(torch.stack(node_energies_var_list, dim=-1), dim=-1)  # [n_atoms]
+            total_var = scatter_sum(node_var, data["batch"], dim=0, dim_size=num_graphs)  # [n_graphs]
+            total_logvar = torch.log(total_var + eps)
+            node_logvar = torch.log(node_var + eps)
         else:
-            contributions_logvar = None
+            total_var = None
+            node_var = None
             total_logvar = None
             node_logvar = None
         ### /MVE ###
@@ -501,11 +501,10 @@ class MACE(torch.nn.Module):
                 {
                     "energy_mean": total_energy,
                     "energy_logvar": total_logvar,
-                    "energy_var": torch.exp(total_logvar),
+                    "energy_var": total_var,
                     "node_energy_mean": node_energy,
                     "node_energy_logvar": node_logvar,
-                    "node_energy_var": torch.exp(node_logvar),
-                    "contributions_logvar": contributions_logvar,
+                    "node_energy_var": node_var,
                 }
             )
         ### /MVE ###

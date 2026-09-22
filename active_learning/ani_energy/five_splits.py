@@ -109,7 +109,8 @@ def aggregate(reports, settings, common_evaluator=False):
             for (regime, test, metric), values in sorted(groups.items())]
 
 
-def write_report(destination, rows, inputs, settings, evaluation_exclusions=()):
+def write_report(destination, rows, inputs, settings, evaluation_exclusions=(),
+                 overwrite_filtered=False):
     destination.mkdir(parents=True, exist_ok=True)
     with (destination / ".lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
@@ -120,6 +121,16 @@ def write_report(destination, rows, inputs, settings, evaluation_exclusions=()):
                 verify_inventory(cached["artifacts"])
                 print(f"Using cached aggregate: {summary_path}", flush=True)
                 return
+            cached_inputs = cached.get("inputs") or {}
+            if (not overwrite_filtered
+                    and "support_filter" in cached_inputs
+                    and "support_filter" not in (inputs or {})):
+                raise SystemExit(
+                    f"Refusing to overwrite support-filtered results in {destination} with a raw "
+                    f"aggregate.\nRerun 'python -B active_learning/ani_energy/support_filter.py "
+                    f"--output {destination.name}' to refresh them, or pass --overwrite-filtered "
+                    f"to replace them with unfiltered numbers."
+                )
         fields = [key for key in rows[0] if key != "split_values"]
         buffer = io.StringIO()
         writer = csv.DictWriter(buffer, fieldnames=[*fields, *(f"split_{s}" for s in range(5))])
@@ -166,6 +177,8 @@ def main():
                         help="Optional isolated batch suffix; default: no suffix")
     parser.add_argument("--common-evaluator", action="store_true")
     parser.add_argument("--aggregate-only", action="store_true", help="Never launch training/evaluation")
+    parser.add_argument("--overwrite-filtered", action="store_true",
+                        help="Allow a raw aggregate to replace support-filtered results in the output directory")
     parser.add_argument("--wait", action="store_true", help="Wait for five reports; requires --aggregate-only")
     parser.add_argument("--poll-seconds", type=float, default=60)
     args = parser.parse_args()
@@ -233,7 +246,8 @@ def main():
         output = output / "common_evaluator"
     exclusions = [dict(item, split_seed=split) for split, report in enumerate(reports)
                   for item in report.get("evaluation_exclusions", [])]
-    write_report(output, rows, inputs, settings, exclusions)
+    write_report(output, rows, inputs, settings, exclusions,
+                 overwrite_filtered=args.overwrite_filtered)
     subprocess.run([sys.executable, "-B", str(HERE / "plot_results.py"),
                     "--summary", str(output / "summary_ci95.json")], check=True)
 

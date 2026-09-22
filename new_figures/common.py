@@ -16,9 +16,10 @@ reads geometry only, never predictions or uncertainties. It removes 13-16 of 500
 Energy-OOD configurations per split and essentially nothing elsewhere (the system
 split's training data already covers compressed geometries).
 
-This replaces the 0.5% total-variance trim used for the paper's current tables,
-which removed the highest-*uncertainty* configurations and therefore acted on the
-very quantity being evaluated.
+The rule is implemented once, in eval/support_filter.py, and is shared with the
+main aggregation step. It replaces the 0.5% total-variance trim that the paper's
+current tables used, which removed the highest-*uncertainty* configurations and
+therefore acted on the very quantity being evaluated.
 """
 
 from __future__ import annotations
@@ -36,13 +37,15 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 OUT = HERE / "out"
-GEOMETRY = HERE / "_cache" / "geometry"
 EPOCHS = HERE / "_cache" / "epochs"
 sys.path.insert(0, str(ROOT / "eval"))
 logging.disable(logging.CRITICAL)
 
 from reliability import (  # noqa: E402
     build_binned_rows, compute_ause, compute_ence_summary, compute_spearman_summary,
+)
+from support_filter import (  # noqa: E402  (shared with eval/aggregate_replicates.py)
+    GEOMETRY_CACHE as GEOMETRY, geometry, support_bound, supported, test_file,
 )
 
 SPLITS = range(5)
@@ -113,28 +116,8 @@ def ci(values):
     return statistics.mean(values), T95_DF4 * statistics.stdev(values) / math.sqrt(5)
 
 
-# ------------------------------------------------------------------ support filter
-
-@lru_cache(None)
-def geometry(kind, split, name):
-    return dict(np.load(GEOMETRY / f"{kind}_{split}_{name}.npz"))
-
-
-@lru_cache(None)
-def support_bound(kind, split):
-    return min(float(geometry(kind, split, f)["dmin"].min())
-               for f in ("cc_train", "cc_val", "dft_train", "dft_val"))
-
-
-def supported(kind, split, name):
-    """Boolean mask over the file's configurations: inside the training support."""
-    return geometry(kind, split, name)["dmin"] >= support_bound(kind, split)
-
-
-def test_file(experiment, test):
-    """LF-only models are evaluated on DFT labels, the others on CC labels."""
-    return f"{'dft' if experiment in 'AC' else 'cc'}_test_{test}"
-
+# The support filter, the geometry cache and test_file() live in
+# eval/support_filter.py, which eval/aggregate_replicates.py uses as well.
 
 # ------------------------------------------------------------- final-model metrics
 

@@ -50,7 +50,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/reliability.py \
   --selection-key loss \
   --selection-mode min \
   --num-bins 15 \
-  --trim 0.005 \
+  --trim 0.0 \
   --isotonic-calibration True \
   --output-csv-raw experiment_B/evaluation/cache/split_${split_seed}/reliability_id_cal_raw.csv \
   --output-csv-bins experiment_B/evaluation/cache/split_${split_seed}/reliability_id_cal_bins.csv \
@@ -72,7 +72,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/reliability.py \
   --selection-key loss \
   --selection-mode min \
   --num-bins 15 \
-  --trim 0.005 \
+  --trim 0.0 \
   --isotonic-calibration False \
   --output-csv-raw experiment_B/evaluation/cache/split_${split_seed}/reliability_id_nocal_raw.csv \
   --output-csv-bins experiment_B/evaluation/cache/split_${split_seed}/reliability_id_nocal_bins.csv \
@@ -97,7 +97,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/reliability.py \
   --selection-key loss \
   --selection-mode min \
   --num-bins 15 \
-  --trim 0.005 \
+  --trim 0.0 \
   --isotonic-calibration True \
   --output-csv-raw experiment_B/evaluation/cache/split_${split_seed}/reliability_ood_cal_raw.csv \
   --output-csv-bins experiment_B/evaluation/cache/split_${split_seed}/reliability_ood_cal_bins.csv \
@@ -119,7 +119,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/reliability.py \
   --selection-key loss \
   --selection-mode min \
   --num-bins 15 \
-  --trim 0.005 \
+  --trim 0.0 \
   --isotonic-calibration False \
   --output-csv-raw experiment_B/evaluation/cache/split_${split_seed}/reliability_ood_nocal_raw.csv \
   --output-csv-bins experiment_B/evaluation/cache/split_${split_seed}/reliability_ood_nocal_bins.csv \
@@ -264,7 +264,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/finetune.py \
   --selection-key-finetune loss \
   --selection-mode-pretrain min \
   --selection-mode-finetune min \
-  --trim 0.005 \
+  --trim 0.0 \
   --device cuda \
   --batch-size 256 \
   --output-csv experiment_B/evaluation/cache/split_${split_seed}/finetune.csv \
@@ -281,7 +281,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/distribution.py \
   --energy-key "ccsd(t)_cbs.energy" \
   --selection-key loss \
   --selection-mode min \
-  --trim 0.005 \
+  --trim 0.0 \
   --device cuda \
   --batch-size 256 \
   --output-csv experiment_B/evaluation/cache/split_${split_seed}/distribution_id.csv \
@@ -295,7 +295,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/distribution.py \
   --energy-key "ccsd(t)_cbs.energy" \
   --selection-key loss \
   --selection-mode min \
-  --trim 0.005 \
+  --trim 0.0 \
   --device cuda \
   --batch-size 256 \
   --output-csv experiment_B/evaluation/cache/split_${split_seed}/distribution_ood.csv \
@@ -309,7 +309,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python eval/distribution.py \
   --energy-key "ccsd(t)_cbs.energy" \
   --selection-key loss \
   --selection-mode min \
-  --trim 0.005 \
+  --trim 0.0 \
   --device cuda \
   --batch-size 256 \
   --output-csv experiment_B/evaluation/cache/split_${split_seed}/distribution_train.csv \
