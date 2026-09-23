@@ -116,6 +116,34 @@ def ci(values):
     return statistics.mean(values), T95_DF4 * statistics.stdev(values) / math.sqrt(5)
 
 
+def interval(values, log=False):
+    """(center, low, high) over the five splits.
+
+    Linear: arithmetic mean with a 95% Student-t interval. Log (for strictly
+    positive quantities on log axes): geometric mean with the interval computed in
+    log space and back-transformed, so both bounds stay positive.
+    """
+    if log:
+        m, h = ci([math.log(v) for v in values])
+        return math.exp(m), math.exp(m - h), math.exp(m + h)
+    m, h = ci(values)
+    return m, m - h, m + h
+
+
+def legend_handles(protocol_marker=True):
+    """Legend entries for the protocol colours and the signal marker shapes."""
+    from matplotlib.lines import Line2D
+
+    if protocol_marker:
+        handles = [Line2D([], [], color=PROTOCOL_COLOR[p], marker="o", ls="", ms=4.5, label=p)
+                   for p in PROTOCOLS]
+    else:
+        handles = [Line2D([], [], color=PROTOCOL_COLOR[p], lw=1.5, label=p) for p in PROTOCOLS]
+    handles += [Line2D([], [], color=MUTED, marker=SIGNAL_MARKER[s], ls="", ms=4, label=s)
+                for s in SIGNALS]
+    return handles
+
+
 # The support filter, the geometry cache and test_file() live in
 # eval/support_filter.py, which eval/aggregate_replicates.py uses as well.
 

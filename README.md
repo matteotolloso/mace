@@ -36,17 +36,42 @@ All project commands below are intended to be run from the repository root.
 The project-specific files are organized as follows:
 
 ```text
+CLAUDE.md, .claude/               Agent instructions: rules/ (reproducibility, statistics,
+                                  code changes, paper writing, AL) and skills/
+mace/                             MACE package with the MVE head and Gaussian NLL
 dataset/                          Dataset generation and converted data
-experiment_A/ ... experiment_F/   ANI-1x experiments
+experiment_A/ ... experiment_F/   ANI-1x experiments (configs, launchers, runs, evaluation)
 experiment_wA/ ... experiment_wC/ Water experiments
-eval/                             Evaluation, plotting, and aggregation programs
+eval/                             Evaluation, plotting, aggregation, support filter
 active_learning/ani_energy/       Isolated ANI energy-OOD active-learning POC
 new_figures/                      Rebuilt paper figures (support-filtered, 5 splits)
 utils/train_split_member.sh       Shared single-member training launcher
 check_experiments.sh              Training-completeness checker
 eval.sh                           ANI-1x evaluation launcher
 eval_water.sh                     Water evaluation launcher
+experiments/                      Index of experiment locations; ad-hoc launch scripts
+results/results.md                Research ledger: the only source for citable results
+results/tables/, results/figures/ Curated tables and figures that back a claim
+notes/                            Research notes and the previous NeurIPS manuscript
+ICLR27-UQ-MF/                     Overleaf-synced manuscript (separate Git repository)
 ```
+
+`experiment_X/` and the code directories stay at the root because the launchers
+resolve the repository root from their own location and every cache uses fixed
+relative paths; `experiments/README.md` maps each piece.
+
+The manuscript lives in its own repository,
+`https://github.com/matteotolloso/-ICLR27-UQ-MF.git`, which Overleaf syncs through
+GitHub. It is cloned inside this project as `ICLR27-UQ-MF/` and ignored by this
+repository's Git; commit and push paper changes from inside that folder:
+
+```bash
+git clone https://github.com/matteotolloso/-ICLR27-UQ-MF.git ICLR27-UQ-MF   # once
+git -C ICLR27-UQ-MF pull --ff-only                                          # update
+```
+
+Every citable number must be recorded in `results/results.md` with its commit,
+command, configuration, dataset split, seeds, metrics and output paths.
 
 Each experiment directory contains:
 
@@ -441,6 +466,10 @@ TU-based selection to the AU and EU rows as well. The per-split
 `reliability_*_bins.csv` caches and their SVGs remain unfiltered per-split
 diagnostics; the aggregate is the reportable artifact. The water eval scripts
 still pass `--trim 0.005`, since those experiments are out of scope for now.
+
+What every figure in `experiment_X/evaluation/` shows, and which ones can back a
+paper claim, is catalogued in
+[`experiments/evaluation_figures.md`](experiments/evaluation_figures.md).
 
 Evaluation programs live in [`eval/`](eval) and include:
 

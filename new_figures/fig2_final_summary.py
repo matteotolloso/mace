@@ -2,38 +2,30 @@
 """Fig. 2 - Final-model summary (Finding 1).
 
 Horizontal dot plot. Rows: System-ID, System-OOD, Energy-ID, Energy-OOD.
-Columns: Spearman (up), AUSE (down), ENCE (down, log x), RMSE (down, log x).
+Columns (panels a-c): RMSE (down, log x), AUSE (down), ENCE (down, log x).
+Spearman is not drawn: it tells the same ranking story as AUSE; the paper quotes
+it in the text (see paper_numbers.py).
 Color = training protocol, marker = uncertainty signal. Points are five-split
 means with 95% Student-t intervals; log-scaled columns use geometric means with
 log-space intervals so bounds stay positive. LF-only is omitted: it is evaluated
 on DFT labels and is not comparable with the two CC-trained protocols.
 """
 
-import math
-
 import numpy as np
 
 from common import (
-    EXPERIMENT, INK, MUTED, PROTOCOL_COLOR, PROTOCOLS, SIGNAL_MARKER, SIGNALS, TESTS,
-    ci, final_metrics, panel_label, save, style,
+    EXPERIMENT, INK, PROTOCOL_COLOR, PROTOCOLS, SIGNAL_MARKER, SIGNALS, TESTS,
+    final_metrics, interval, legend_handles, panel_label, save, style,
 )
 
-COLUMNS = (("Spearman", "Spearman ρ  ↑", False), ("AUSE", "AUSE  ↓", False),
-           ("ENCE", "ENCE  ↓", True), ("RMSE", "RMSE (meV/atom)  ↓", True))
-
-
-def summary(values, log):
-    if log:
-        m, h = ci([math.log(v) for v in values])
-        return math.exp(m), math.exp(m - h), math.exp(m + h)
-    m, h = ci(values)
-    return m, m - h, m + h
+COLUMNS = (("RMSE", "RMSE (meV/atom)  ↓", True), ("AUSE", "AUSE  ↓", False),
+           ("ENCE", "ENCE  ↓", True))
 
 
 def main():
     plt = style()
-    fig, axes = plt.subplots(1, 4, figsize=(7.0, 2.9), sharey=True,
-                             gridspec_kw={"width_ratios": [1, 1, 1.15, 0.9], "wspace": 0.12})
+    fig, axes = plt.subplots(1, 3, figsize=(7.0, 2.9), sharey=True,
+                             gridspec_kw={"width_ratios": [0.95, 1, 1.2], "wspace": 0.12})
     # y layout: each test set is a band; inside it, one slot per protocol x signal.
     slot = {}
     band_centers = []
@@ -59,13 +51,13 @@ def main():
                 if metric == "RMSE":
                     ys = [slot[(label, p, s)] for s in SIGNALS]
                     y0 = float(np.mean(ys))
-                    c, lo, hi = summary([m["RMSE"] for m in per_split], log)
+                    c, lo, hi = interval([m["RMSE"] for m in per_split], log)
                     ax.errorbar(c, y0, xerr=[[c - lo], [hi - c]], fmt="o", ms=4.2,
                                 color=PROTOCOL_COLOR[p], mec="white", mew=0.5,
                                 elinewidth=1.0, capsize=0, zorder=3)
                     continue
                 for s in SIGNALS:
-                    c, lo, hi = summary([m[(metric, s)] for m in per_split], log)
+                    c, lo, hi = interval([m[(metric, s)] for m in per_split], log)
                     ax.errorbar(c, slot[(label, p, s)], xerr=[[c - lo], [hi - c]],
                                 fmt=SIGNAL_MARKER[s], ms=3.6, color=PROTOCOL_COLOR[p],
                                 mec="white", mew=0.5, elinewidth=1.0, capsize=0, zorder=3)
@@ -79,20 +71,15 @@ def main():
                        fontsize=7.4)
     axes[0].set_ylim(band_centers[-1][3] - 0.1, band_centers[0][2] + 0.1)
     from matplotlib.ticker import FixedLocator, FuncFormatter, NullLocator
-    for ax, ticks in ((axes[2], [0.2, 0.5, 1, 2, 5, 10]), (axes[3], [5, 10, 20, 50, 100])):
+    for ax, ticks in ((axes[2], [0.2, 0.5, 1, 2, 5, 10]), (axes[0], [5, 10, 20, 50, 100])):
         ax.xaxis.set_major_locator(FixedLocator(ticks))
         ax.xaxis.set_minor_locator(NullLocator())
         ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}"))
-    axes[3].set_xlim(4.5, 110)
-    for ax, letter in zip(axes, "abcd"):
+    axes[0].set_xlim(4.5, 110)
+    for ax, letter in zip(axes, "abc"):
         panel_label(ax, letter, x=0.0, y=1.075)
 
-    from matplotlib.lines import Line2D
-    handles = [Line2D([], [], color=PROTOCOL_COLOR[p], marker="o", ls="", ms=4.5, label=p)
-               for p in PROTOCOLS]
-    handles += [Line2D([], [], color=MUTED, marker=SIGNAL_MARKER[s], ls="", ms=4, label=s)
-                for s in SIGNALS]
-    fig.legend(handles=handles, loc="upper center", ncol=5, bbox_to_anchor=(0.52, 1.07),
+    fig.legend(handles=legend_handles(), loc="upper center", ncol=5, bbox_to_anchor=(0.52, 1.07),
                handletextpad=0.3, columnspacing=1.3)
     save(fig, "fig2_final_summary")
 

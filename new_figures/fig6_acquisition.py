@@ -4,14 +4,16 @@
 (a) RMSE gain over random acquisition (meV/atom) on held-out Energy-OOD, for each
     protocol and signal: five-split mean with 95% Student-t interval, grey dots
     for the individual splits (paired within each split).
-(b) The same on Energy-ID (narrow panel).
-(c) Within-system energy quantile q_s(x) of the 500 configurations each strategy
+(b) Within-system energy quantile q_s(x) of the 500 configurations each strategy
     selected, pooled over the five splits; one row per protocol. Random is shared
     between protocols.
 
+The Energy-ID gains that used to be panel (b) are now the appendix figure
+figA_acquisition_id.py, which reuses gain_rows() and gains() from this file.
+
 Data: runs/aggregate_epochs_50/summary_ci95.json, which is support-filtered by
 active_learning/ani_energy/support_filter.py, and the per-split selection.json
-files. The highest-DFT-energy baseline described in new_figures.md needs new
+files. The highest-DFT-energy baseline described in notes/new_figures.md needs new
 training runs and is not included.
 """
 
@@ -77,12 +79,11 @@ def gains(ax, rows, test):
 def main():
     plt = style()
     rows = gain_rows()
-    fig = plt.figure(figsize=(7.0, 2.45))
-    grid = fig.add_gridspec(2, 3, width_ratios=[1.35, 0.95, 1.25], wspace=0.34, hspace=0.18)
+    fig = plt.figure(figsize=(6.2, 2.45))
+    grid = fig.add_gridspec(2, 2, width_ratios=[1.3, 1.2], wspace=0.3, hspace=0.18)
     ax_ood = fig.add_subplot(grid[:, 0])
-    ax_id = fig.add_subplot(grid[:, 1])
-    ax_q = [fig.add_subplot(grid[0, 2])]
-    ax_q.append(fig.add_subplot(grid[1, 2], sharex=ax_q[0], sharey=ax_q[0]))
+    ax_q = [fig.add_subplot(grid[0, 1])]
+    ax_q.append(fig.add_subplot(grid[1, 1], sharex=ax_q[0], sharey=ax_q[0]))
 
     gains(ax_ood, rows, "energy_ood")
     ax_ood.set_ylabel("RMSE gain over random (meV/atom)")
@@ -91,13 +92,6 @@ def main():
     ax_ood.text(0.02, 0.97, "favours uncertainty ↑", transform=ax_ood.transAxes, fontsize=6,
                 color=MUTED, va="top", style="italic")
     panel_label(ax_ood, "a", x=-0.02, y=1.03)
-
-    gains(ax_id, rows, "energy_id")
-    ax_id.set_title("Energy-ID", loc="left", pad=3)
-    ax_id.set_ylim(-0.9, 0.3)
-    ax_id.text(0.03, 0.03, "favours random ↓", transform=ax_id.transAxes, fontsize=6,
-               color=MUTED, va="bottom", style="italic")
-    panel_label(ax_id, "b", x=-0.02, y=1.03)
 
     bins = np.linspace(0.55, 1.0, 10)
     random_q = selected_quantiles("random")
@@ -121,9 +115,9 @@ def main():
     ax_q[0].set_title("Selected configurations", loc="left", pad=3)
     ax_q[0].set_xlim(0.55, 1.0)
     handles, labels = ax_q[0].get_legend_handles_labels()
-    ax_q[0].legend(handles, labels, loc="upper left", bbox_to_anchor=(0.0, 0.82), fontsize=6,
-                   handlelength=1.4, borderaxespad=0.2)
-    panel_label(ax_q[0], "c", x=-0.02, y=1.06)
+    ax_q[0].legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 1.0), ncol=2,
+                   fontsize=6, handlelength=1.4, borderaxespad=0.2, columnspacing=1.0)
+    panel_label(ax_q[0], "b", x=-0.02, y=1.06)
     save(fig, "fig6_acquisition")
 
 

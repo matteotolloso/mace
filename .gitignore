@@ -33,8 +33,29 @@ dist/
 *.xyz
 /checkpoints
 *.model
-/results
+# MACE's default results_dir is ./results; keep its outputs out of Git, but track
+# the research ledger and the curated tables/figures that back paper claims.
+/results/*
+!/results/results.md
+!/results/tables/
+!/results/figures/
 *.db
 
 .benchmarks
 # *.png
+
+# Overleaf-synchronized paper: an independent Git repository with its own remote.
+/ICLR27-UQ-MF/
+
+# Local environments and per-user tool settings
+.venv/
+venv/
+.claude/settings.local.json
+
+# LaTeX build products (for drafts compiled inside this repo, e.g. new_figures/)
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.synctex.gz
