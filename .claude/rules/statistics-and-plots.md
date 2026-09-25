@@ -34,5 +34,5 @@ Verify statistics or plotting changes with:
 
 ```bash
 cd eval && MPLCONFIGDIR=/tmp/mpl-cache \
-  /raid/m.tolloso/miniconda3/envs/mace/bin/python -B -m unittest -v test_plotting
+  $CONDA_PREFIX/bin/python -B -m unittest -v test_plotting
 ```

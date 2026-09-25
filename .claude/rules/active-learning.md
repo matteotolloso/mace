@@ -38,8 +38,8 @@ control and leakage safeguards.
 Verify AL changes with:
 
 ```bash
-/raid/m.tolloso/miniconda3/envs/mace/bin/python -B active_learning/ani_energy/test_workflow.py
-/raid/m.tolloso/miniconda3/envs/mace/bin/python -B active_learning/ani_energy/test_five_splits.py
-/raid/m.tolloso/miniconda3/envs/mace/bin/python -B active_learning/ani_energy/test_reporting.py
+$CONDA_PREFIX/bin/python -B active_learning/ani_energy/test_workflow.py
+$CONDA_PREFIX/bin/python -B active_learning/ani_energy/test_five_splits.py
+$CONDA_PREFIX/bin/python -B active_learning/ani_energy/test_reporting.py
 bash -n active_learning/ani_energy/run.sh active_learning/ani_energy/run_all.sh
 ```

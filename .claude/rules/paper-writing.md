@@ -3,7 +3,7 @@
 ## Where the paper lives
 
 - `ICLR27-UQ-MF/` is an **independent Git repository**
-  (`origin` = `https://github.com/matteotolloso/-ICLR27-UQ-MF.git`) that Overleaf
+  (`origin` = `<paper-repository-url>`) that Overleaf
   syncs through GitHub. The parent repository ignores it (`/ICLR27-UQ-MF/` in
   `.gitignore`); commit and push paper changes from inside that folder.
 - Main file: `iclr2027_conference.tex` (ICLR 2027 template). It inputs
@@ -84,5 +84,5 @@ editing methods, equations, captions or reproducibility claims:
    support filter and no `--trim`; figures and tables made before that change
    use split 0 and the total-variance trim. Check which version a figure came
    from before updating a claim.
-5. Water results are single-split, and the water BLYP/CCSDT splits are not
-   aligned (see "Audit notes and known issues" in `README.md`).
+5. Water results now cover five splits (older water figures are split 0 only), and
+   the water BLYP/CCSDT splits are not aligned (see "Audit notes and known issues" in `README.md`).

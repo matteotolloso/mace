@@ -16,7 +16,7 @@ def main():
     plt = style()
     fig, ax = plt.subplots(figsize=(3.2, 2.35))
     gains(ax, gain_rows(), "energy_id")
-    ax.set_ylabel("RMSE gain over random (meV/atom)")
+    ax.set_ylabel("RMSE gain over random (meV/atom)  →")  # rotated label: "→" renders as an upward arrow
     ax.set_title("Energy-ID", loc="left", pad=3)
     ax.set_ylim(-0.9, 0.3)
     ax.text(0.03, 0.03, "favours random ↓", transform=ax.transAxes, fontsize=6,

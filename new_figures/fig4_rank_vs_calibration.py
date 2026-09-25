@@ -4,6 +4,8 @@
 ENCE (log x) vs AUSE plane: (a) system shift, (b) energy shift. Every signal
 (AU, EU, TU) is drawn the same way: a hollow marker at its ID position, a filled
 marker at its OOD position, joined by a thin line. Lower-left is better on both.
+TU is drawn at full strength and AU/EU faded (CAL_ALPHA): only TU is expected to
+be calibrated.
 The isotonic-recalibration dumbbells that used to be panel (b) are now the
 appendix figure figA_recalibration.py.
 
@@ -14,7 +16,7 @@ filter (see common.py). """
 import numpy as np
 
 from common import (
-    EXPERIMENT, MUTED, PROTOCOL_COLOR, PROTOCOLS, SIGNAL_MARKER, SIGNALS, final_metrics,
+    CAL_ALPHA, EXPERIMENT, MUTED, PROTOCOL_COLOR, PROTOCOLS, SIGNAL_MARKER, SIGNALS, final_metrics,
     interval, legend_handles, panel_label, save, style,
 )
 
@@ -40,15 +42,18 @@ def main():
             color = PROTOCOL_COLOR[p]
             for s in SIGNALS:
                 (x0, y0), (x1, y1) = point(kind, p, "id", s), point(kind, p, "ood", s)
-                ax.plot([x0, x1], [y0, y1], color=color, lw=0.8, alpha=0.5, zorder=2)
-                ax.plot([x0], [y0], SIGNAL_MARKER[s], ms=4.0, mfc="white", mec=color, mew=0.9,
-                        zorder=3)
-                ax.plot([x1], [y1], SIGNAL_MARKER[s], ms=4.0, color=color, mec=color, mew=0.9,
-                        zorder=3)
+                fade, ms = CAL_ALPHA[s], 4.8 if s == "TU" else 3.8
+                z = 4 if s == "TU" else 3
+                ax.plot([x0, x1], [y0, y1], color=color, lw=1.1 if s == "TU" else 0.7,
+                        alpha=0.7 * fade, zorder=z - 1)
+                ax.plot([x0], [y0], SIGNAL_MARKER[s], ms=ms, mfc="white", mec=color, mew=0.9,
+                        alpha=fade, zorder=z)
+                ax.plot([x1], [y1], SIGNAL_MARKER[s], ms=ms, color=color, mec=color, mew=0.9,
+                        alpha=fade, zorder=z)
         ax.set_title(title, loc="left", pad=11)
         ax.set_xscale("log")
-        ax.set_xlabel("ENCE  ↓ (calibration)")
-    plane[0].set_ylabel("AUSE, ranking (lower is better)")
+        ax.set_xlabel("ENCE  ← (calibration)")
+    plane[0].set_ylabel("AUSE  ← (ranking)")  # rotated label: "←" renders pointing down
     plt.setp(plane[1].get_yticklabels(), visible=False)
     plane[0].set_xlim(0.15, 25)
     plane[0].set_ylim(0.1, 0.42)

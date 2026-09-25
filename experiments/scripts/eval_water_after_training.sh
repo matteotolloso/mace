@@ -15,7 +15,7 @@ GPU_B=$3
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 LOG_DIR=experiments/runs/water
-ENV_BIN=/raid/m.tolloso/miniconda3/envs/mace/bin
+ENV_BIN=${ENV_BIN:-${CONDA_PREFIX:?activate the mace conda environment or set ENV_BIN}/bin}
 export PATH="$ENV_BIN:$PATH" MPLCONFIGDIR=/tmp/mpl-cache EVAL_PYTHON="$ENV_BIN/python"
 
 stamp() { date '+%Y-%m-%d %H:%M:%S'; }

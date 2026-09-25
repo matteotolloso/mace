@@ -4,7 +4,8 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 main_text="fig2_final_summary fig3_hf_dynamics fig4_rank_vs_calibration fig5_decomposition fig6_acquisition"
-appendix="figA_recalibration figA_eu_au_ratio figA_acquisition_id"
-for fig in $main_text $appendix; do
+appendix="figA_recalibration figA_eu_au_ratio figA_acquisition_id figA_reliability figA_dynamics figA_train_curves"  # figA_reliability and figA_dynamics write 4 figures each
+water="figW_final_summary figW_reliability figW_dynamics"  # not in the paper yet
+for fig in $main_text $appendix $water; do
   PYTHONDONTWRITEBYTECODE=1 python -B "$fig.py"
 done

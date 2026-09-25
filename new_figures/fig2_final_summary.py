@@ -2,7 +2,8 @@
 """Fig. 2 - Final-model summary (Finding 1).
 
 Horizontal dot plot. Rows: System-ID, System-OOD, Energy-ID, Energy-OOD.
-Columns (panels a-c): RMSE (down, log x), AUSE (down), ENCE (down, log x).
+Columns (panels a-c): RMSE (log x), AUSE, ENCE (log x); lower is better (arrow ←).
+In the ENCE panel TU is drawn at full strength and AU/EU faded (CAL_ALPHA).
 Spearman is not drawn: it tells the same ranking story as AUSE; the paper quotes
 it in the text (see paper_numbers.py).
 Color = training protocol, marker = uncertainty signal. Points are five-split
@@ -14,12 +15,13 @@ on DFT labels and is not comparable with the two CC-trained protocols.
 import numpy as np
 
 from common import (
+    CAL_ALPHA,
     EXPERIMENT, INK, PROTOCOL_COLOR, PROTOCOLS, SIGNAL_MARKER, SIGNALS, TESTS,
     final_metrics, interval, legend_handles, panel_label, save, style,
 )
 
-COLUMNS = (("RMSE", "RMSE (meV/atom)  ↓", True), ("AUSE", "AUSE  ↓", False),
-           ("ENCE", "ENCE  ↓", True))
+COLUMNS = (("RMSE", "RMSE (meV/atom)  ←", True), ("AUSE", "AUSE  ← (ranking)", False),
+           ("ENCE", "ENCE  ← (calibration)", True))
 
 
 def main():
@@ -59,7 +61,7 @@ def main():
                 for s in SIGNALS:
                     c, lo, hi = interval([m[(metric, s)] for m in per_split], log)
                     ax.errorbar(c, slot[(label, p, s)], xerr=[[c - lo], [hi - c]],
-                                fmt=SIGNAL_MARKER[s], ms=3.6, color=PROTOCOL_COLOR[p],
+                                fmt=SIGNAL_MARKER[s], alpha=CAL_ALPHA[s] if metric == "ENCE" else 1.0, ms=4.3 if metric == "ENCE" and s == "TU" else 3.6, color=PROTOCOL_COLOR[p],
                                 mec="white", mew=0.5, elinewidth=1.0, capsize=0, zorder=3)
         ax.set_title(title, loc="left", fontsize=7.8, color=INK, pad=4)
         if log:

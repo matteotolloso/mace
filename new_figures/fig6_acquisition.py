@@ -86,7 +86,7 @@ def main():
     ax_q.append(fig.add_subplot(grid[1, 1], sharex=ax_q[0], sharey=ax_q[0]))
 
     gains(ax_ood, rows, "energy_ood")
-    ax_ood.set_ylabel("RMSE gain over random (meV/atom)")
+    ax_ood.set_ylabel("RMSE gain over random (meV/atom)  →")  # rotated label: "→" renders as an upward arrow
     ax_ood.set_title("Held-out Energy-OOD", loc="left", pad=3)
     ax_ood.set_ylim(-0.3, 3.4)
     ax_ood.text(0.02, 0.97, "favours uncertainty ↑", transform=ax_ood.transAxes, fontsize=6,

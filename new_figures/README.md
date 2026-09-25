@@ -1,6 +1,6 @@
 # Paper figures (ICLR27)
 
-Main-text Figs. 2–6 and three appendix figures for the ICLR27 manuscript, rebuilt
+Main-text Figs. 2–6, three appendix figures and three periodic-water figures for the ICLR27 manuscript, rebuilt
 from the repository caches following `notes/new_figures.md`. Fig. 1 (pipeline
 drawing) is edited by hand and is not here. The paper chat copies the PDFs from
 `out/` into `ICLR27-UQ-MF/figures/`; nothing here writes into the paper repository.
@@ -25,6 +25,12 @@ TrueType fonts; scale them to `\linewidth` in LaTeX.
 | Appendix | `figA_recalibration` | ENCE before/after isotonic recalibration: (a) System-OOD, (b) Energy-OOD |
 | Appendix | `figA_eu_au_ratio` | (a) OOD EU/AU during LF→HF training, (b) final-model median EU/AU by energy quantile |
 | Appendix | `figA_acquisition_id` | Energy-ID gain over random (single panel) |
+| Appendix | `figA_reliability` → `figA_reliability_{system,energy}[_cal]` | RMSE vs RMV, 15 bins, AU/EU/TU; rows LF-only (DFT labels) / HF-only / LF→HF, columns ID / OOD; `_cal` after isotonic recalibration; corner text = geometric-mean ENCE |
+| Appendix | `figA_dynamics` → `figA_dynamics_{system,energy}_{hf,lfhf}` | per-epoch Spearman, AUSE, ENCE, mean AU/EU variance, RMSE, GNLL (rows) on train / ID / OOD (columns); HF-only (E, F) or LF→HF over pretraining + fine-tuning (A→B, C→D); Energy-OOD support-filtered |
+| Appendix | `figA_train_curves` | training vs validation loss and RMSE; rows system/energy × loss/RMSE, columns LF-only, HF-only, LF→HF fine-tuning |
+| Water (not in paper) | `figW_final_summary` | CCSDT test set, final models: (a) RMSE, (b) AUSE, (c) ENCE; HF-only (wC) vs LF→HF (wB) |
+| Water (not in paper) | `figW_reliability` | RMSE vs RMV reliability diagrams, 15 equal-count bins: (a) HF-only, (b) LF→HF |
+| Water (not in paper) | `figW_dynamics` | (a, b) AUSE/ENCE during the CCSDT stage, both protocols; LF→HF over BLYP pretraining + CCSDT fine-tuning on (c, d) train and (e, f) test |
 
 The appendix figures hold exactly the panels removed from the main text on
 2026-09-23 (old Fig. 4b, Figs. 5g–h, Fig. 6b); the numbers did not change. Fig. 2
@@ -138,6 +144,26 @@ Data: the support-filtered `active_learning/ani_energy/runs/aggregate_epochs_50/
 Caption values, random-500 RMSE (meV/atom): Energy-OOD HF-only 67.4, LF→HF 53.1;
 Energy-ID HF-only 15.06, LF→HF 7.42.
 
+**Water figures (`figW_*`).** Built from the five-split water caches (ledger entry
+"Periodic water, five-split final-model reliability"). One held-out test set per
+split (50 CCSDT configurations), no support filter, no trim. LF-only (wA) is left
+out of W1/W2 because it is scored on BLYP labels. Caveats: the BLYP and CCSDT
+splits are shuffled independently, which favours LF→HF; ~3 configurations per
+ENCE bin. The reliability diagrams show AU and TU at an almost constant RMV
+across bins (HF-only ≈ 10, LF→HF ≈ 5 meV/atom), i.e. little spread in AU across
+configurations, consistent with the near-zero AU/TU Spearman in the ledger.
+
+**Plotting conventions (2026-09-24).** Lower-is-better metrics on an x axis carry
+"←" (Figs. 2, 4, figA_recalibration, figW_final_summary); y-axis metrics carry a
+downward arrow or "(lower is better)". Matplotlib rotates y-label glyphs, so the
+code writes "←" to draw ↓ (and "→" to draw ↑) in rotated labels. In every
+calibration (ENCE) panel TU is drawn at full strength and AU/EU faded
+(`common.CAL_ALPHA`): the predictive variance is AU + EU, so TU is the signal that
+is expected to be calibrated. Ranking panels draw all three signals equally.
+Main-text order in the ICLR27 draft: Fig. 2 = `fig2_final_summary`, Fig. 3 =
+`fig4_rank_vs_calibration`, Fig. 4 = `fig5_decomposition`, Fig. 5 =
+`fig3_hf_dynamics`, Fig. 6 = `fig6_acquisition` (file names unchanged).
+
 ## Files
 
 | File | Role |
@@ -149,7 +175,8 @@ Energy-ID HF-only 15.06, LF→HF 7.42.
 | `fig2_*.py` … `fig6_*.py` | one script per main-text figure |
 | `figA_*.py` | one script per appendix figure; they import the drawing helpers of Figs. 5 and 6 |
 | `paper_numbers.py` | prints every number quoted in the paper (added by the paper chat) |
-| `make_all.sh` | regenerates all eight figures from the caches (CPU only) |
+| `water_data.py`, `figW_*.py` | periodic-water data access and figures (five splits, no support filter) |
+| `make_all.sh` | regenerates all twenty figures from the caches (CPU only) |
 
 Palettes were checked with the dataviz validator (CVD separation, normal-vision
 floor, chroma, contrast): protocol teal `#009099` / red `#c0443d`; AU `#2f6fc0`,

@@ -51,9 +51,9 @@ Same scripts with one `test` split instead of ID/OOD: `reliability_{train,test}_
 `epoch_quality_{train,test}`, `epoch_quality_finetune_mixed_{train,test}` (wB),
 `distribution_{train,test}`, `epoch_raw_train`, `train_curves`. Reliability plots use
 common log-log bounds `[1e-4, 1e-1]`. Water is not support-filtered and still passes
-`--trim 0.005` for the per-split diagnostics. As of 2026-09-23 the five-split water
-evaluation has not been produced yet (splits 1-4 are being trained), and the BLYP
-and CCSDT splits are not aligned (see "Audit notes and known issues" in `README.md`).
+`--trim 0.005` for the per-split diagnostics. The five-split water aggregates were produced on
+2026-09-23 (ledger entry in `results/results.md`; the aggregate uses every test
+configuration, not the trim), and the BLYP and CCSDT splits are not aligned (see "Audit notes and known issues" in `README.md`).
 
 ## Paper-styled replacements (`new_figures/out/`)
 
@@ -64,4 +64,9 @@ and CCSDT splits are not aligned (see "Audit notes and known issues" in `README.
 | `fig4_rank_vs_calibration` | ID -> OOD movement of the `reliability_*_nocal` summaries |
 | `fig5_decomposition` | `epoch_quality_finetune_mixed_{train,id,ood}` of B and D, filtered for energy OOD |
 | `figA_recalibration` | `reliability_ood_{nocal,cal}` ENCE |
+| `figA_dynamics_{system,energy}_{hf,lfhf}` | `epoch_quality_{train,id,ood}` of E, F and `epoch_quality_finetune_mixed_{train,id,ood}` of B, D (`-log-scale` variants); Energy-OOD support-filtered |
+| `figA_train_curves` | `train_curves` of A-F |
+| `figA_reliability_{system,energy}[_cal]` | `reliability_{id,ood}_{nocal,cal}.svg` of A-F (paper-sized, log-log, support-filtered) |
 | `figA_eu_au_ratio` | the magnitude row of `epoch_quality_finetune_mixed_ood`, and `energy_ood` |
+| `figW_final_summary`, `figW_reliability` | `reliability_test_nocal` of wB and wC |
+| `figW_dynamics` | `epoch_quality_test` of wB, wC and `epoch_quality_finetune_mixed_{train,test}` of wB |

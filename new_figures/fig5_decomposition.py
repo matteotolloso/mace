@@ -12,7 +12,8 @@ Row 3, OOD test set: (e) AUSE, (f) ENCE, log y.
 Lines are five-split means (geometric for ENCE), smoothed by an exponential moving
 average restarted at the fine-tuning boundary so the transition is not smeared;
 shaded bands are the 95% Student-t intervals over the five splits, smoothed the
-same way (log space for ENCE).
+same way (log space for ENCE). In the ENCE panels TU is drawn at full strength and
+AU/EU faded (CAL_ALPHA).
 
 The EU/AU panels that used to be (g) and (h) are now the appendix figure
 figA_eu_au_ratio.py, which imports the helpers below (as does paper_numbers.py).
@@ -24,7 +25,7 @@ import math
 import numpy as np
 
 from common import (
-    MUTED, PROTOCOL_COLOR, ROOT, SHIFT_COLOR, SIGNAL_LINESTYLE, SIGNALS, SPLITS,
+    CAL_ALPHA, MUTED, PROTOCOL_COLOR, ROOT, SHIFT_COLOR, SIGNAL_LINESTYLE, SIGNALS, SPLITS,
     ci, panel_label, save, style, supported,
 )
 from epoch_data import across_splits, band, ema, lf_to_hf, lf_to_hf_id, lf_to_hf_train
@@ -40,7 +41,8 @@ GRID_SEP = "#bdbdbd"
 def phased_ema(epochs, values):
     out = np.empty_like(values)
     for mask in (epochs < PRETRAIN, epochs >= PRETRAIN):
-        out[mask] = ema(values[mask])
+        if mask.any():
+            out[mask] = ema(values[mask])
     return out
 
 
@@ -52,8 +54,10 @@ def curve(ax, kind, key, log, fetch=lf_to_hf, **line):
     back = (lambda v: 10 ** v) if log else (lambda v: v)
     smooth, lo, hi = (phased_ema(epochs, v) for v in (mean, mean - half, mean + half))
     for mask in (epochs < PRETRAIN, epochs >= PRETRAIN):
+        if not mask.any():
+            continue
         ax.fill_between(epochs[mask], back(lo[mask]), back(hi[mask]), color=line["color"],
-                        alpha=0.13, lw=0, zorder=1)
+                        alpha=0.13 * line.get("alpha", 1.0), lw=0, zorder=1)
         ax.plot(epochs[mask], back(smooth[mask]), **line)
     return epochs, mean
 
@@ -122,7 +126,7 @@ def shift_legend_handles(signals=True):
     if signals:
         handles += [Line2D([], [], color=MUTED, lw=1.2, ls=SIGNAL_LINESTYLE[s], label=s)
                     for s in SIGNALS]
-    handles.append(Patch(color=MUTED, alpha=0.3, lw=0, label="95% CI"))
+    handles.append(Patch(color=MUTED, alpha=0.3, lw=0, label="95% CI, 5 splits"))
     return handles
 
 
@@ -139,13 +143,14 @@ def main():
             continue
         for s in SIGNALS:
             line = dict(color=color, lw=1.2, ls=SIGNAL_LINESTYLE[s])
+            cal_line = dict(line, alpha=CAL_ALPHA[s], lw=1.6 if s == "TU" else 1.0)
             for ax_a, ax_e, fetch in ((ax_tr_ause, ax_tr_ence, lf_to_hf_train),
                                       (ax_id_ause, ax_id_ence, lf_to_hf_id),
                                       (ax_ause, ax_ence, lf_to_hf)):
                 curve(ax_a, kind, lambda e, s=s: e[("AUSE", s)], False, fetch=fetch, **line)
-                curve(ax_e, kind, lambda e, s=s: e[("ENCE", s)], True, fetch=fetch, **line)
+                curve(ax_e, kind, lambda e, s=s: e[("ENCE", s)], True, fetch=fetch, **cal_line)
 
-    ause_label, ence_label = "AUSE  (lower is better)", "ENCE  (lower is better)"
+    ause_label, ence_label = "AUSE  ←", "ENCE  ←"  # rotated label: "←" renders as a downward arrow
     for ax, title, ylabel, log in ((ax_tr_ause, "Train set: ranking", ause_label, False),
                                    (ax_tr_ence, "Train set: calibration", ence_label, True),
                                    (ax_id_ause, "ID test set: ranking", ause_label, False),

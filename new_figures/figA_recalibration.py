@@ -7,11 +7,11 @@ validation set, arrow from the first to the second. Drawn as dumbbells rather
 than bars because bars on a log axis have no meaningful baseline. Values are
 five-split geometric means of ENCE recomputed from per-configuration predictions
 with the training-support filter (reliability_ood_{nocal,cal}_raw.csv, see
-common.py).
+common.py). TU is drawn at full strength and AU/EU faded (CAL_ALPHA).
 """
 
 from common import (
-    EXPERIMENT, MUTED, PROTOCOL_COLOR, PROTOCOLS, SIGNAL_MARKER, SIGNALS, final_metrics,
+    CAL_ALPHA, EXPERIMENT, MUTED, PROTOCOL_COLOR, PROTOCOLS, SIGNAL_MARKER, SIGNALS, final_metrics,
     interval, legend_handles, panel_label, save, style,
 )
 
@@ -43,14 +43,16 @@ def main():
             color = PROTOCOL_COLOR[p]
             ax.annotate("", xy=(after[0], yy), xytext=(before[0], yy), zorder=2,
                         arrowprops=dict(arrowstyle="-|>,head_length=0.35,head_width=0.18",
-                                        color=color, lw=0.9, alpha=0.8, shrinkA=2.5, shrinkB=2.5))
-            ax.plot([before[0]], [yy], SIGNAL_MARKER[s], ms=3.8, mfc="white", mec=color, mew=0.9,
-                    zorder=3)
-            ax.plot([after[0]], [yy], SIGNAL_MARKER[s], ms=3.8, color=color, mec="white", mew=0.5,
-                    zorder=3)
+                                        color=color, lw=1.2 if s == "TU" else 0.9,
+                                        alpha=0.8 * CAL_ALPHA[s], shrinkA=2.5, shrinkB=2.5))
+            ms = 4.6 if s == "TU" else 3.8
+            ax.plot([before[0]], [yy], SIGNAL_MARKER[s], ms=ms, mfc="white", mec=color, mew=0.9,
+                    alpha=CAL_ALPHA[s], zorder=3)
+            ax.plot([after[0]], [yy], SIGNAL_MARKER[s], ms=ms, color=color, mec="white", mew=0.5,
+                    alpha=CAL_ALPHA[s], zorder=3)
         ax.set_xscale("log")
         ax.set_title(title, loc="left", pad=11)
-        ax.set_xlabel("ENCE  ↓")
+        ax.set_xlabel("ENCE  ←")
         ax.grid(axis="y", visible=False)
         ax.tick_params(axis="y", length=0)
         ax.spines["left"].set_visible(False)
@@ -63,8 +65,9 @@ def main():
     bells[1].xaxis.set_major_locator(FixedLocator([1, 2, 5, 10, 20]))
     bells[1].set_xlim(1.0, 25)
     bells[0].set_yticks([ys[r] for r in rows], [f"{p}  {s}" for p, s in rows], fontsize=6.4)
-    for tick, (p, _) in zip(bells[0].get_yticklabels(), rows):
+    for tick, (p, s) in zip(bells[0].get_yticklabels(), rows):
         tick.set_color(PROTOCOL_COLOR[p])
+        tick.set_alpha(max(CAL_ALPHA[s], 0.6))
     bells[0].set_ylim(min(ys.values()) - 0.7, 0.7)
     for ax, letter in zip(bells, "ab"):
         panel_label(ax, letter, x=-0.02, y=1.06)

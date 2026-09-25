@@ -68,6 +68,9 @@ SHIFT_COLOR = {"system": "#6f4e9c", "energy": "#a6761d"}
 SIGNAL_MARKER = {"AU": "o", "EU": "s", "TU": "D"}
 SIGNAL_LINESTYLE = {"AU": (0, (5, 2)), "EU": (0, (1, 1.5)), "TU": "-"}
 INK, MUTED, GRID = "#222222", "#6b6b6b", "#e6e6e6"
+# Calibration panels: only TU is expected to match the error (the predictive
+# variance is AU + EU), so TU is drawn at full strength and AU/EU are faded.
+CAL_ALPHA = {"AU": 0.35, "EU": 0.35, "TU": 1.0}
 
 
 # --------------------------------------------------------------------------- style

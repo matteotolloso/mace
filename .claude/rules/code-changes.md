@@ -32,11 +32,11 @@
 ```bash
 # statistics / plotting / aggregation
 cd eval && MPLCONFIGDIR=/tmp/mpl-cache \
-  /raid/m.tolloso/miniconda3/envs/mace/bin/python -B -m unittest -v test_plotting
+  $CONDA_PREFIX/bin/python -B -m unittest -v test_plotting
 # shell launchers
 bash -n eval.sh eval_water.sh check_experiments.sh experiment_*/train_*.sh experiment_*/eval_*.sh
 # upstream MACE package (slow; CI runs it on push)
-/raid/m.tolloso/miniconda3/envs/mace/bin/python -m pytest tests --ignore=tests/test_cueq_oeq.py
+$CONDA_PREFIX/bin/python -m pytest tests --ignore=tests/test_cueq_oeq.py
 ```
 
 - A change that alters numbers must be followed by regenerating the affected

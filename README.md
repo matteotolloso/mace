@@ -24,9 +24,9 @@ The statistical design is:
   samples.
 
 Current training state (`./check_experiments.sh`): ANI-1x `A`-`F` are complete
-(300/300 members). Water `wA`/`wB`/`wC` currently have **split 0 only**
-(30/150 members), and their `evaluation/cache/` directories are empty, so no
-five-split water statistics exist yet. See
+(300/300 members). Water `wA`/`wB`/`wC` are complete
+(150/150 members) and evaluated on all five splits (2026-09-23; see
+`results/results.md`). See
 [Audit notes and known issues](#audit-notes-and-known-issues).
 
 All project commands below are intended to be run from the repository root.
@@ -61,12 +61,12 @@ resolve the repository root from their own location and every cache uses fixed
 relative paths; `experiments/README.md` maps each piece.
 
 The manuscript lives in its own repository,
-`https://github.com/matteotolloso/-ICLR27-UQ-MF.git`, which Overleaf syncs through
+`<paper-repository-url>`, which Overleaf syncs through
 GitHub. It is cloned inside this project as `ICLR27-UQ-MF/` and ignored by this
 repository's Git; commit and push paper changes from inside that folder:
 
 ```bash
-git clone https://github.com/matteotolloso/-ICLR27-UQ-MF.git ICLR27-UQ-MF   # once
+git clone <paper-repository-url> ICLR27-UQ-MF   # once
 git -C ICLR27-UQ-MF pull --ff-only                                          # update
 ```
 
@@ -1066,9 +1066,9 @@ run against the current working tree; no file was modified by the audit.
    water ID test is biased in favour of the multi-fidelity protocol. Fixing this
    requires one shared configuration-level split reused by all theories, and
    retraining water.
-2. **Water has one split, not five.** `wA`/`wB`/`wC` have 10 members for split 0
-   only, splits 1-4 are untrained, and `experiment_w*/evaluation/cache/` is empty.
-   No five-split water confidence interval can be produced from this tree.
+2. **Water has five splits (resolved 2026-09-23).** All 150 members are trained and
+   evaluated; the overlap above holds in every split (31-37 of 50 CCSDT test
+   geometries in BLYP train; `results/tables/water_split_overlap.txt`).
 
 The water eval scripts still pass `--trim 0.005` and are not support-filtered,
 because water has no ANI geometry cache and is excluded from the current paper.

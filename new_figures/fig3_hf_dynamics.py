@@ -8,7 +8,8 @@ dashed, EU dotted, TU solid (as in Fig. 5). x = HF-stage epoch starting at 0,
 evaluated every 5th epoch. Lines: exponential moving average of the five-split
 mean (AUSE arithmetic, ENCE geometric). Shaded bands: 95% Student-t interval over
 the five splits (log space for ENCE), smoothed the same way. The unsmoothed means
-are no longer drawn, to keep six lines readable.
+are no longer drawn, to keep six lines readable. In the ENCE row TU is drawn at
+full strength and AU/EU faded (CAL_ALPHA): only TU is expected to be calibrated.
 
 Energy-OOD uses per-configuration predictions restricted to the training-support
 region; System-OOD uses the existing per-epoch caches, which the filter does not
@@ -18,11 +19,12 @@ change (see epoch_data.py).
 import numpy as np
 
 from common import (
-    MUTED, PROTOCOL_COLOR, PROTOCOLS, SIGNAL_LINESTYLE, SIGNALS, panel_label, save, style,
+    CAL_ALPHA, MUTED, PROTOCOL_COLOR, PROTOCOLS, SIGNAL_LINESTYLE, SIGNALS, panel_label, save, style,
 )
 from epoch_data import across_splits, band, ema, hf_stage
 
-ROWS = (("AUSE", "AUSE  (lower is better)", False), ("ENCE", "ENCE  (lower is better)", True))
+# Rotated y-labels: "←" renders as a downward arrow (lower is better).
+ROWS = (("AUSE", "AUSE  ← (ranking)", False), ("ENCE", "ENCE  ← (calibration)", True))
 COLUMNS = (("system", "System-OOD"), ("energy", "Energy-OOD"))
 
 
@@ -47,11 +49,13 @@ def main():
                         break
                     mean, half = band(values)
                     transform = (lambda v: 10 ** v) if log else (lambda v: v)
+                    fade = CAL_ALPHA[s] if metric == "ENCE" else 1.0
                     ax.fill_between(epochs, transform(ema(mean - half)),
                                     transform(ema(mean + half)), color=PROTOCOL_COLOR[p],
-                                    alpha=0.10, lw=0)
+                                    alpha=0.10 * fade, lw=0)
                     ax.plot(epochs, transform(ema(mean)), color=PROTOCOL_COLOR[p],
-                            lw=1.6 if s == "TU" else 1.2, ls=SIGNAL_LINESTYLE[s])
+                            lw=(1.8 if metric == "ENCE" else 1.6) if s == "TU" else 1.2,
+                            ls=SIGNAL_LINESTYLE[s], alpha=fade)
             if log:
                 ax.set_yscale("log")
             if r == 0:

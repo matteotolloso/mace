@@ -10,7 +10,7 @@ concept.
 
 Two workspaces share this root:
 
-- **Experiments** (this repository, `origin` = `matteotolloso/mace`): code, data,
+- **Experiments** (this repository, `origin` = the experiments GitHub repository): code, data,
   training, evaluation and results.
 - **Paper** (`ICLR27-UQ-MF/`): the ICLR 2027 manuscript, an independent Git
   repository synced with Overleaf through GitHub. The parent repository ignores
@@ -69,7 +69,8 @@ The full protocol and the pipeline audit are in [`README.md`](README.md).
 | wB | periodic water | LF->HF | CCSDT | matching wA |
 | wC | periodic water | HF-only | CCSDT | none |
 
-Water is currently trained for split 0 only and is outside the current paper.
+Water is trained and evaluated on all five splits (ledger entry 2026-09-23) and is
+outside the current paper.
 
 ## Where things live
 
@@ -103,7 +104,7 @@ models,results,logs}_*`, `experiment_X/evaluation/`, `new_figures/out/`,
 
 Use the existing conda environment `mace` (Python 3.11, torch 2.4.0,
 e3nn 0.4.4), where this repository is installed in editable mode. Interpreter:
-`/raid/m.tolloso/miniconda3/envs/mace/bin/python`. From scratch:
+`$CONDA_PREFIX/bin/python` with `conda activate mace`. From scratch:
 
 ```bash
 pip install -e ".[wandb,dev]"   # dependencies from setup.cfg
@@ -117,11 +118,11 @@ Experiment configs set `wandb: True` (entity `uq-mf`), so training needs W&B.
 ```bash
 # statistics / plotting / aggregation
 cd eval && MPLCONFIGDIR=/tmp/mpl-cache \
-  /raid/m.tolloso/miniconda3/envs/mace/bin/python -B -m unittest -v test_plotting
+  $CONDA_PREFIX/bin/python -B -m unittest -v test_plotting
 # active learning
-/raid/m.tolloso/miniconda3/envs/mace/bin/python -B active_learning/ani_energy/test_workflow.py
-/raid/m.tolloso/miniconda3/envs/mace/bin/python -B active_learning/ani_energy/test_five_splits.py
-/raid/m.tolloso/miniconda3/envs/mace/bin/python -B active_learning/ani_energy/test_reporting.py
+$CONDA_PREFIX/bin/python -B active_learning/ani_energy/test_workflow.py
+$CONDA_PREFIX/bin/python -B active_learning/ani_energy/test_five_splits.py
+$CONDA_PREFIX/bin/python -B active_learning/ani_energy/test_reporting.py
 # shell syntax
 bash -n eval.sh active_learning/ani_energy/run.sh active_learning/ani_energy/run_all.sh
 # upstream MACE tests (slow; CI) and linting
@@ -138,7 +139,7 @@ bash experiment_A/train_A.sh <split:0-4> <member:0-9> <gpu>   # train one member
 ./check_experiments.sh                                         # all 450 members
 experiment_A/eval_A.sh <gpu>          # GPU inference + five-split aggregation
 MPLCONFIGDIR=/tmp/mpl-cache \
-EVAL_PYTHON=/raid/m.tolloso/miniconda3/envs/mace/bin/python \
+EVAL_PYTHON=$CONDA_PREFIX/bin/python \
 bash eval.sh --plots-only             # rebuild aggregates from caches, CPU only
 python -B eval/support_filter.py --report      # support-filter bounds per split
 bash new_figures/make_all.sh                   # rebuild paper figures, CPU only
