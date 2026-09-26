@@ -22,7 +22,7 @@ import json
 import numpy as np
 
 from common import (
-    MUTED, PROTOCOL_COLOR, PROTOCOLS, ROOT, SIGNAL_COLOR, SIGNAL_MARKER, SIGNALS,
+    PROTOCOL_COLOR, PROTOCOLS, ROOT, SIGNAL_COLOR, SIGNAL_MARKER, SIGNALS,
     geometry, panel_label, save, style,
 )
 
@@ -89,8 +89,6 @@ def main():
     ax_ood.set_ylabel("RMSE gain over random (meV/atom)  →")  # rotated label: "→" renders as an upward arrow
     ax_ood.set_title("Held-out Energy-OOD", loc="left", pad=3)
     ax_ood.set_ylim(-0.3, 3.4)
-    ax_ood.text(0.02, 0.97, "favours uncertainty ↑", transform=ax_ood.transAxes, fontsize=6,
-                color=MUTED, va="top", style="italic")
     panel_label(ax_ood, "a", x=-0.02, y=1.03)
 
     bins = np.linspace(0.55, 1.0, 10)

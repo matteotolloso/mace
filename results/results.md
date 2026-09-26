@@ -415,3 +415,18 @@ How to use it:
 - **Metrics:** none.
 - **Output files:** `new_figures/out/fig3_hf_dynamics.{pdf,svg,png}`.
 - **Interpretation:** presentation change only.
+
+### 2026-09-26 Fig. 6 (fig6_acquisition): note removed
+
+- **Status:** verified (label-only; `new_figures/paper_numbers.py` output byte-identical to
+  `results/tables/iclr27_main_text_numbers.txt`).
+- **Purpose:** supervisor request relayed by the paper chat: remove the italic note
+  "favours uncertainty ↑" from panel (a) of paper Fig. 6.
+- **Code commit:** `c3bcc5669b5ccf02922e2eb5855b336f32020324`; dirty tree: yes (one `ax_ood.text` call and the then-unused `MUTED` import removed
+  from `new_figures/fig6_acquisition.py`).
+- **Command(s):** `cd new_figures && MPLCONFIGDIR=/tmp/mpl-cache $CONDA_PREFIX/bin/python -B fig6_acquisition.py`
+- **Configuration / dataset / seeds:** unchanged caches (`active_learning/ani_energy/runs/aggregate_epochs_50/`).
+- **Compute:** cached data (CPU).
+- **Metrics:** none.
+- **Output files:** `new_figures/out/fig6_acquisition.{pdf,svg,png}`.
+- **Interpretation:** presentation change only.
