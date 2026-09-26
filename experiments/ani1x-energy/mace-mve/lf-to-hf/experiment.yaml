@@ -1,0 +1,21 @@
+# ANI-1x energy split | MACE, ensemble of 10 MVE members | LF->HF: each member pretrained on LF labels, then fine-tuned on HF labels.
+# Legacy name: experiment D. Schema and field meanings: docs/experiments.md.
+legacy_id: D
+dataset: ani1x-energy
+model: mace
+uq: mve-ensemble            # AU = mean member variance, EU = variance of member means, TU = AU + EU
+protocol: lf-to-hf
+target: hf                   # fidelity of the training labels (CC)
+parent: ani1x-energy/mace-mve/lf-only   # member (s, m) starts from parent member (s, m)
+splits: [0, 1, 2, 3, 4]
+members: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+training:
+  config: config.yaml         # MACE hyperparameters; data/output paths are added by the launcher
+  test_role: id              # file passed as MACE --test_file
+evaluation:                   # steps and order: docs/evaluation.md
+  batch_size: 256
+  trim: 0.0
+  reliability: [id, ood]
+  sets: [id, ood, train]   # epoch quality, LF->HF trajectory, distributions
+  finetune_comparison: true   # parent vs fine-tuned ensemble on HF tests
+  energy_quantiles: true      # AU/EU by within-system energy quantile

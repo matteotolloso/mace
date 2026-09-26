@@ -1,0 +1,21 @@
+# Liquid water, random split | MACE, ensemble of 10 MVE members | LF-only: trained on low-fidelity labels only.
+# Legacy name: experiment wA. Schema and field meanings: docs/experiments.md.
+legacy_id: wA
+dataset: water-random
+model: mace
+uq: mve-ensemble            # AU = mean member variance, EU = variance of member means, TU = AU + EU
+protocol: lf-only
+target: lf                   # fidelity of the training labels (BLYP)
+parent: null
+splits: [0, 1, 2, 3, 4]
+members: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+training:
+  config: config.yaml         # MACE hyperparameters; data/output paths are added by the launcher
+  test_role: test              # file passed as MACE --test_file
+evaluation:                   # steps and order: docs/evaluation.md
+  batch_size: 16
+  train_curves_batch_size: 16   # legacy: only wA/wB passed --batch-size to train_curves
+  trim: 0.005                   # total-variance trim (legacy water setting; off for ANI)
+  reliability: [test, train]
+  sets: [test, train]   # epoch quality, LF->HF trajectory, distributions
+  reliability_log_axes: ["1e-4", "1e-1"]   # literal strings (passed on the command line)

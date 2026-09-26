@@ -1,64 +1,45 @@
+---
+paths:
+  - "uq/**"
+  - "mace/**"
+  - "papers/**/*.py"
+  - "setup.cfg"
+---
+
 # Code changes
 
-## Before editing
+- Read the files involved first; match the surrounding style (black, isort, pylint via
+  `.pre-commit-config.yaml`; lines up to ~110 characters in `uq/`).
+- Paths: only `uq/paths.py` knows the directory layout, only `uq/registry.py` reads
+  specs. Resolve experiments with `registry.experiment(...)` (ids or legacy letters) and
+  build paths with `paths.*`; never hard-code `runs/...`, `data/...` or letters.
+- New code goes in the `uq` package (importable as `uq.<...>`, run as
+  `python -m uq.<module>`); no `sys.path` hacks. A new top-level package needs
+  `pip install --no-deps --no-build-isolation -e .` to become importable.
+- Keep the evaluation interface stable: per-configuration rows
+  (`reliability_*_raw.csv` columns), bins and epoch-quality columns are consumed by
+  aggregation and figures (`docs/extending.md`). Output file names are part of it.
+- `mace/` is the upstream fork: changes there alter training for every experiment.
+  Keep them minimal, inside `### MVE ###` ... `### /MVE ###` fences, and keep
+  `ScaleShiftMACE` (what `model: "MACE"` builds) and the plain `MACE` class consistent.
+  Never change the behaviour of an already-trained configuration silently.
+- Do not hand-edit generated outputs (`experiments/*/evaluation/**`,
+  `papers/*/figures/out/**`, anything in `runs/`); regenerate them with their command.
+- A change that alters numbers: rebuild the affected outputs (`uq aggregate`, figures)
+  and add a ledger entry.
+- `uq/tests/snapshots/commands.json` pins the training/evaluation commands of every
+  recorded experiment. If a change alters them on purpose, run
+  `python -m uq.tests.test_commands --update`, review the diff and report which
+  experiments changed; otherwise the change is a regression.
+- A new model or UQ method: add its `(model, uq)` pair to `registry.BACKENDS` in the same
+  change as its launcher and evaluation dispatch (`docs/extending.md`); `uq check`,
+  `uq train` and `uq evaluate` refuse pairs without a backend.
 
-- Read the files involved first. Project code is spread across the upstream
-  MACE package (`mace/`) and project directories (`eval/`, `dataset/`, `utils/`,
-  `active_learning/`, `new_figures/`, `experiment_X/`).
-- Changes to `mace/` alter training for every experiment. Keep them minimal,
-  marked with the existing `### MVE ###` ... `### /MVE ###` fences, and never
-  change the behaviour of an already-trained configuration silently.
-- `model: "MACE"` in the experiment configs builds `ScaleShiftMACE`
-  (`mace/tools/model_script_utils.py::_build_model`); MVE changes must keep that
-  class and the plain `MACE` class consistent.
-
-## Paths are part of the contract
-
-- Launchers resolve the repository root from their own location
-  (`experiment_X/train_X.sh`, `experiment_X/eval_X.sh`, `utils/train_split_member.sh`),
-  and evaluation caches, aggregates and paper figures use fixed relative paths.
-  Do not move or rename `experiment_X/`, `eval/`, `dataset/`, `utils/`,
-  `active_learning/` or `new_figures/` without updating every caller.
-- Run commands from the repository root.
-
-## Keep changes focused and verified
-
-- Match the surrounding style (the repo uses black, isort and pylint through
-  `.pre-commit-config.yaml`).
-- Do not hand-edit generated caches or aggregate CSVs; regenerate them with the
-  script that owns them.
-- Verify with the narrowest check that covers the change, and report the result:
+Verify with the narrowest check:
 
 ```bash
-# statistics / plotting / aggregation
-cd eval && MPLCONFIGDIR=/tmp/mpl-cache \
-  $CONDA_PREFIX/bin/python -B -m unittest -v test_plotting
-# shell launchers
-bash -n eval.sh eval_water.sh check_experiments.sh experiment_*/train_*.sh experiment_*/eval_*.sh
-# upstream MACE package (slow; CI runs it on push)
-$CONDA_PREFIX/bin/python -m pytest tests --ignore=tests/test_cueq_oeq.py
+uq check                                             # specs
+python -m unittest discover -s uq/tests -t .         # 46 CPU tests
+uq evaluate <exp> --gpu 0 --dry-run                  # pipeline commands
+python -m pytest tests --ignore=tests/test_cueq_oeq.py   # upstream MACE (slow, CI; needs pytest)
 ```
-
-- A change that alters numbers must be followed by regenerating the affected
-  artifacts (normally `bash eval.sh --plots-only`, CPU-only) and updating the
-  matching `results/results.md` entry.
-
-## Code map
-
-- MVE model/readout: `mace/modules/models.py`; Gaussian NLL: `mace/modules/loss.py`
-- MVE CLI/config wiring: `mace/tools/arg_parser.py`, `mace/tools/scripts_utils.py`,
-  `mace/tools/model_script_utils.py`, `mace/cli/run_train.py`
-- Fine-tuning weight transfer: `mace/tools/finetuning_utils.py`
-- Ensemble prediction: `eval/reliability.py` and `mace/cli/eval_configs.py`
-- ANI splitters: `dataset/ani1x_system_splitter.py`, `dataset/ani1x_energy_splitter.py`;
-  orchestration: `dataset/make_dataset.sh`
-- Water conversion/splits: `dataset/convert_water_n2p2_to_extxyz.py`,
-  `dataset/make_dataset_w.sh`
-- Shared training launcher: `utils/train_split_member.sh`
-- Epoch metrics: `eval/epoch_quality.py`; LF->HF mixed trajectories:
-  `eval/epoch_quality_finetune_mixed_dataset.py`
-- Five-split statistics and plots: `eval/replicate_statistics.py`,
-  `eval/aggregate_replicates.py`; training-support filter: `eval/support_filter.py`
-- Top-level evaluators: `eval.sh`, `eval_water.sh`
-- Paper figures: `new_figures/` (shared helpers in `common.py`, `epoch_data.py`)
-- Active learning: `active_learning/ani_energy/`

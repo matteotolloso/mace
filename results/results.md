@@ -15,8 +15,13 @@ How to use it:
   Command, Seeds or Outputs is not yet citable.
 - `results/tables/` and `results/figures/` hold curated copies of tables and
   figures that back a claim; generated outputs otherwise stay where their scripts
-  write them (`experiment_X/evaluation/`, `new_figures/out/`,
-  `active_learning/ani_energy/runs/`).
+  write them (`experiments/<id>/evaluation/`, `papers/<venue>/figures/out/`,
+  `runs/active-learning/...`).
+- **Paths in entries before 2026-09-26 refer to the old layout** (`experiment_X/...`,
+  `dataset/...`, `eval/...`, `new_figures/...`, experiment letters A-F, wA-wC). They are
+  kept as written; `uq where <old path>` prints the current location and
+  `docs/migration-2026-09.md` has the full map. The old layout is the tag
+  `iclr27-submission`.
 
 ---
 
@@ -430,3 +435,86 @@ How to use it:
 - **Metrics:** none.
 - **Output files:** `new_figures/out/fig6_acquisition.{pdf,svg,png}`.
 - **Interpretation:** presentation change only.
+
+### 2026-09-26 Repository restructure (no result changed)
+
+- **Status:** verified (layout change only; every regenerated output compared with its
+  committed version).
+- **Purpose:** new layout for long-term work: `uq` package and CLI, experiment specs in
+  `experiments/<dataset>/<model>-<uq>/<protocol>/`, datasets in `data/`, heavy artifacts in
+  `runs/`, paper material in `papers/iclr27/`, docs in `docs/`.
+- **Code commit:** tag `restructure-2026-09` (the branch `restructure`, squashed into one
+  commit on 2026-09-26 at the user's request), from tag `iclr27-submission` (`c3bcc56`).
+- **Command(s):** `python docs/restructure/migrate_layout.py apply` (moves), then
+  `uq status`; `SOURCE_DATE_EPOCH=1767225600 uq aggregate`;
+  `SOURCE_DATE_EPOCH=1767225600 uq figures iclr27`;
+  `cd papers/iclr27/figures && python -B paper_numbers.py`;
+  `python runs/_migration/equivalence.py`.
+- **Configuration / dataset / seeds:** unchanged (configs lost only the path fields that
+  the launcher always overrode; hyperparameters compared key by key).
+- **Compute:** file renames (137,638 files, one filesystem) and CPU regeneration; one GPU
+  briefly for an old-vs-new inference check.
+- **Metrics:** none new. Verification: `uq status` 450/450 members; aggregate CSVs
+  byte-identical, 177/177 aggregate SVGs identical after removing timestamps and random
+  element ids; 20 paper figures identical (PNG bytes, SVG/PDF normalized);
+  `paper_numbers.py` output identical to `results/tables/iclr27_main_text_numbers.txt`
+  except the printed path of the active-learning summary; new launchers issue the old
+  commands (training 36/36 + `--wandb_dir`, evaluation 574/574, aggregation 9/9); moved
+  inference modules differ from the tag only in imports and docstrings; active-learning
+  reports, the `aggregate_epochs_50` inputs (100) and manifest artifacts verify through
+  the recorded-path aliases; 30 unit tests pass.
+- **Output files:** `runs/_migration/manifest.json` (moves), `runs/_migration/golden/`
+  (commands of the old scripts), docs in `docs/`.
+- **Interpretation:** every result recorded above is unchanged. GPU inference is not
+  bit-reproducible (EU per configuration varies by up to ~5% relative between runs of
+  the same code), so re-evaluating on GPU changes per-split files slightly; aggregation
+  from existing per-split files is byte-reproducible.
+
+### 2026-09-26 Epoch-checkpoint pruning (no result changed)
+
+- **Status:** verified (only files that no analysis reads were deleted; the pipeline's
+  checkpoint and epoch selection was re-checked on every split).
+- **Purpose:** reduce disk use (user request of 2026-09-26: delete the experiment epoch
+  checkpoints; the active-learning checkpoints, the legacy ANI export and local W&B files
+  were kept). MACE saved a checkpoint every epoch; the analyses read epochs divisible by 5
+  (every 10th for `epoch_raw`) and each member's best-validation checkpoint.
+- **Code commit:** tag `restructure-2026-09` (`uq/training/prune.py`, `uq prune-checkpoints`
+  in `uq/cli.py`, `PRUNED.json`-aware `select_best_checkpoints` in
+  `uq/evaluation/reliability.py`); run from the uncommitted working tree of branch
+  `restructure` at `49e8d80`, whose versions of these files were then committed unchanged.
+- **Command(s):**
+  `MPLCONFIGDIR=/tmp/mpl-cache uq prune-checkpoints --apply > runs/_logs/prune_checkpoints_2026-09-26.log 2>&1`,
+  then the same with `>>`. The first invocation used an earlier `prune.py` (no simulated
+  pre-check): it pruned split 0 of `ani1x-energy/mace-mve/lf-only` and stopped at its
+  post-check, because the selection code of the time required a checkpoint for every
+  logged epoch (traceback in the log). Selection was then made to accept exactly the
+  gaps listed in `PRUNED.json`, split 0 was re-checked, and the second invocation pruned
+  the remaining 44 splits.
+- **Configuration / dataset / seeds:** all nine experiments, splits 0-4, members 0-9.
+  Rule: keep `epoch % 5 == 0`, each member's best checkpoint by validation loss (`loss`,
+  `min`, as the evaluation pipeline selects), every `.model` and every non-checkpoint file.
+- **Compute:** file deletion only (CPU); no inference, no retraining.
+- **Metrics:** none. Deleted, from the 45 `runs/<id>/split_<s>/checkpoints/PRUNED.json`
+  records (one event each): 83,618 files, 1,337,744,269,588 bytes (1245.9 GiB). Per
+  experiment (second invocation; log above): C 9567 (+2391 in the first), D 3950,
+  F 11959, A 11958, B 3950, E 11963, wA 11964, wB 3957, wC 11959. Afterwards `du -sh
+  --apparent-size runs` reports 653G (experiments 116G + 116G + 94G, active learning 327G).
+- **Verification:** before deleting, per split, the sampled epochs (n = 5 and n = 10) and
+  the best checkpoints were computed on a simulated pruned folder and compared with the
+  real one; after deleting, they were recomputed on the real folder (equal on all 44
+  splits of the second invocation). Split 0 of C, pruned by the first invocation, was
+  checked afterwards: selection runs on the pruned folder and samples 60 epochs (0-295)
+  at n = 5 and 30 at n = 10, with the 10 best checkpoints present. `uq status`:
+  450/450 members complete; `uq prune-checkpoints` dry run: 0 files left;
+  `python -m uq.datasets.water_overlap` (selected epochs through the pruned folders)
+  identical to `results/tables/water_split_overlap.txt`
+  (`runs/_migration/water_overlap_after_prune.txt`); `paper_numbers.py` output
+  (`runs/_migration/numbers_after_prune.txt`) differs from
+  `results/tables/iclr27_main_text_numbers.txt` only in the printed path of the
+  active-learning summary; the unit tests pass (46 at the tag; `uq/tests/test_checkpoints.py` covers
+  recorded gaps, unrecorded gaps and a pruned best checkpoint).
+- **Output files:** `runs/<id>/split_<s>/checkpoints/PRUNED.json` (45), the log above.
+- **Interpretation:** every recorded result and tracked output is unchanged and can be
+  regenerated from the kept checkpoints (up to GPU nondeterminism). Epoch analyses finer
+  than every 5th epoch, and re-selecting checkpoints by another criterion, now need
+  retraining; the evaluation code at tag `iclr27-submission` refuses the pruned folders.

@@ -1,0 +1,31 @@
+# ANI-1x split by molecular system: System-OOD molecules never appear in training.
+# Files live in split_<s>/ (git-ignored except metadata); see docs/datasets.md.
+description: >-
+  ANI-1x (wB97x/def2-TZVPP and CCSD(T)*/CBS labels), split by molecular system.
+  A fraction of systems is held out entirely (System-OOD); the rest is split
+  into train/val/System-ID. CC files are subsets of the DFT files with the same role.
+splits: [0, 1, 2, 3, 4]        # split index == generator seed
+tests: [id, ood]               # held-out test roles
+support_filter: true           # geometry-only training-support filter (uq.evaluation.support_filter)
+fidelities:
+  lf:
+    name: DFT                  # short name used in plot titles
+    method: wB97x/def2-TZVPP
+    energy_key: wb97x_tz.energy
+    files: {train: dft_train.xyz, val: dft_val.xyz, id: dft_test_id.xyz, ood: dft_test_ood.xyz}
+  hf:
+    name: CC
+    method: CCSD(T)*/CBS
+    energy_key: ccsd(t)_cbs.energy
+    files: {train: cc_train.xyz, val: cc_val.xyz, id: cc_test_id.xyz, ood: cc_test_ood.xyz}
+build:                         # `uq data build ani1x-system` (never overwrites an existing split)
+  module: uq.datasets.ani1x_system
+  source: raw/ani1x-release.h5
+  args: [--h5, "{source}", --outdir, "{split_dir}",
+         --dft-key, wb97x_tz.energy, --cc-key, ccsd(t)_cbs.energy,
+         --dft-forces-key, " ", --cc-forces-key, " ",
+         --p-seen, "0.6", --p-train, "0.6", --p-val, "0.2", --p-test-id, "0.2",
+         --max-per-system, "64",
+         --n-train-dft, "50000", --n-val-dft, "10000", --n-test-id-dft, "50000", --n-test-ood-dft, "50000",
+         --n-train-cc, "5000", --n-val-cc, "1000", --n-test-id-cc, "5000", --n-test-ood-cc, "5000",
+         --seed, "{split}"]
