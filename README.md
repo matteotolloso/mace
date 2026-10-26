@@ -1,4 +1,4 @@
-# <span style="font-size:larger;">MACE</span>
+# Multi-Fidelity Training Reshapes Uncertainty Decomposition in Atomistic Models
 
 ## Project-specific experiment pipeline
 
