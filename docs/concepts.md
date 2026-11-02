@@ -50,10 +50,29 @@ TU         = AU + EU
 The manuscript's EU equation shows `1/(M-1)`; the code (the intended estimator)
 uses `1/M` — see [known-issues.md](known-issues.md).
 
+## Baseline: plain MSE ensemble (`mse-ensemble`, experiments `*/mace-mse/*`)
+
+Same architecture, data, seeds and hyperparameters as the MVE twin, but
+`predict_mve: False` and `loss: "energy_only"`: members minimize the per-atom energy
+MSE `((E_ref - E_pred) / N_atoms)^2` and have no variance output. The evaluation code is
+unchanged: a member without `energy_var` contributes variance 0, so
+
+```text
+AU = 0          (constant; its rank metrics are undefined and must not be reported)
+EU = population variance over members of energy_m   (as above)
+TU = EU
+```
+
+The ablation compares, per split, MSE-ensemble EU with MVE EU (effect of the loss)
+and with MVE TU (effect of adding AU). EU of an MSE ensemble is not calibrated by
+construction; compare ranking metrics (Spearman, AUSE) directly and calibration only
+after the same recalibration for both methods.
+
 ## Checkpoint selection
 
 Final ensembles use, **per member**, the checkpoint with the lowest **validation
-Gaussian NLL** in its MACE results log (`--selection-key loss --selection-mode min`).
+loss** in its MACE results log (`--selection-key loss --selection-mode min`): the
+Gaussian NLL for MVE members, the energy MSE for `mse-ensemble` members.
 ID/OOD test sets are never used for selection. Epoch-quality analyses instead
 evaluate the whole ensemble at every common epoch (every 5th).
 

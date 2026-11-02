@@ -108,3 +108,46 @@ class PlottingTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class EnsembleSizeTests(unittest.TestCase):
+    """uq.evaluation.ensemble_size: windows of M members, single model at M = 1."""
+
+    def setUp(self):
+        rng = np.random.default_rng(0)
+        self.members = {"energy": rng.normal(0.0, 0.05, (10, 300)), "var": rng.uniform(1e-4, 4e-3, (10, 300)),
+                        "ref": rng.normal(0.0, 0.05, 300)}
+        from uq.evaluation import ensemble_size
+        self.module = ensemble_size
+        self.rows = ensemble_size.ensemble_size_rows(self.members, np.ones(300, dtype=bool))
+
+    def value(self, members, metric, signal):
+        (row,) = [r for r in self.rows if (r["members"], r["metric"], r["uncertainty_type"]) == (members, metric, signal)]
+        return row["value"]
+
+    def test_full_ensemble_is_one_window_with_the_reliability_definitions(self):
+        full = self.module.window_metrics(self.members["energy"], self.members["var"], self.members["ref"])
+        self.assertEqual({r["windows"] for r in self.rows if r["members"] == 10}, {1})
+        for (metric, signal), value in full.items():
+            self.assertAlmostEqual(self.value(10, metric, signal), value)
+        pred = self.members["energy"].mean(0)
+        self.assertAlmostEqual(self.value(10, "rmse", "ensemble"), np.sqrt(np.mean((pred - self.members["ref"]) ** 2)))
+
+    def test_single_model_is_the_mean_over_members_and_has_no_epistemic_signal(self):
+        singles = [self.module.window_metrics(self.members["energy"][[m]], self.members["var"][[m]],
+                                              self.members["ref"]) for m in range(10)]
+        self.assertAlmostEqual(self.value(1, "spearman", "aleatoric"),
+                               np.mean([s[("spearman", "aleatoric")] for s in singles]))
+        self.assertTrue(np.isnan(self.value(1, "spearman", "epistemic")))
+        self.assertAlmostEqual(self.value(1, "ause", "total"), self.value(1, "ause", "aleatoric"))
+
+    def test_mse_ensemble_has_no_aleatoric_signal(self):
+        members = dict(self.members, var=np.zeros_like(self.members["var"]))
+        rows = self.module.ensemble_size_rows(members, np.ones(300, dtype=bool))
+        aleatoric = [r["value"] for r in rows if r["uncertainty_type"] == "aleatoric"]
+        self.assertTrue(np.all(np.isnan(aleatoric)))
+        total = {(r["members"], r["metric"]): r["value"] for r in rows if r["uncertainty_type"] == "total"}
+        epistemic = {(r["members"], r["metric"]): r["value"] for r in rows if r["uncertainty_type"] == "epistemic"}
+        self.assertEqual(total.keys(), epistemic.keys())
+        for key in total:
+            np.testing.assert_equal(total[key], epistemic[key])

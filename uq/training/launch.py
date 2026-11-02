@@ -57,6 +57,22 @@ def check_inputs(experiment, split: int, member: int) -> list:
     return [path for path in needed if not path.is_file()]
 
 
+def stale_outputs(experiment, split: int, member: int) -> list:
+    """Outputs of an earlier, unfinished run of an incomplete member; empty if none.
+
+    MACE appends to ``results/<name>_run-<m>_train.txt``, so a fresh run on top of an
+    aborted one would mix two runs' validation rows and checkpoint selection could pick
+    an epoch whose checkpoint was overwritten. Such members are refused until the user
+    removes these files (or resumes the run by hand).
+    """
+    exp = registry.experiment(experiment)
+    if exp.member_complete(split, member):
+        return []
+    found = [exp.train_log(split, member), exp.final_model(split, member)]
+    found += sorted(paths.checkpoints_dir(exp.id, split).glob(f"{exp.run_name}_run-{member}_epoch-*.pt"))
+    return [path for path in found if path.exists()]
+
+
 def prepare(experiment, split: int) -> None:
     """Create the run directories of one split (as the old shell launcher did)."""
     exp = registry.experiment(experiment)
@@ -78,6 +94,10 @@ def train_member(experiment, split: int, member: int, gpu: int, dry_run: bool = 
         return 0
     if missing:
         raise SystemExit("missing inputs:\n  " + "\n  ".join(map(str, missing)))
+    stale = stale_outputs(exp.id, split, member)
+    if stale:
+        raise SystemExit(f"{len(stale)} outputs of an unfinished earlier run exist (MACE would append to its "
+                         f"result log); remove them first:\n  " + "\n  ".join(map(str, stale[:5])))
     prepare(exp.id, split)
     env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(gpu))
     return subprocess.call(cmd, cwd=paths.ROOT, env=env)

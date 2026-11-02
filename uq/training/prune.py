@@ -8,7 +8,8 @@ analysis samples epochs with ``epoch % n == 0`` for n in {5, 10}, and final ense
 each member's best-validation checkpoint. Per split, this keeps
 
 - every ``<name>_run-<m>_epoch-<e>.pt`` with ``e % stride == 0`` (stride 5 by default),
-- each member's best-validation checkpoint (validation Gaussian NLL, as the pipeline selects),
+- each member's best-validation checkpoint (lowest validation loss, as the pipeline selects:
+  Gaussian NLL for MVE members, MSE for ``mse-ensemble`` members),
 - every final ``<name>_run-<m>.model`` (and every file that is not an epoch checkpoint),
 
 and deletes the other epoch checkpoints. It refuses splits with incomplete members.

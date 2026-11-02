@@ -35,8 +35,9 @@ and `runs/`:
 
 - `<dataset>`: a folder of `data/` with a `dataset.yaml` — the data *and* its split
   design, e.g. `ani1x-system`, `ani1x-energy`, `water-random`;
-- `<model>-<uq>`: model and uncertainty method, e.g. `mace-mve` (MACE, ensemble of
-  ten mean-variance members);
+- `<model>-<uq>`: model and uncertainty method: `mace-mve` (MACE, ensemble of ten
+  mean-variance members) or `mace-mse` (MACE, ensemble of ten plain MSE members, the
+  EU-only baseline);
 - `<protocol>`: `lf-only`, `lf-to-hf`, `hf-only`.
 
 The nine experiments of the ICLR27 paper keep their old letters as aliases

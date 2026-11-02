@@ -518,3 +518,69 @@ How to use it:
   regenerated from the kept checkpoints (up to GPU nondeterminism). Epoch analyses finer
   than every 5th epoch, and re-selecting checkpoints by another criterion, now need
   retraining; the evaluation code at tag `iclr27-submission` refuses the pruned folders.
+
+### 2026-11-02 Single MVE model vs ensemble size (B, D, E, F; MSE-baseline study, free arm)
+
+- **Status:** verified (computed in this task; the M = 10 rows reproduce the tracked
+  `reliability_<test>_nocal_summary.csv` aggregates of the same experiments to the printed
+  precision, e.g. D Energy-OOD TU Spearman 0.640 [0.621, 0.659] in both; per configuration,
+  ensemble prediction/AU agree to <= 1e-5 relative and EU to a median 0.16% (GPU non-determinism)
+  with `reliability_ood_nocal_raw.csv`, D split 0).
+- **Purpose:** first arm of the AU/EU-decomposition ablation for the ICLR27 rebuttal / follow-up:
+  what a single MVE model (AU only, M = 1) gives compared with the ten-member MVE ensemble
+  (AU, EU, TU), and how the metrics grow with ensemble size. The MSE-ensemble arm
+  (`*/mace-mse/*`, training since 2026-11-02) will be compared with `python -m uq.evaluation.compare_uq`.
+- **Code commit:** `75f349e8167a731ca7a465d81dbda0c7339d0b87`; dirty tree: yes. New
+  `uq/evaluation/{member_predictions,ensemble_size,compare_uq}.py`; edited `uq/evaluation/{pipeline,
+  aggregate,summary}.py`, `uq/{cli,registry}.py`, `uq/training/*`, specs of B, D, E, F
+  (`member_predictions: [id, ood]` appended), docs; unrelated user edits in `talk/`.
+- **Command(s):**
+  per experiment X in D F B E, split s in 0-4, test t in ood id (GPU 0, one split/test at a time):
+  `uq evaluate X --gpu 0 --splits s --steps member_predictions_t ensemble_size_t --no-aggregate`;
+  then `uq aggregate D F B E --only ensemble_size_` (CPU; other aggregates untouched);
+  table: `for e in E B F D; do for t in id ood; do for m in 1 10; do uq summary $e --test $t --members $m; done; done; done > results/tables/ensemble_size_mve.txt`.
+- **Configuration:** `experiments/ani1x-{system,energy}/mace-mve/{lf-to-hf,hf-only}/{experiment.yaml,config.yaml}`;
+  final per-member checkpoints selected by validation Gaussian NLL (as `reliability`), batch size 256.
+- **Dataset and split:** `data/ani1x-{system,energy}/split_{0..4}/cc_test_{id,ood}.xyz` (5000 each).
+  Training-support filter applied: Energy-OOD 13-16, Energy-ID 0-2, System-ID 0-1, System-OOD 0
+  configurations removed per split.
+- **Random seeds:** split seeds 0-4; member seeds 0-9 (no member or split missing).
+- **Compute:** GPU inference (40 runs, ~1.5 min each on a shared A100) + CPU.
+- **Metrics:** for ensemble size M, metrics (RMSE of the mean prediction, Spearman and AUSE of each
+  signal vs squared error, ENCE 15 equal-count bins) averaged over the ten cyclic windows of M
+  consecutive member seeds within a split; M = 1 = each member alone (AU = its own variance, EU
+  undefined, TU = AU). Five-split mean [95% Student-t interval, df = 4]; ENCE as geometric mean
+  [log-space interval]; RMSE in meV/atom. Uncalibrated. OOD values:
+
+  | Metric (OOD) | Experiment | M = 1 (single model) AU | M = 10 AU / EU / TU | Source file |
+  |---|---|---|---|---|
+  | Spearman | E (system, HF-only) | 0.387 [0.359, 0.416] | 0.402 [0.358, 0.447] / 0.370 [0.330, 0.409] / 0.411 [0.367, 0.455] | `results/tables/ensemble_size_mve.txt` |
+  | Spearman | B (system, LF->HF) | 0.462 [0.451, 0.473] | 0.490 [0.465, 0.514] / 0.501 [0.489, 0.514] / 0.518 [0.498, 0.537] | same |
+  | Spearman | F (energy, HF-only) | 0.426 [0.398, 0.453] | 0.533 [0.511, 0.555] / 0.445 [0.430, 0.460] / 0.556 [0.537, 0.574] | same |
+  | Spearman | D (energy, LF->HF) | 0.529 [0.521, 0.537] | 0.626 [0.608, 0.644] / 0.589 [0.571, 0.608] / 0.640 [0.621, 0.659] | same |
+  | AUSE | E | 0.274 [0.258, 0.291] | 0.252 [0.231, 0.273] / 0.288 [0.265, 0.311] / 0.247 [0.225, 0.269] | same |
+  | AUSE | B | 0.201 [0.183, 0.218] | 0.175 [0.156, 0.193] / 0.175 [0.154, 0.195] / 0.163 [0.145, 0.180] | same |
+  | AUSE | F | 0.272 [0.254, 0.290] | 0.200 [0.188, 0.212] / 0.298 [0.285, 0.312] / 0.186 [0.178, 0.194] | same |
+  | AUSE | D | 0.233 [0.224, 0.241] | 0.148 [0.139, 0.158] / 0.194 [0.179, 0.209] / 0.143 [0.134, 0.153] | same |
+  | ENCE (geometric) | E | 0.759 [0.628, 0.919] | 0.332 [0.282, 0.392] / 2.018 [1.588, 2.565] / 0.391 [0.323, 0.472] | same |
+  | ENCE (geometric) | B | 2.188 [1.632, 2.933] | 0.618 [0.462, 0.827] / 1.491 [0.971, 2.292] / 0.320 [0.255, 0.401] | same |
+  | ENCE (geometric) | F | 6.975 [5.760, 8.446] | 3.246 [2.571, 4.097] / 14.535 [12.474, 16.936] / 1.636 [1.318, 2.031] | same |
+  | ENCE (geometric) | D | 22.342 [17.491, 28.539] | 6.698 [5.002, 8.970] / 13.302 [10.513, 16.831] / 2.970 [2.078, 4.246] | same |
+  | RMSE (meV/atom, mean) | E / B / F / D | 42.0 / 37.9 / 77.7 / 62.0 (single members) | 34.0 / 33.0 / 75.2 / 58.7 (ensemble) | same |
+
+  ID values and all M = 1..10 rows: same file and `experiments/<id>/evaluation/ensemble_size_{id,ood}.csv`.
+
+- **Output files:** new, tracked: `experiments/ani1x-{system,energy}/mace-mve/{lf-to-hf,hf-only}/evaluation/
+  split_{0..4}/{members,ensemble_size}_{id,ood}.{npz,csv}` (14 MB of npz),
+  `.../evaluation/ensemble_size_{id,ood}.{csv,svg}`, `results/tables/ensemble_size_mve.txt`.
+  No existing output changed (a trial full `uq aggregate` into a scratch directory reproduced every
+  existing aggregate CSV byte for byte; SVGs differ only in embedded date and element ids, so they
+  were not rewritten).
+- **Interpretation:** On all four OOD tests the ten-member TU ranks better than a single MVE model's
+  AU (Spearman higher, AUSE lower, non-overlapping intervals on every test except System-OOD HF-only,
+  E, where they overlap), and is better calibrated (ENCE lower on every test). Part of the gain is
+  averaging AU itself over members (ensemble AU already improves on single-model AU); EU alone ranks
+  worse than AU or TU on three of four tests (similar on B). The intervals are over splits for each
+  quantity separately, not paired tests; paired contrasts come with `compare_uq` once the MSE
+  ensembles are evaluated. Metrics keep improving up to M = 10 on Energy-OOD (curves in
+  `ensemble_size_ood.svg`), so ten members is not saturated there.

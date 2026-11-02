@@ -1,0 +1,33 @@
+# MACE hyperparameters of this experiment: identical to ../../mace-mve/lf-only/config.yaml
+# (legacy experiment_A/config_A.yml) except the loss: plain per-atom energy MSE, no variance head.
+# Data files, output directories, --wandb_dir and --foundation_model are passed by
+# `uq train-member` (uq/training/launch.py); see docs/experiments.md.
+model: "MACE"
+
+name: "mace"
+
+energy_key: "wb97x_tz.energy"
+
+lr: 0.01
+num_channels: 128
+max_L: 1
+r_max: 6.0
+forces_weight: 0.0
+device: cuda
+batch_size: 64
+max_num_epochs: 300
+swa: False
+compute_forces: False
+E0s: "average"
+predict_mve: False             # MVE ensembles: True
+loss: "energy_only"            # MVE ensembles: "gaussian_nll"; this is ((E_ref - E_pred) / N_atoms)^2
+eval_interval: 1
+save_all_checkpoints: True
+log_epoch_outputs: False
+default_dtype: "float32"
+enable_cueq: False
+
+wandb: True
+wandb_entity: "uq-mf"
+wandb_project: "ani1x-system_mace-mse_lf-only"
+

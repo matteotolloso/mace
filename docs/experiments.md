@@ -17,7 +17,7 @@ uq status [B ...] [-v]   # trained members per split, evaluated splits
 legacy_id: B                      # optional alias (A-F, wA-wC for the ICLR27 experiments)
 dataset: ani1x-system             # data/<dataset>/dataset.yaml
 model: mace
-uq: mve-ensemble                  # AU/EU/TU from an ensemble of MVE members (concepts.md)
+uq: mve-ensemble                  # AU/EU/TU from an ensemble of MVE members; or mse-ensemble (concepts.md)
 protocol: lf-to-hf                # lf-only | lf-to-hf | hf-only
 target: hf                        # fidelity of the training labels
 parent: ani1x-system/mace-mve/lf-only   # lf-to-hf only: member (s, m) starts from parent member (s, m)
@@ -58,6 +58,25 @@ and every evaluated role exist in the dataset; `config.yaml` exists; legacy ids 
 All 450 members (9 x 5 x 10) are trained. Pretraining and direct runs: 300 epochs;
 fine-tuning: 100 epochs at 1/10 of the learning rate (see each `config.yaml`).
 
+## The MSE-ensemble baseline (2026-11, rebuttal / follow-up)
+
+Each ANI-1x MVE experiment has an `mace-mse` twin: same data, splits, member seeds,
+architecture and hyperparameters; only `predict_mve: False` and `loss: "energy_only"`
+(per-atom energy MSE) differ. The ensemble spread is the only uncertainty (EU; AU is
+written as 0, TU = EU), so it answers whether the AU/EU decomposition adds anything over
+a standard deep ensemble. LF->HF members are fine-tuned from the MSE parents, never from
+MVE parents. Checkpoints are selected per member by validation MSE (the member's own
+loss; same `--selection-key loss` code path). Water is not included (not in the paper).
+
+| Experiment | Trained on | Parent | MVE counterpart |
+|---|---|---|---|
+| `ani1x-system/mace-mse/lf-only` | DFT | — | A |
+| `ani1x-system/mace-mse/lf-to-hf` | CC (fine-tuned) | `ani1x-system/mace-mse/lf-only` | B |
+| `ani1x-system/mace-mse/hf-only` | CC | — | E |
+| `ani1x-energy/mace-mse/lf-only` | DFT | — | C |
+| `ani1x-energy/mace-mse/lf-to-hf` | CC (fine-tuned) | `ani1x-energy/mace-mse/lf-only` | D |
+| `ani1x-energy/mace-mse/hf-only` | CC | — | F |
+
 ## Training
 
 ```bash
@@ -73,7 +92,14 @@ with the split's train/val/test files, the run directories
 `--foundation_model runs/<parent>/split_<s>/checkpoints/mace_run-<m>.model`. It
 refuses to start if an input is missing. `uq train` skips complete members, trains
 parents first, waits for the matching parent member before a fine-tuning job, and
-never uses more than two GPUs; logs go to `runs/_logs/`. `$PYTHON_BIN` overrides the
+never uses more than two GPUs; logs go to `runs/_logs/`. Fine-tuning members start as
+soon as their parent member is complete; `--by-experiment` finishes experiments in the
+order given instead of interleaving members. Each member is capped at
+`--threads-per-job` CPU threads (default 8) and packed jobs use PyTorch's expandable
+CUDA segments. The scheduler refuses a member that left partial outputs from an aborted
+run (MACE appends to its result log): remove those files, then rerun. Measured on ANI-1x
+LF (2026-11-02, A100): one member ~93 s/epoch alone, ~184 s/epoch with three per GPU
+(1.5x throughput); GPU-bound beyond that. `$PYTHON_BIN` overrides the
 interpreter. Configs set `wandb: True` (entity `uq-mf`), so training needs W&B.
 
 A member is **complete** when both `checkpoints/mace_run-<m>.model` and
@@ -92,7 +118,7 @@ uq prune-checkpoints <exp> --apply    # irreversible: only when the user asks fo
 ```
 
 It keeps every `epoch % 5 == 0` checkpoint, the best checkpoint of each member (the
-pipeline's own selection: validation Gaussian NLL) and every `.model`; refuses splits
+pipeline's own selection: validation loss) and every `.model`; refuses splits
 with incomplete members; checks on a simulated folder that the pipeline would select
 exactly the same epochs and checkpoints; and writes `checkpoints/PRUNED.json` (rule,
 date, every deleted file). Checkpoint selection accepts exactly the gaps listed there

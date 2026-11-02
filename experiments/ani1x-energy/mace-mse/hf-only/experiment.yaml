@@ -1,0 +1,21 @@
+# ANI-1x energy split | MACE, ensemble of 10 MSE members (no variance head) | HF-only: trained on high-fidelity labels from scratch.
+# Baseline for the MVE ensemble of the same protocol (../../mace-mve/hf-only): same data, splits,
+# member seeds and hyperparameters; only the loss (MSE) and the uncertainty differ. docs/concepts.md.
+dataset: ani1x-energy
+model: mace
+uq: mse-ensemble            # EU = variance of member means; no AU (written as 0), TU = EU
+protocol: hf-only
+target: hf                   # fidelity of the training labels (CC)
+parent: null
+splits: [0, 1, 2, 3, 4]
+members: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+training:
+  config: config.yaml         # MACE hyperparameters; data/output paths are added by the launcher
+  test_role: id              # file passed as MACE --test_file
+evaluation:                   # steps and order: docs/evaluation.md
+  batch_size: 256
+  trim: 0.0
+  reliability: [id, ood]
+  sets: [id, ood, train]   # epoch quality, LF->HF trajectory, distributions
+  energy_quantiles: true      # AU/EU by within-system energy quantile
+  member_predictions: [id, ood]   # per-member predictions -> single model and ensemble size M = 1..10

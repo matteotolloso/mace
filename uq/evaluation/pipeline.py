@@ -15,6 +15,8 @@ Per split, in this order (``experiment.yaml`` -> ``evaluation`` selects sets/ext
   finetune                 (``finetune_comparison``) parent vs fine-tuned ensemble
   distribution_<set>       per-configuration AU, EU and error distributions
   energy_ood               (``energy_quantiles``) AU/EU by within-system energy quantile
+  member_predictions_<set> (``member_predictions``) each member's prediction and variance (npz)
+  ensemble_size_<set>      (``member_predictions``, CPU) metrics vs ensemble size M = 1..10
 
 Outputs go to ``experiments/<id>/evaluation/split_<s>/``; the aggregate writes the
 five-split CSV/SVG files to ``experiments/<id>/evaluation/``. The commands are the
@@ -143,6 +145,14 @@ def steps(experiment, split: int) -> List[Step]:
             "--selection-key", "loss", "--selection-mode", "min", "--device", "cuda", "--batch-size", bs,
             "--output-csv-raw", o("energy_ood_raw.csv"), "--output-csv-bins", o("energy_ood_bins.csv"),
             "--output-plot", o("energy_ood.svg")]))
+
+    for role in ev.get("member_predictions", []):
+        result.append(Step(f"member_predictions_{role}", "member_predictions", [
+            "--checkpoints-dir", ck, "--results-dir", rs, "--experiment-name", name, "--split-path", f(role),
+            "--energy-key", key, "--selection-key", "loss", "--selection-mode", "min", "--device", "cuda",
+            "--batch-size", bs, "--output", o(f"members_{role}.npz")]))
+        result.append(Step(f"ensemble_size_{role}", "ensemble_size", [
+            "--members-npz", o(f"members_{role}.npz"), "--output-csv", o(f"ensemble_size_{role}.csv")]))
     return result
 
 
@@ -189,20 +199,24 @@ def evaluate(experiment, gpu, splits=None, only_steps=None, aggregate=True, dry_
     return 0
 
 
-def aggregate_all(names=(), dry_run=False) -> int:
+def aggregate_all(names=(), dry_run=False, only=None) -> int:
     """Rebuild five-split aggregates from per-split outputs (CPU only); with no names,
-    every experiment with outputs plus the active-learning plots."""
+    every experiment with outputs plus the active-learning plots. ``only``: file-name
+    prefixes to rebuild (SVGs embed a date and random ids, so a full rebuild rewrites
+    every tracked SVG even when nothing changed)."""
     status = 0
     for exp in registry.resolve(names):
         if not paths.split_evaluation_dir(exp.id, exp.splits[0]).is_dir():
             print(f"skipping {exp.label}: no per-split evaluation outputs yet")
             continue
         step = aggregate_step(exp.id)
+        if only:
+            step.args += ["--only", *only]
         if dry_run:
             print(step)
         else:
             status |= _run(step)
-    if not names:
+    if not names and not only:
         from uq.active_learning import entry
 
         status |= entry.replot_all(dry_run=dry_run)

@@ -59,6 +59,7 @@ ICLR27-UQ-MF/   manuscript, separate Git repository synced with Overleaf (ignore
 | `ani1x-energy/mace-mve/lf-to-hf` | D | same | DFT pretraining -> CC fine-tuning |
 | `ani1x-energy/mace-mve/hf-only` | F | same | CC only |
 | `water-random/mace-mve/{lf-only,lf-to-hf,hf-only}` | wA, wB, wC | liquid water (BLYP / CCSD(T)) | as above |
+| `ani1x-{system,energy}/mace-mse/{lf-only,lf-to-hf,hf-only}` | — | as the MVE twins | MSE-ensemble baseline (EU only), 2026-11 |
 
 ## Workflow
 

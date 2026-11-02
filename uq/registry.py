@@ -24,7 +24,10 @@ from uq import paths
 PROTOCOLS = ("lf-only", "lf-to-hf", "hf-only")   # also the listing order
 # (model, uq) pairs with a training launcher and an evaluation backend. Add a pair only
 # together with its code (docs/extending.md); specs naming anything else fail validation.
-BACKENDS = {("mace", "mve-ensemble")}
+BACKENDS = {
+    ("mace", "mve-ensemble"),   # MVE members (Gaussian NLL): AU = mean member variance, EU = member spread
+    ("mace", "mse-ensemble"),   # MSE members, no variance head: AU = 0, EU = member spread (concepts.md)
+}
 
 
 class SpecError(ValueError):
@@ -245,6 +248,7 @@ def validate() -> list:
         if not exp.config_path.is_file():
             problems.append(f"{where}: missing {exp.config_path.name}")
         for role in {*exp.evaluation.get("reliability", []), *exp.evaluation.get("sets", []),
+                     *exp.evaluation.get("member_predictions", []),
                      exp.training.get("test_role", "id")}:
             if role not in exp.fidelity.files:
                 problems.append(f"{where}: role {role!r} has no {exp.target} file in {data.id}")

@@ -39,7 +39,7 @@ Verify with the narrowest check:
 
 ```bash
 uq check                                             # specs
-python -m unittest discover -s uq/tests -t .         # 46 CPU tests
+python -m unittest discover -s uq/tests -t .         # 49 CPU tests
 uq evaluate <exp> --gpu 0 --dry-run                  # pipeline commands
 python -m pytest tests --ignore=tests/test_cueq_oeq.py   # upstream MACE (slow, CI; needs pytest)
 ```

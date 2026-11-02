@@ -92,7 +92,8 @@ def cmd_train(args) -> int:
     if len(set(args.gpus)) > MAX_GPUS:
         raise SystemExit(f"at most {MAX_GPUS} GPUs may be used at the same time (got {args.gpus})")
     return scheduler.run(args.experiments, gpus=args.gpus, splits=args.splits, members=args.members,
-                         jobs_per_gpu=args.jobs_per_gpu, dry_run=args.dry_run)
+                         jobs_per_gpu=args.jobs_per_gpu, dry_run=args.dry_run,
+                         by_experiment=args.by_experiment, threads_per_job=args.threads_per_job)
 
 
 def cmd_prune(args) -> int:
@@ -117,13 +118,13 @@ def cmd_evaluate(args) -> int:
 def cmd_aggregate(args) -> int:
     from uq.evaluation import pipeline
 
-    return pipeline.aggregate_all(args.experiments, dry_run=args.dry_run)
+    return pipeline.aggregate_all(args.experiments, dry_run=args.dry_run, only=args.only)
 
 
 def cmd_summary(args) -> int:
     from uq.evaluation import summary
 
-    return summary.main(args.experiment, test=args.test, calibrated=args.cal)
+    return summary.main(args.experiment, test=args.test, calibrated=args.cal, members=args.members)
 
 
 def cmd_where(args) -> int:
@@ -190,6 +191,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--splits", type=_ints, help="e.g. 0-4 or 1,3 (default: all of the spec)")
     p.add_argument("--members", type=_ints, help="e.g. 0-9 (default: all of the spec)")
     p.add_argument("--jobs-per-gpu", type=int, default=1, help="concurrent members per GPU")
+    p.add_argument("--threads-per-job", type=int, default=8, help="CPU threads per member (default 8)")
+    p.add_argument("--by-experiment", action="store_true",
+                   help="finish experiments in the order given instead of interleaving members")
     p.add_argument("--dry-run", action="store_true", help="print the plan, run nothing")
     p.set_defaults(func=cmd_train)
 
@@ -218,6 +222,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("aggregate", help="rebuild five-split aggregates from per-split outputs (CPU)")
     p.add_argument("experiments", nargs="*", help="default: all")
+    p.add_argument("--only", nargs="+", metavar="PREFIX",
+                   help="rebuild only aggregates of per-split CSVs with these name prefixes (e.g. ensemble_size_)")
     p.add_argument("--dry-run", action="store_true")
     p.set_defaults(func=cmd_aggregate)
 
@@ -225,6 +231,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("experiment")
     p.add_argument("--test", help="test role, e.g. id, ood, test, train (default: all)")
     p.add_argument("--cal", action="store_true", help="isotonic-recalibrated variances")
+    p.add_argument("--members", type=int, default=None,
+                   help="ensemble of M members from ensemble_size_<test>.csv (1 = single model)")
     p.set_defaults(func=cmd_summary)
 
     p = sub.add_parser("where", help="translate old (pre-2026-09) paths to the current layout")

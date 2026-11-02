@@ -74,8 +74,9 @@ code out of shared modules.
 
 ## A new UQ method
 
-`uq` in `experiment.yaml` names it (`mve-ensemble` today: ensemble of MVE members,
-AU = mean member variance, EU = population variance of member means). A new method
+`uq` in `experiment.yaml` names it (`mve-ensemble`: ensemble of MVE members,
+AU = mean member variance, EU = population variance of member means; `mse-ensemble`:
+ensemble of MSE members without variance head, AU = 0, EU as above). A new method
 (single MVE model, MC dropout, evidential, Laplace, ...) needs: how members/samples
 are trained (spec `members`, config), and a prediction function returning per
 configuration `pred_energy`, `aleatoric_var`, `epistemic_var`. Implement it next to

@@ -65,6 +65,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--reliability-axis-max", type=float, default=None,
                         help="Shared RMV/RMSE upper limit; defaults to 0.10 for linear plots, automatic for log plots.")
     parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="INFO")
+    parser.add_argument("--only", nargs="+", default=None, metavar="PREFIX",
+                        help="aggregate only per-split CSVs whose name starts with one of these prefixes "
+                             "(e.g. ensemble_size_); other aggregates are left untouched")
     return parser.parse_args()
 
 
@@ -464,6 +467,42 @@ def aggregate_bar_csv(
     save_figure(fig, output_dir / f"{plot_stem}.svg")
 
 
+def aggregate_ensemble_size(
+    filename: str,
+    replicate_rows: Sequence[Sequence[Dict[str, str]]],
+    output_dir: Path,
+) -> None:
+    """Five-split summary of ``ensemble_size_<role>.csv`` (``uq.evaluation.ensemble_size``):
+    one row per (members, metric, signal); arithmetic and geometric intervals over splits."""
+    rows = aggregate_rows(replicate_rows, key_fields=["metric", "uncertainty_type", "members"],
+                          metric_fields=["value"])
+    write_csv(output_dir / filename, rows)
+    panels = [("rmse", "RMSE (eV/atom) ←", ("ensemble",)), ("spearman", "Spearman →", UNCERTAINTIES),
+              ("ause", "AUSE ←", UNCERTAINTIES), ("ence", "ENCE ←", UNCERTAINTIES)]
+    fig, axes = plt.subplots(1, 4, figsize=(24, 5.5))
+    for ax, (metric, label, signals) in zip(axes, panels):
+        groups = {signal: [row for row in rows if row["metric"] == metric and row["uncertainty_type"] == signal]
+                  for signal in signals}
+        groups = {signal: [row for row in group if np.isfinite(float(row["value_mean"]))]
+                  for signal, group in groups.items()}   # undefined points: constant signal (EU at M = 1)
+        groups = {signal: group for signal, group in groups.items() if group}
+        if metric in ("rmse", "ence"):
+            use_log_intervals(ax, [row for group in groups.values() for row in group], ["value"])
+        for signal, group in groups.items():
+            x = np.asarray([float(row["members"]) for row in group])
+            faded = metric == "ence" and signal != "total"
+            plot_band(ax, x, group, "value", color=COLORS.get(signal, "black"), label=LABELS.get(signal, "Ensemble"))
+            if faded:
+                for line in ax.lines[-2:]:
+                    line.set_alpha(0.45)
+        ax.set_xlabel("ensemble members M")
+        ax.set_ylabel(label)
+        ax.grid(alpha=0.3)
+        if groups:
+            ax.legend()
+    save_figure(fig, output_dir / f"{Path(filename).stem}.svg")
+
+
 def _float_or_text(value: str):
     try:
         return float(value)
@@ -491,6 +530,8 @@ def main() -> None:
                        "reliability rows will not be support-filtered.", args.cache_dir)
 
     filenames = sorted(path.name for path in split_zero.glob("*.csv"))
+    if args.only:
+        filenames = [name for name in filenames if name.startswith(tuple(args.only))]
     processed = set()
     for filename in filenames:
         if filename in processed:
@@ -530,6 +571,8 @@ def main() -> None:
             aggregate_bar_csv(filename, replicates, args.output_dir)
         elif stem.startswith("energy_ood_") and stem.endswith("_raw"):
             continue
+        elif stem.startswith("ensemble_size_"):
+            aggregate_ensemble_size(filename, replicates, args.output_dir)
         else:
             LOGGER.warning("No aggregate plot schema for %s; leaving its split caches untouched.", filename)
 

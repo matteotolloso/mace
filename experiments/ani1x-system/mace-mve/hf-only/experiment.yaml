@@ -17,3 +17,4 @@ evaluation:                   # steps and order: docs/evaluation.md
   trim: 0.0
   reliability: [id, ood]
   sets: [id, ood, train]   # epoch quality, LF->HF trajectory, distributions
+  member_predictions: [id, ood]   # per-member predictions -> single model and ensemble size M = 1..10

@@ -14,7 +14,8 @@ uq list | uq status | uq show <exp> | uq summary <exp> --test ood | uq where <ol
 ```
 
 Experiments are `<dataset>/<model>-<uq>/<protocol>` (e.g. `ani1x-energy/mace-mve/lf-to-hf`);
-legacy letters A-F, wA-wC are aliases (`uq show D`). Docs: `docs/README.md` indexes one
+legacy letters A-F, wA-wC are aliases (`uq show D`). `mace-mve` = ensembles of MVE members
+(the paper's method); `mace-mse` = plain MSE ensembles, the EU-only baseline (2026-11, ANI only). Docs: `docs/README.md` indexes one
 page per topic — read only the page you need. Environment: `conda activate mace`
 (Python 3.11, torch 2.4, e3nn 0.4.4; exact pins in `environment.yml`); `uq` is installed in
 editable mode (`pip install --no-deps --no-build-isolation -e .` after adding a top-level package).
@@ -37,7 +38,8 @@ editable mode (`pip install --no-deps --no-build-isolation -e .` after adding a 
   ensemble, never independent samples. Intervals are over splits. Never silently use
   fewer splits or members.
 - LF->HF member (s, m) is fine-tuned from parent member (s, m). Checkpoints are selected
-  per member by validation Gaussian NLL only; test sets never select anything.
+  per member by its own validation loss only (Gaussian NLL for `mace-mve`, energy MSE for
+  the `mace-mse` baseline); test sets never select anything.
 - **Never use more than 2 GPUs at the same time**, counting every running job (shared
   machine; check `nvidia-smi`). `uq train` enforces it; `uq evaluate` uses one GPU.
 - Never overwrite, delete, rename or retrain datasets, checkpoints, per-split evaluation
@@ -53,7 +55,7 @@ editable mode (`pip install --no-deps --no-build-isolation -e .` after adding a 
 - Do not open `*_raw.csv` (5k-50k rows), `.npz`, checkpoints or W&B files to "look":
   use `uq summary`, `uq status`, or a pandas one-liner that prints a few numbers.
 - Verify with the narrowest check: `uq check`; `python -m unittest discover -s uq/tests -t .`
-  (46 tests, CPU; they pin every recorded experiment's commands); `uq evaluate <exp> --gpu G
+  (49 tests, CPU; they pin every recorded experiment's commands); `uq evaluate <exp> --gpu G
   --dry-run`; `uq train ... --dry-run`.
 - A change that alters numbers must be followed by `uq aggregate` (CPU) and a ledger entry.
 - GPU inference is not bit-reproducible (EU varies ~5% relative per configuration).
