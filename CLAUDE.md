@@ -1,167 +1,66 @@
-# Project context
+# Agent guide — UQ for multi-fidelity atomistic models
 
-Research fork of MACE for the paper **"Multi-Fidelity Training Reshapes
-Uncertainty Decomposition in Atomistic Models"**. The project studies how
-aleatoric and epistemic uncertainty behave in mean-variance (MVE) MACE ensembles
-across fidelity regimes (DFT pretraining, CC fine-tuning, CC-only), distribution
-shifts (system-level and energy-based), and training dynamics, on ANI-1ccx and
-periodic liquid water. It also contains an isolated ANI active-learning proof of
-concept.
+Research fork of MACE: ensembles of MACE models with a mean-variance (MVE) head,
+trained on low-fidelity (DFT), high-fidelity (coupled-cluster) or both
+(pretrain -> fine-tune), studied through the aleatoric/epistemic decomposition under
+distribution shift and during training; ICLR 2027 submission + follow-ups. Two
+workspaces share this root: this repository (code, data, experiments, results) and
+`ICLR27-UQ-MF/` (the manuscript: separate Git repo synced with Overleaf, own CLAUDE.md).
 
-Two workspaces share this root:
+## Orient cheaply (prefer these to reading files)
 
-- **Experiments** (this repository, `origin` = the experiments GitHub repository): code, data,
-  training, evaluation and results.
-- **Paper** (`ICLR27-UQ-MF/`): the ICLR 2027 manuscript, an independent Git
-  repository synced with Overleaf through GitHub. The parent repository ignores
-  it; its own local `CLAUDE.md` loads the paper rules.
+```bash
+uq list | uq status | uq show <exp> | uq summary <exp> --test ood | uq where <old path> | uq --help
+```
 
-Detailed, task-specific instructions live in `.claude/rules/`:
-`reproducibility.md`, `statistics-and-plots.md`, `code-changes.md`,
-`paper-writing.md`, `active-learning.md` (loaded for `active_learning/**`).
-The full protocol and the pipeline audit are in [`README.md`](README.md).
+Experiments are `<dataset>/<model>-<uq>/<protocol>` (e.g. `ani1x-energy/mace-mve/lf-to-hf`);
+legacy letters A-F, wA-wC are aliases (`uq show D`). Docs: `docs/README.md` indexes one
+page per topic — read only the page you need. Environment: `conda activate mace`
+(Python 3.11, torch 2.4, e3nn 0.4.4; exact pins in `environment.yml`); `uq` is installed in
+editable mode (`pip install --no-deps --no-build-isolation -e .` after adding a top-level package).
 
-## Terminology
+## Map
 
-- **LF / HF**: low fidelity = DFT `wb97x_tz.energy`; high fidelity = CC
-  `ccsd(t)_cbs.energy`. Water uses `REF_energy` (BLYP as LF, CCSDT as HF).
-- **Protocols**: LF-only, HF-only, and LF->HF (DFT pretraining, then CC
-  fine-tuning of the same member).
-- **Shifts / test sets**: System-ID/OOD (unseen molecular systems) and
-  Energy-ID/OOD (higher within-system energy quantiles).
-- **AU** = mean member-predicted variance; **EU** = population variance of
-  member energy means (`unbiased=False`); **TU** = AU + EU. Per-atom by default
-  (`variance / N_atoms^2`).
-- **Ranking** metrics: Spearman, AUSE. **Calibration**: ENCE. Error: RMSE.
-- **Split** = one statistical replicate (seeds `0..4`); **member** = one of the
-  ten MVE models of a split's ensemble (seeds `0..9`).
-
-## Non-negotiable invariants
-
-- Five dataset splits; ten members per split form one ensemble. Members are not
-  independent samples. Confidence intervals are over the five splits.
-- Never silently use fewer than five splits or fewer than ten members.
-- Fine-tuning pairs the same split and member seed with its parent:
-  B <- A, D <- C, wB <- wA.
-- Checkpoints are selected per member by validation Gaussian NLL only; ID/OOD
-  tests are never used for selection.
-- Do not overwrite, delete, rename or retrain datasets, checkpoints, caches or
-  results unless the user explicitly requests that exact action (>1 TB).
-- Never reset or revert changes you did not make. Do not commit or push unless
-  asked.
-- **Never use more than 2 GPUs at the same time**, counting every running job
-  (training, inference, evaluation). The machine is shared. `bash eval.sh`
-  without `--plots-only` uses six GPUs: do not run it as-is.
-- **Never claim an experimental result unless it is recorded in
-  `results/results.md`** (or read from an output file that a ledger entry lists).
-
-## Experiment matrix
-
-| Family | Shift/data | Protocol | Target | Parent |
-|---|---|---|---|---|
-| A | ANI system-OOD | LF-only | DFT | none |
-| B | ANI system-OOD | LF->HF | CC | matching A |
-| C | ANI energy-OOD | LF-only | DFT | none |
-| D | ANI energy-OOD | LF->HF | CC | matching C |
-| E | ANI system-OOD | HF-only | CC | none |
-| F | ANI energy-OOD | HF-only | CC | none |
-| wA | periodic water | LF-only | BLYP | none |
-| wB | periodic water | LF->HF | CCSDT | matching wA |
-| wC | periodic water | HF-only | CCSDT | none |
-
-Water is trained and evaluated on all five splits (ledger entry 2026-09-23) and is
-outside the current paper.
-
-## Where things live
-
-| What | Path |
+| Path | What |
 |---|---|
-| MACE package incl. MVE head and Gaussian NLL | `mace/` (`modules/models.py`, `modules/loss.py`) |
-| Evaluation, statistics, support filter | `eval/` |
-| Dataset splitters and generated splits | `dataset/` (`ani1x_{system,energy}_split_<s>/`, `water_<s>/`) |
-| Experiment configs and launchers | `experiment_X/config_X.yml`, `train_X.sh`, `eval_X.sh` |
-| Run outputs (checkpoints, models, logs) | `experiment_X/{checkpoints,models,results,logs}_<s>/` |
-| Per-split evaluation caches | `experiment_X/evaluation/cache/split_<s>/` |
-| Five-split tables (CSV) and figures (SVG) | `experiment_X/evaluation/` (catalogue: `experiments/evaluation_figures.md`) |
-| Rebuilt paper figures (PDF/SVG/PNG) | `new_figures/out/` (scripts in `new_figures/`) |
-| Active-learning code and runs | `active_learning/ani_energy/` (`runs/` is Git-ignored) |
-| Results ledger; curated tables/figures | `results/results.md`, `results/tables/`, `results/figures/` |
-| Experiments index, ad-hoc launch scripts | `experiments/README.md`, `experiments/scripts/` |
-| Notes and the previous NeurIPS manuscript | `notes/` |
-| Manuscript (Overleaf) | `ICLR27-UQ-MF/iclr2027_conference.tex`, `ICLR27-UQ-MF/figures/` |
-| W&B logs | `wandb/` (Git-ignored) |
+| `uq/` | research package; `paths.py` is the only place that knows the layout; `registry.py` reads specs |
+| `experiments/<id>/` | `experiment.yaml` (spec), `config.yaml` (MACE hyperparameters), `evaluation/` (tracked outputs; `split_<s>/` per split) |
+| `data/<dataset>/` | `dataset.yaml` + `split_<s>/` (xyz/h5 ignored) |
+| `runs/` | ignored, ~650 GB: `<id>/split_<s>/{checkpoints,results,logs,models}`, `active-learning/`, `wandb/` |
+| `results/results.md` | ledger: the only source of citable numbers; `results/tables/` |
+| `papers/iclr27/` | figure scripts (`figures/`, outputs `figures/out/`), `paper_numbers.py`, drafts |
+| `mace/`, `tests/` | upstream MACE fork; MVE code only inside `### MVE ###` fences |
 
-`experiment_X/` and the code directories cannot be moved: launchers resolve the
-repository root from their own location, and caches use fixed relative paths.
-`dataset/ani1x-processed/` is legacy and unused.
+## Non-negotiable
 
-**Generated (never hand-edit):** everything under `experiment_X/{checkpoints,
-models,results,logs}_*`, `experiment_X/evaluation/`, `new_figures/out/`,
-`new_figures/_cache/`, `eval/cache/`, `active_learning/ani_energy/runs/`,
-`wandb/`, and the split files in `dataset/`.
+- Five dataset splits (seeds 0-4) are the replicates; ten members (seeds 0-9) form one
+  ensemble, never independent samples. Intervals are over splits. Never silently use
+  fewer splits or members.
+- LF->HF member (s, m) is fine-tuned from parent member (s, m). Checkpoints are selected
+  per member by validation Gaussian NLL only; test sets never select anything.
+- **Never use more than 2 GPUs at the same time**, counting every running job (shared
+  machine; check `nvidia-smi`). `uq train` enforces it; `uq evaluate` uses one GPU.
+- Never overwrite, delete, rename or retrain datasets, checkpoints, per-split evaluation
+  outputs or results unless the user asks for that exact action.
+- Never claim a result that is not in `results/results.md` (or read from a file an entry
+  lists); record new ones with the `record-result` skill.
+- Reportable reliability numbers use the support filter and `trim: 0.0`.
+- Never reset or revert changes you did not make. Do not commit or push unless asked.
 
-## Setup
+## Working rules
 
-Use the existing conda environment `mace` (Python 3.11, torch 2.4.0,
-e3nn 0.4.4), where this repository is installed in editable mode. Interpreter:
-`$CONDA_PREFIX/bin/python` with `conda activate mace`. From scratch:
+- Build paths with `uq.paths` / `uq.registry`; never hard-code `runs/...` or letters in new code.
+- Do not open `*_raw.csv` (5k-50k rows), `.npz`, checkpoints or W&B files to "look":
+  use `uq summary`, `uq status`, or a pandas one-liner that prints a few numbers.
+- Verify with the narrowest check: `uq check`; `python -m unittest discover -s uq/tests -t .`
+  (46 tests, CPU; they pin every recorded experiment's commands); `uq evaluate <exp> --gpu G
+  --dry-run`; `uq train ... --dry-run`.
+- A change that alters numbers must be followed by `uq aggregate` (CPU) and a ledger entry.
+- GPU inference is not bit-reproducible (EU varies ~5% relative per configuration).
+- Epoch checkpoints exist only for every 5th epoch plus each member's best (pruned
+  2026-09-26, `checkpoints/PRUNED.json`): finer epoch analyses need retraining.
 
-```bash
-pip install -e ".[wandb,dev]"   # dependencies from setup.cfg
-pip install scikit-learn        # isotonic recalibration in eval/reliability.py
-```
-
-Experiment configs set `wandb: True` (entity `uq-mf`), so training needs W&B.
-
-## Tests and linting
-
-```bash
-# statistics / plotting / aggregation
-cd eval && MPLCONFIGDIR=/tmp/mpl-cache \
-  $CONDA_PREFIX/bin/python -B -m unittest -v test_plotting
-# active learning
-$CONDA_PREFIX/bin/python -B active_learning/ani_energy/test_workflow.py
-$CONDA_PREFIX/bin/python -B active_learning/ani_energy/test_five_splits.py
-$CONDA_PREFIX/bin/python -B active_learning/ani_energy/test_reporting.py
-# shell syntax
-bash -n eval.sh active_learning/ani_energy/run.sh active_learning/ani_energy/run_all.sh
-# upstream MACE tests (slow; CI) and linting
-python -m pytest tests --ignore=tests/test_cueq_oeq.py
-pre-commit run --all-files      # black, isort, pylint, whitespace
-```
-
-## Running experiments
-
-Run from the repository root.
-
-```bash
-bash experiment_A/train_A.sh <split:0-4> <member:0-9> <gpu>   # train one member
-./check_experiments.sh                                         # all 450 members
-experiment_A/eval_A.sh <gpu>          # GPU inference + five-split aggregation
-MPLCONFIGDIR=/tmp/mpl-cache \
-EVAL_PYTHON=$CONDA_PREFIX/bin/python \
-bash eval.sh --plots-only             # rebuild aggregates from caches, CPU only
-python -B eval/support_filter.py --report      # support-filter bounds per split
-bash new_figures/make_all.sh                   # rebuild paper figures, CPU only
-bash active_learning/ani_energy/run_all.sh <gpu> --epochs 50            # AL
-bash active_learning/ani_energy/run_all.sh <gpu> --aggregate-only --epochs 50
-```
-
-`bash eval.sh` without `--plots-only` launches A-F evaluations concurrently on a
-hard-coded GPU map; edit it only when asked. Dataset generation scripts can
-overwrite split files: never run them against completed experiments.
-
-## Reproducibility
-
-- Record every citable run in `results/results.md` (skill: `record-result`):
-  commit, exact command, configuration, dataset and split, seeds, metrics with
-  their source files, output paths, and interpretation.
-- Prefer cache-only recomputation over GPU inference over retraining. When
-  reporting completion, state which one was used and name every output changed.
-- Details: `.claude/rules/reproducibility.md`.
-
-## Maintaining this file
-
-Keep it below about 200 lines and limited to facts whose absence would cause
-costly or scientifically invalid work. Put detail in `.claude/rules/` or
-`README.md` and link it here.
+Path-specific rules load automatically from `.claude/rules/` (evaluation/statistics,
+experiments/data, active learning, paper, MACE fork). Procedures: skills
+`train-experiment`, `evaluate-experiment`, `new-experiment`, `add-dataset`,
+`paper-figures`, `record-result`.

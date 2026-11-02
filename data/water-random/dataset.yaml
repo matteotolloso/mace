@@ -1,0 +1,25 @@
+# Periodic liquid water, random split per level of theory (see docs/known-issues.md:
+# the BLYP and CCSD(T) splits are shuffled independently, so they are NOT aligned).
+description: >-
+  Liquid water, 16 H2O (48 atoms) in a 7.831 A cubic cell, n2p2 data converted to
+  extended XYZ (Hartree/Bohr -> eV/A). Each level of theory is split 65/10/25 at
+  random with its own derived seed; CCSD(T) has 200 configurations, BLYP 531.
+splits: [0, 1, 2, 3, 4]
+tests: [test]
+support_filter: false
+fidelities:
+  lf:
+    name: BLYP
+    method: BLYP (DFT)
+    energy_key: REF_energy
+    files: {train: blyp/train.xyz, val: blyp/val.xyz, test: blyp/test.xyz}
+  hf:
+    name: CCSDT              # short name used in plot titles (the level of theory is CCSD(T))
+    method: CCSD(T)
+    energy_key: REF_energy
+    files: {train: ccsdt/train.xyz, val: ccsdt/val.xyz, test: ccsdt/test.xyz}
+other_theories: [afqmc, ccsd, hf, revpbe-d3]   # converted too; unused so far
+build:
+  module: uq.datasets.water_n2p2
+  source: raw/water-n2p2          # <theory>/input.data, copied into each split before conversion
+  args: [--root, "{split_dir}", --train, "65", --val, "10", --test, "25", --seed, "{split}"]

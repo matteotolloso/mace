@@ -1,0 +1,12 @@
+## Geometry overlap between CCSDT and BLYP roles (exact match of positions rounded to 1e-4 A)
+split | CCSDT test (50) in BLYP train / val / test | CCSDT val in BLYP train | CCSDT train (130) in BLYP train / val / test
+0 | n_test=50: 37 / 4 / 9 | n_val=20: 12 | n_train=130: 80 / 19 / 31
+1 | n_test=50: 31 / 6 / 13 | n_val=20: 13 | n_train=130: 81 / 10 / 39
+2 | n_test=50: 37 / 4 / 9 | n_val=20: 14 | n_train=130: 83 / 16 / 31
+3 | n_test=50: 37 / 6 / 7 | n_val=20: 10 | n_train=130: 91 / 11 / 28
+4 | n_test=50: 35 / 5 / 10 | n_val=20: 16 | n_train=130: 87 / 15 / 28
+
+## Validation-NLL selected epoch per member (0-based, as eval/reliability.py selects it)
+wA: members 50, median 270.0, range 133-299, per-split medians [291.0, 249.5, 253.5, 287.0, 256.0]
+wB: members 50, median 54.5, range 0-97, per-split medians [53.0, 22.5, 12.5, 59.0, 81.5]
+wC: members 50, median 272.0, range 5-299, per-split medians [280.5, 69.5, 291.5, 281.0, 272.5]

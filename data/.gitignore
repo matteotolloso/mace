@@ -1,0 +1,5 @@
+# Dataset files are large and regenerable with `uq data build <dataset>`; only the
+# specs, split metadata, geometry caches and raw water sources are tracked.
+# (*.xyz and *.txt are ignored repository-wide.)
+*.h5
+/legacy/

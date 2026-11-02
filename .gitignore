@@ -1,58 +1,51 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Distribution / packaging
-build/
-*.egg-info/
-
-# pytest
-.pytest_cache/
-
-# mypy
-.mypy_cache/
-
-# IDE
-.idea/
-.vscode/
-*.txt
-*.log
-
-# Distribution
-dist/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# DS_Store
-.DS_Store
-*.models
-*.pt
-/wandb
-*.xyz
-/checkpoints
-*.model
-# MACE's default results_dir is ./results; keep its outputs out of Git, but track
-# the research ledger and the curated tables/figures that back paper claims.
+# --- Research layout (docs/layout.md) --------------------------------------------------
+# Heavy, regenerable run artifacts: checkpoints, MACE logs, W&B, active-learning runs.
+/runs/*
+!/runs/README.md
+# Large dataset files are ignored by data/.gitignore; *.xyz is ignored everywhere below.
+# Overleaf-synchronized manuscripts (ICLR27, arXiv, RPS workshop): independent Git repositories.
+/ICLR27-UQ-MF/
+/UQ-MF-Arxiv-/
+/RPS-UQ-MF/
+# results/: the ledger and curated tables/figures are tracked; MACE's default
+# results_dir (./results) would otherwise dump training outputs here.
 /results/*
 !/results/results.md
 !/results/tables/
 !/results/figures/
-*.db
 
+# --- Python ------------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
 .benchmarks
-# *.png
-
-# Overleaf-synchronized paper: an independent Git repository with its own remote.
-/ICLR27-UQ-MF/
-
-# Local environments and per-user tool settings
+.ipynb_checkpoints
 .venv/
 venv/
+
+# --- Model and data files (upstream MACE defaults) ----------------------------------------
+*.pt
+*.model
+*.models
+*.xyz
+*.db
+*.log
+*.txt
+# ...but the curated result tables are text files
+!/results/tables/*.txt
+
+# --- Editors, OS, local tool settings -------------------------------------------------------
+.idea/
+.vscode/
+.DS_Store
 .claude/settings.local.json
 
-# LaTeX build products (for drafts compiled inside this repo, e.g. new_figures/)
+# --- LaTeX build products (drafts compiled inside papers/) ----------------------------------
 *.aux
 *.bbl
 *.blg

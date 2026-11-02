@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Multi-Fidelity Training Reshapes Uncertainty Decomposition in Atomistic Models · ICLR 2027</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="lib/reveal/reset.css">
+<link rel="stylesheet" href="lib/reveal/reveal.css">
+<link rel="stylesheet" href="lib/katex/katex.min.css">
+<link rel="stylesheet" href="css/theme.css">
+</head>
+<body>
+<!--
+  Edit this file directly; there is no build step. Plots: <div class="d3fig" data-fig="NAME"> is drawn
+  by js/plots.js from data/paper_figures.js. Its animation step k plays when the k-th
+  <span class="fragment step"> of the slide is shown (step 0 plays when the slide opens), so a step
+  span and the finding it illustrates share a data-fragment-index.
+  Finding circles: teal = good news, orange (class "bad") = caveat. data-timing adds up to 20:00.
+-->
+<div class="reveal"><div class="slides">
+
+<!-- ============================================================ 1 Title -->
+<section class="dark" data-background-color="#0f2a33" data-timing="20">
+  <div style="padding-top: 120px">
+    <div class="kick enter">ICLR 2027 · ORAL</div>
+    <h1 class="enter d1" style="max-width: 1400px">Multi-Fidelity Training Reshapes Uncertainty Decomposition in Atomistic&nbsp;Models</h1>
+    <div class="authors enter d2">Matteo Tolloso<sup>1</sup>, Davide Bacciu<sup>1</sup>, Luigi Bonati<sup>2</sup></div>
+    <div class="cols enter d3" style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 60px">
+      <div class="box"><b><sup>1</sup>University of Pisa</b><span><sup>2</sup>Italian Institute of Technology</span></div>
+      <div class="box"><b style="color: #7fd3c6">Code, splits, evaluation</b><span>github.com/matteotolloso/mace</span></div>
+    </div>
+  </div>
+  <aside class="notes">[0:00 → 0:20] Hi, I'm Matteo; joint work with Davide Bacciu and Luigi Bonati. The question: what happens
+    to the uncertainty of machine-learned interatomic models when we train them on data of two fidelities.</aside>
+</section>
+
+<!-- ============================================================ 2 Motivation -->
+<section data-timing="85">
+  <h2>Why uncertainty, and why multi-fidelity?</h2>
+  <p class="sub">ML potentials are used where nobody checks them, and accurate labels are scarce</p>
+  <div style="display: grid; grid-template-columns: 1fr 1.08fr; gap: 56px; margin-top: 34px">
+    <div class="enter d1">
+      <h3>Models run beyond their training data</h3>
+      <div class="findings" style="margin-top: 18px">
+        <div class="fd"><div class="n">1</div><div><b>Active learning</b><span>which configuration do we label next?</span></div></div>
+        <div class="fd"><div class="n">2</div><div><b>Molecular dynamics</b><span>when does a trajectory leave the model's comfort zone?</span></div></div>
+        <div class="fd"><div class="n">3</div><div><b>Screening</b><span>which predictions can we keep?</span></div></div>
+      </div>
+      <p style="margin-top: 26px; font-size: 29px; font-weight: 700">All rely on the model knowing its own error.</p>
+    </div>
+    <div class="enter d2">
+      <h3>Labels come in two fidelities</h3>
+      <div style="margin-top: 22px">
+        <div class="bar-row"><div class="bar-label"><b>Cheap (DFT)</b><small>low fidelity</small></div>
+          <div class="bar-track"><div class="bar" style="--w: 76%; background: #8a8f96"></div>50,000</div></div>
+        <div class="bar-row"><div class="bar-label"><b>Accurate (CCSD(T))</b><small>high fidelity</small></div>
+          <div class="bar-track"><div class="bar" style="--w: 7.6%; background: var(--lfhf)"></div>5,000</div></div>
+        <div class="small" style="margin: -6px 0 0 286px">training configurations per split, ANI-1x</div>
+      </div>
+      <div class="card" style="margin-top: 28px; display: flex; gap: 22px; align-items: center">
+        <img src="assets/training.png" alt="Pretraining on low fidelity, then high fidelity" style="height: 180px; width: auto">
+        <p style="margin: 0">Standard recipe: <b>pretrain on cheap labels, fine-tune on accurate ones</b>. It improves accuracy.</p>
+      </div>
+    </div>
+  </div>
+  <div class="so fragment fade-up" style="position: absolute; left: 70px; right: 70px; bottom: 40px; font-size: 28px">
+    <span class="k">Open question:</span> what does multi-fidelity training do to the <b>uncertainty</b>, and to its aleatoric/epistemic parts?
+  </div>
+  <aside class="notes">[0:20 → 1:45] ML potentials are routinely used beyond their training data: to decide what to compute next,
+    in MD trajectories that drift into new regions, to filter predictions. All of that relies on the model knowing its own
+    error. At the same time, labels come at two fidelities: 50,000 cheap DFT configurations per split, ten times fewer
+    accurate coupled-cluster ones. The standard recipe is to pretrain on the cheap ones and fine-tune on the accurate ones,
+    which improves accuracy. (click) What it does to the uncertainty is essentially unexplored.</aside>
+</section>
+
+<!-- ============================================================ 3 Ranking vs calibration -->
+<section data-timing="95">
+  <h2>Uncertainty has two jobs</h2>
+  <p class="sub">Ranking: which predictions are wrong? &nbsp;·&nbsp; Calibration: by how much?</p>
+  <div class="d3fig" data-fig="metrics" style="width: 1440px; margin-top: 26px"></div>
+  <span class="fragment step" data-fragment-index="1"></span>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 90px; margin-top: 6px">
+    <div class="fd"><div class="n">1</div><div><b>AUSE = ranking error</b><span>discard the most uncertain configurations and compare with discarding the largest errors; lower is better</span></div></div>
+    <div class="fd fragment fade-up" data-fragment-index="1"><div class="n">2</div><div><b>ENCE = calibration error</b><span>predicted variance vs observed squared error in 15 bins; lower is better, above 1 only if overconfident</span></div></div>
+  </div>
+  <div class="foot">Illustration with synthetic numbers. AUSE: Lind et al. 2024; ENCE: Levi et al. 2022.</div>
+  <aside class="notes">[1:45 → 3:20] Two different properties. Ranking: does the uncertainty point at the configurations with the
+    largest errors? We discard configurations by uncertainty and compare with discarding by the true error, the oracle; the
+    area between the curves is AUSE, a ranking error. (click) Calibration: are the error bars the right size? Bin by
+    predicted variance, compare with the observed squared error; above the diagonal means overconfident. ENCE averages the
+    relative gap. Uncertainty is usually checked once, at the end, with one score; these two can come apart.</aside>
+</section>
+
+<!-- ============================================================ 4 Model + decomposition -->
+<section data-timing="150">
+  <h2>MACE models that predict their own error bars</h2>
+  <p class="sub">One model gives an energy and a variance; an ensemble of ten splits the uncertainty in two</p>
+  <div style="display: grid; grid-template-columns: 760px 1fr; gap: 44px; margin-top: 18px">
+    <div>
+      <img class="enter d1" src="assets/mve_box.png" alt="MACE mean-variance estimator" style="width: 700px; display: block">
+      <p class="enter d2" style="font-size: 23px; margin: 8px 0 0 0"><b>One model:</b> MACE predicting an energy and its own variance σ², trained with the Gaussian likelihood</p>
+      <div class="d3fig" data-fig="ensemble" style="width: 660px; margin-top: 10px"></div>
+    </div>
+    <div>
+      <p class="eq-label enter d1"><b>Theory:</b> law of total variance</p>
+      <div class="enter d1" style="font-size: 30px; margin: -4px 0 6px 0">\[\mathrm{Var}(E\mid x) = \textcolor{#13897d}{\mathbb{E}_\theta\big[\mathrm{Var}(E\mid x,\theta)\big]} + \textcolor{#e05a2b}{\mathrm{Var}_\theta\big[\mathbb{E}(E\mid x,\theta)\big]}\]</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+        <div class="unc-card fragment fade-up" data-fragment-index="2"><h4 class="teal">AU · aleatoric</h4>
+          <p>What even a perfect model could not predict: noise or inherent ambiguity. Irreducible.</p>
+          <p class="pr"><b>In practice:</b> average variance of the 10 models</p></div>
+        <div class="unc-card fragment fade-up" data-fragment-index="1" style="border-left-color: var(--orange)"><h4 class="orange">EU · epistemic</h4>
+          <p>Uncertainty about the model itself, from limited data. Reducible with more data.</p>
+          <p class="pr"><b>In practice:</b> disagreement of the 10 models</p></div>
+      </div>
+      <div class="fragment fade-up" data-fragment-index="3" style="margin-top: 18px">
+        <p class="eq-label"><b>Practice:</b> ensemble of 10 mean–variance MACE models</p>
+        <div style="font-size: 30px">\[\mathrm{TU} = \textcolor{#13897d}{\tfrac{1}{M}\sum_m \hat\sigma^2_m(x)} + \textcolor{#e05a2b}{\tfrac{1}{M}\sum_m \big(\hat E_m(x) - \bar E(x)\big)^2}\]</div>
+      </div>
+    </div>
+  </div>
+  <span class="fragment step" data-fragment-index="1"></span><span class="fragment step" data-fragment-index="2"></span><span class="fragment step" data-fragment-index="3"></span>
+  <div class="foot">Labels are exact quantum-chemistry energies: "aleatoric" here means configuration difficulty, not noise. MACE: Batatia et al., NeurIPS 2022.</div>
+  <aside class="notes">[3:20 → 5:50] One model: MACE, an equivariant message-passing potential, whose last layer predicts for each atom
+    an energy and a variance; trained with the Gaussian likelihood, so the variance learns the size of its own errors.
+    The law of total variance splits predictive uncertainty in two. In practice we train ten such models: each gives its own
+    Gaussian for a structure. (click) Where the members disagree: epistemic uncertainty, about the model itself, reducible
+    with more data. (click) The average of the variances they predict: aleatoric uncertainty, classically irreducible noise.
+    (click) Their sum, TU, is the variance we actually predict, so it is the one that should be calibrated. Caveat in the
+    footer: our labels have no noise, so "aleatoric" really means how hard a configuration is; we will see that matters.</aside>
+</section>
+
+<!-- ============================================================ 5 Setup -->
+<section data-timing="90">
+  <h2>Experimental setup</h2>
+  <p class="sub">Two recipes · two kinds of novelty · uncertainty scored on ranking (AUSE) and calibration (ENCE)</p>
+  <div class="cards" style="margin-top: 26px">
+    <div class="card enter d1" style="height: 450px">
+      <div class="head"><div class="icon" style="background: var(--teal)"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></div><h3 style="margin: 0">Data</h3></div>
+      <p><b>ANI-1x:</b> small organic molecules, each in many shapes</p>
+      <p><b>Per split:</b> 50k cheap (DFT) + 5k accurate (CCSD(T)) energy labels</p>
+      <p>Energies only, no forces</p>
+    </div>
+    <div class="card enter d2" style="height: 450px">
+      <div class="head"><div class="icon" style="background: var(--orange)"><svg viewBox="0 0 24 24"><circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="5" r="2.5"/><path d="M8.5 19h6a3.5 3.5 0 0 0 0-7h-5a3.5 3.5 0 0 1 0-7h6"/></svg></div><h3 style="margin: 0">Two recipes</h3></div>
+      <p><span class="hf">HF-only:</span> accurate labels only, from scratch</p>
+      <p><span class="lfhf">LF→HF:</span> pretrain on cheap labels, then fine-tune on accurate ones</p>
+      <p>Same architecture, 10-model ensembles, 5 data splits</p>
+    </div>
+    <div class="card enter d3" style="height: 450px">
+      <div class="head"><div class="icon" style="background: var(--teal)"><svg viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg></div><h3 style="margin: 0">Test sets</h3></div>
+      <p><b>In domain (ID):</b> new shapes of training molecules</p>
+      <p><b>System shift:</b> molecules never seen</p>
+      <p><b>Energy shift:</b> trained on low-energy shapes, tested on high-energy</p>
+    </div>
+  </div>
+  <div class="rqs enter d4">
+    <div><b>RQ1</b>At the end of training, is the uncertainty better?</div>
+    <div><b>RQ2</b>Does the kind of novelty matter?</div>
+    <div><b>RQ3</b>How does uncertainty change during training?</div>
+    <div><b>RQ4</b>Is it a better guide for choosing new data?</div>
+  </div>
+  <aside class="notes">[5:50 → 7:20] ANI-1x: small organic molecules, each in many shapes; per split 50k cheap DFT and 5k accurate
+    coupled-cluster energies. Two recipes: accurate labels from scratch, or pretrain on cheap and fine-tune on accurate, each
+    fine-tuned member starting from its pretrained twin. Three test sets: new shapes of training molecules, molecules never
+    seen, and higher-energy shapes. Everything over five independent data splits. Four questions.</aside>
+</section>
+
+<!-- ============================================================ 6 RQ1 (paper Fig. 2) -->
+<section data-timing="130">
+  <h2>Pretraining improves ranking, not always calibration</h2>
+  <p class="sub">RQ1 · At the end of training, does pretraining give better uncertainty?</p>
+  <div class="rq-track"><span class="on">1</span><span>2</span><span>3</span><span>4</span></div>
+  <div class="result">
+    <div class="d3fig" data-fig="final"></div>
+    <div class="findings">
+      <div class="fd enter d2"><div class="n">1</div><div><b>Lower error everywhere</b><span>more accurate on every test set (a)</span></div></div>
+      <div class="fd fragment fade-up" data-fragment-index="1"><div class="n">2</div><div><b>Better ranking on every test set</b><span>for AU, EU and TU alike (b)</span></div></div>
+      <div class="fd fragment fade-up" data-fragment-index="2"><div class="n">3</div><div><b>EU catches up</b><span>from weakest signal to close to TU (b)</span></div></div>
+      <div class="fd fragment fade-up" data-fragment-index="3"><div class="n bad">4</div><div><b>Calibration is mixed</b><span>TU worse at high energy (c)</span></div></div>
+      <div class="so fragment fade-up" data-fragment-index="4"><span class="k">So:</span> pretraining helps the model know <b>which</b> predictions are wrong, not always <b>by how much</b>.</div>
+    </div>
+  </div>
+  <span class="fragment step" data-fragment-index="1"></span><span class="fragment step" data-fragment-index="2"></span><span class="fragment step" data-fragment-index="3"></span>
+  <div class="foot"><span class="hf">Teal</span>: HF-only · <span class="lfhf">Red</span>: LF→HF · ● AU ■ EU ◆ TU · left is better (RMSE = error, AUSE = ranking error, ENCE = calibration error) · bars: 95% intervals over 5 splits</div>
+  <aside class="notes">[7:20 → 9:30] Converged models. Teal accurate-only, red pretrained; circles AU, squares EU, diamonds TU; left is
+    better everywhere. (1) Pretraining lowers the error on every test set. (click 2) Ranking: better for all three signals on
+    every test set. (click 3) And the decomposition changes: without pretraining EU is the worst ranker everywhere; with it,
+    it catches up and gets close to TU, the "reshapes" in the title. (click 4) Calibration: TU highlighted, AU and EU faded
+    because they are only parts of the variance. Mixed: slightly better in domain and on new molecules, clearly worse at high
+    energy. (click) So: it knows which predictions are wrong, not always by how much.</aside>
+</section>
+
+<!-- ============================================================ 7 RQ2 (paper Fig. 3) -->
+<section data-timing="120">
+  <h2>Energy shift decouples ranking from calibration</h2>
+  <p class="sub">RQ2 · Does the kind of novelty matter: new molecules vs higher energies?</p>
+  <div class="rq-track"><span>1</span><span class="on">2</span><span>3</span><span>4</span></div>
+  <div class="result">
+    <div class="d3fig" data-fig="rankcal"></div>
+    <div class="findings">
+      <div class="fd fragment fade-up" data-fragment-index="1"><div class="n">1</div><div><b>New molecules: ranking improves</b><span>and calibration barely changes (a)</span></div></div>
+      <div class="fd fragment fade-up" data-fragment-index="2"><div class="n">2</div><div><b>Higher energies: ranking improves too</b><span>larger errors are easier to order (b)</span></div></div>
+      <div class="fd fragment fade-up" data-fragment-index="3"><div class="n bad">3</div><div><b>But calibration breaks</b><span>TU calibration error ~4–7× worse (b)</span></div></div>
+      <div class="fd fragment fade-up" data-fragment-index="4"><div class="n bad">4</div><div><b>Recalibration does not fix it</b><span>a fit in domain cannot stretch to bigger errors (backup)</span></div></div>
+      <div class="so fragment fade-up" data-fragment-index="5"><span class="k">So:</span> the models know <b>which</b> high-energy configurations are wrong, but not <b>by how much</b>.</div>
+    </div>
+  </div>
+  <span class="fragment step" data-fragment-index="1"></span><span class="fragment step" data-fragment-index="2"></span><span class="fragment step" data-fragment-index="3"></span>
+  <div class="foot">Hollow = in domain, filled = out of domain · down = better ranking, left = better calibration · numbers: TU ENCE OOD / ID</div>
+  <aside class="notes">[9:30 → 11:30] Each test set is a point: down is better ranking, left is better calibration. Hollow markers
+    are in domain. (click 1) New molecules: the points move down, better ranking, calibration barely moves. (click 2) Higher
+    energies: ranking improves too; those errors are larger and easier to order. (click 3) But everything also slides right:
+    TU's calibration error grows about 4× without and 7× with pretraining, so this is not specific to pretraining.
+    (click 4) Isotonic recalibration fitted in domain does not repair it. (click) So: which, not by how much.</aside>
+</section>
+
+<!-- ============================================================ 8 RQ3 (paper Fig. 4) -->
+<section data-timing="140">
+  <h2>Calibration is lost during high-fidelity training</h2>
+  <p class="sub">RQ3 · During training, when is calibration lost?</p>
+  <div class="rq-track"><span>1</span><span>2</span><span class="on">3</span><span>4</span></div>
+  <div class="result" style="margin-top: 8px">
+    <div class="d3fig" data-fig="decomposition" style="width: 820px"></div>
+    <div class="findings" style="gap: 12px; margin-top: 14px">
+      <div class="fd fragment fade-up" data-fragment-index="2"><div class="n">1</div><div><b>On training data, all is fine</b><span>ranking improves, calibration stays put (a, b)</span></div></div>
+      <div class="fd fragment fade-up" data-fragment-index="3"><div class="n">2</div><div><b>On test data, ranking stays good</b><span>also after switching to accurate labels (c, e)</span></div></div>
+      <div class="fd fragment fade-up" data-fragment-index="4"><div class="n bad">3</div><div><b>But calibration breaks in fine-tuning</b><span>good during pretraining, then much worse (d, f)</span></div></div>
+      <div class="fd fragment fade-up" data-fragment-index="5"><div class="n bad">4</div><div><b>The culprit is AU</b><span>error bars far too small (~100× worse)</span></div></div>
+      <div class="fd fragment fade-up" data-fragment-index="6"><div class="n">5</div><div><b>EU holds</b><span>stays near its pretraining level and limits the damage</span></div></div>
+      <div class="so fragment fade-up" data-fragment-index="7"><span class="k">So:</span> most calibration is lost in the accurate-label stage, through AU.</div>
+    </div>
+  </div>
+  <span class="fragment step" data-fragment-index="1"></span><span class="fragment step" data-fragment-index="2"></span><span class="fragment step" data-fragment-index="3"></span>
+  <span class="fragment step" data-fragment-index="4"></span><span class="fragment step" data-fragment-index="5"></span><span class="fragment step" data-fragment-index="6"></span>
+  <span class="fragment step" data-fragment-index="7"></span>
+  <div class="foot">Epochs 0–299: pretraining on DFT labels · shaded 300–399: fine-tuning on CC labels · <span style="color: #6f4e9c; font-weight: 700">purple</span>: system split, <span style="color: #a6761d; font-weight: 700">brown</span>: energy split · bands: 95% over 5 splits</div>
+  <aside class="notes">[11:30 → 13:50] The whole LF→HF run, three rows (training data, ID test, OOD test), ranking left and
+    calibration right. Pretraining plays now. (click) Fine-tuning on accurate labels, shaded. Now panel by panel.
+    (click 1) Training data: ranking improves, calibration stays near one. (click 2) Test data: ranking good during
+    pretraining and it recovers after the switch. (click 3) Calibration on test data: fine during pretraining, then breaks in
+    fine-tuning. (click 4) The culprit is AU: its error bars become about a hundred times too small. (click 5) EU stays near
+    its pretraining level, which limits the damage to TU. (click) So: calibration is lost in the accurate-label stage, through
+    AU. Note at epoch 300 the labels change, so values across the boundary aren't directly comparable.</aside>
+</section>
+
+<!-- ============================================================ 9 RQ3 (paper Fig. 5) -->
+<section data-timing="110">
+  <h2>Pretraining speeds up both gain and loss</h2>
+  <p class="sub">RQ3 · Same question, comparing the two recipes on the accurate-label stage</p>
+  <div class="rq-track"><span>1</span><span>2</span><span class="on">3</span><span>4</span></div>
+  <div class="result">
+    <div class="d3fig" data-fig="hfstage" style="width: 860px"></div>
+    <div class="findings">
+      <div class="fd fragment fade-up" data-fragment-index="1"><div class="n">1</div><div><b>Pretraining ranks better at once</b><span>from the first accurate-label epoch (a, b)</span></div></div>
+      <div class="fd fragment fade-up" data-fragment-index="2"><div class="n">2</div><div><b>Then both recipes level off</b><span>ranking settles during training</span></div></div>
+      <div class="fd fragment fade-up" data-fragment-index="3"><div class="n bad">3</div><div><b>Calibration breaks faster</b><span>AU ENCE ≈80 / 200 after 100 epochs, vs ≈14 / 70 after 300 from scratch (c, d)</span></div></div>
+      <div class="fd fragment fade-up" data-fragment-index="4"><div class="n bad">4</div><div><b>Ranking and calibration decouple</b><span>one can improve while the other gets worse</span></div></div>
+      <div class="so fragment fade-up" data-fragment-index="5"><span class="k">In practice:</span> select checkpoints by watching calibration too, not only the loss, ideally on shifted data.</div>
+    </div>
+  </div>
+  <span class="fragment step" data-fragment-index="3"></span>
+  <div class="foot">x axis: epochs on accurate (CC) labels only · <span class="hf">teal</span> starts from scratch, <span class="lfhf">red</span> from the pretrained model · OOD test sets</div>
+  <aside class="notes">[13:50 → 15:40] Same question, both recipes aligned on the accurate-label stage, OOD test sets. Ranking plays now.
+    (click 1) With pretraining (red) ranking is better from the first epoch. (click 2) Then both level off. (click 3) Now
+    calibration: from scratch it first improves then degrades, driven by AU; with pretraining the same degradation happens
+    much faster: after 100 epochs AU's calibration error is about 80 and 200, versus 14 and 70 after 300 epochs from scratch.
+    Pretraining does not cause it, it accelerates it. (click 4) Ranking and calibration move independently. (click) In
+    practice: watch calibration when selecting checkpoints, not only the loss.</aside>
+</section>
+
+<!-- ============================================================ 10 Mechanism -->
+<section data-timing="60">
+  <h2>Why do the error bars shrink?</h2>
+  <p class="sub">A plausible mechanism (our interpretation)</p>
+  <div class="result" style="grid-template-columns: 820px 1fr">
+    <div class="d3fig" data-fig="mechanism"></div>
+    <div class="findings">
+      <div class="fd enter d2"><div class="n">1</div><div><b>AU learns from training errors</b><span>each variance head is fitted to its own squared training residuals</span></div></div>
+      <div class="fd fragment fade-up" data-fragment-index="1"><div class="n bad">2</div><div><b>Those errors shrink, unseen ones less</b><span>scarce accurate data are fitted closely</span></div></div>
+      <div class="fd fragment fade-up" data-fragment-index="2"><div class="n bad">3</div><div><b>Small error bars carry over</b><span>overconfident on new data; a known pitfall of mean–variance training</span></div></div>
+      <div class="so fragment fade-up" data-fragment-index="3"><span class="k">So:</span> with exact labels, AU measures in-sample difficulty, not irreducible noise.</div>
+    </div>
+  </div>
+  <span class="fragment step" data-fragment-index="1"></span><span class="fragment step" data-fragment-index="2"></span>
+  <div class="foot">Schematic, not data. Nix &amp; Weigend 1994; Seitzer et al., ICLR 2022.</div>
+  <aside class="notes">[15:40 → 16:40] Why? Each variance head is trained on the squared errors of its own training data. (click) With
+    few accurate labels the network fits them closely, those errors shrink and AU with them; errors on unseen configurations
+    shrink much less. (click) The small error bars carry over to new data: overconfidence, a known pitfall of mean–variance
+    training. (click) So with exact labels, AU behaves like a measure of in-sample difficulty, not of irreducible noise.</aside>
+</section>
+
+<!-- ============================================================ 11 RQ4 (paper Fig. 6) -->
+<section data-timing="110">
+  <h2>Pretrained uncertainty is a better acquisition function</h2>
+  <p class="sub">RQ4 · Is uncertainty a better guide for choosing which data to label?</p>
+  <div class="rq-track"><span>1</span><span>2</span><span>3</span><span class="on">4</span></div>
+  <div class="result">
+    <div class="d3fig" data-fig="acquisition"></div>
+    <div class="findings">
+      <div class="fd fragment fade-up" data-fragment-index="1"><div class="n">1</div><div><b>Uncertainty beats random</b><span>for both recipes (a)</span></div></div>
+      <div class="fd fragment fade-up" data-fragment-index="2"><div class="n">2</div><div><b>Pretraining gives a larger gain</b><span>2.3–2.5 vs 0.8–1.6 meV/atom (a)</span></div></div>
+      <div class="fd fragment fade-up" data-fragment-index="3"><div class="n">3</div><div><b>…from a better start</b><span>already more accurate before acquisition (≈59 vs ≈75 meV/atom)</span></div></div>
+      <div class="fd fragment fade-up" data-fragment-index="4"><div class="n">4</div><div><b>Same kind of data picked</b><span>mostly high-energy configurations (b)</span></div></div>
+      <div class="so fragment fade-up" data-fragment-index="5"><span class="k">So:</span> pretrained uncertainty is the better guide to which simulation to run next.</div>
+    </div>
+  </div>
+  <span class="fragment step" data-fragment-index="1"></span><span class="fragment step" data-fragment-index="4"></span>
+  <div class="foot">One round: add 500 of 2,500 high-energy configurations, chosen by uncertainty or at random, retrain, test on the held-out half · a: error drop over random (higher is better), grey dots = splits</div>
+  <aside class="notes">[16:40 → 18:30] One acquisition round, a proof of concept: pick 500 high-energy configurations at random or by
+    highest uncertainty, add accurate labels, retrain, test on a held-out half. Panel a: error drop compared with random.
+    Accurate-only first. (click 1) With pretraining too: uncertainty beats random for both recipes. (click 2) The gain is
+    larger after pretraining, 2.3 to 2.5 versus 0.8 to 1.6 meV/atom, (click 3) even though that ensemble was already more
+    accurate. (click 4) Both pick similar energy ranges, so it is not just choosing higher energies. (click) So: pretrained
+    uncertainty is the better guide to which simulation to run next.</aside>
+</section>
+
+<!-- ============================================================ 12 Take-home -->
+<section data-timing="75">
+  <h2>Take-home messages</h2>
+  <p class="sub">Uncertainty in multi-fidelity models is not a static property</p>
+  <div style="display: grid; grid-template-columns: 1.3fr 1fr; gap: 50px; margin-top: 30px">
+    <div class="findings" style="gap: 34px">
+      <div class="fd enter d1"><div class="n">1</div><div><b>Pretraining improves accuracy and ranking</b><span>for every signal, and EU becomes a strong ranker</span></div></div>
+      <div class="fd enter d2"><div class="n bad">2</div><div><b>…but not necessarily calibration</b><span>energy extrapolation: known which, not by how much</span></div></div>
+      <div class="fd enter d3"><div class="n bad">3</div><div><b>Calibration is lost in accurate-label training</b><span>faster after pretraining; AU turns overconfident, EU mitigates</span></div></div>
+      <div class="fd enter d4"><div class="n">4</div><div><b>Better acquisition after pretraining</b><span>larger gain from uncertainty-guided data selection</span></div></div>
+    </div>
+    <div class="so enter d4" style="padding: 26px 30px; align-self: start">
+      <p class="k" style="font-size: 28px; margin-bottom: 14px">In practice</p>
+      <ul style="font-size: 28px">
+        <li>Score ranking and calibration separately</li>
+        <li>Monitor held-out calibration during training; use it to select checkpoints</li>
+        <li>Be careful with AU after training on scarce accurate data</li>
+        <li>Validate in-domain recalibration before using it under extrapolation</li>
+      </ul>
+    </div>
+  </div>
+  <aside class="notes">[18:30 → 19:45] Pretraining improves accuracy and ranking for every signal, and reshapes the decomposition:
+    EU becomes a strong ranker. But not necessarily calibration: under energy extrapolation the models know which predictions
+    are wrong, not by how much. Calibration is lost while training on accurate labels, faster after pretraining, through AU,
+    while EU mitigates. And pretrained ensembles are better acquisition functions. In practice: score the two separately,
+    watch calibration during training, be careful with AU.</aside>
+</section>
+
+<!-- ============================================================ 13 Thanks -->
+<section class="dark" data-background-color="#0f2a33" data-timing="15">
+  <div style="display: grid; grid-template-columns: 1.4fr 1fr; align-items: center; height: 820px">
+    <div>
+      <div class="kick enter">THANK YOU</div>
+      <h1 class="enter d1" style="font-size: 64px">Questions?</h1>
+      <div class="enter d2" style="margin-top: 50px; font-size: 30px; line-height: 1.7; color: #d6e3e6">
+        <div><b style="color: #7fd3c6">Code &amp; splits:</b> github.com/matteotolloso/mace</div>
+        <div><b style="color: #7fd3c6">Contact:</b> matteo.tolloso@phd.unipi.it</div>
+      </div>
+      <div class="authors enter d3" style="font-size: 26px">Matteo Tolloso · Davide Bacciu · Luigi Bonati<br>University of Pisa · Italian Institute of Technology</div>
+    </div>
+    <div class="enter d2" style="text-align: center"><div style="display: inline-block; background: #fff; padding: 18px; border-radius: 14px">
+      <img src="assets/qr_code.svg" alt="QR code to github.com/matteotolloso/mace" style="width: 320px; height: 320px; display: block"></div></div>
+  </div>
+  <aside class="notes">[19:45 → 20:00] Thanks; code, splits and evaluation are public. Happy to take questions.</aside>
+</section>
+
+<!-- ============================================================ Backup -->
+<section class="dark" data-background-color="#0f2a33"><div style="display: flex; align-items: center; height: 820px"><h1>Backup</h1></div></section>
+<section>
+  <h2>Reliability diagrams, energy split</h2>
+  <div style="display: grid; grid-template-columns: 540px 1fr; gap: 46px; margin-top: 10px">
+    <img src="assets/paper_figs/figA_reliability_energy.png" alt="Reliability diagrams, energy split" style="height: 740px; width: auto">
+    <div style="padding-top: 20px">
+      <p>Rows: LF-only (DFT labels), HF-only, LF→HF. Columns: Energy-ID, Energy-OOD. 15 equal-count bins; corner values: geometric-mean ENCE over five splits.</p>
+      <p>In domain TU lies on or slightly below the diagonal (conservative); on Energy-OOD most bins lie above it (overconfident), EU most of all.</p>
+    </div>
+  </div>
+</section>
+<section>
+  <h2>In-domain recalibration does not repair Energy-OOD</h2>
+  <img src="assets/paper_figs/figA_recalibration.png" alt="ENCE before and after isotonic recalibration" style="height: 680px; width: auto; display: block; margin: 20px auto 0 auto">
+</section>
+<section>
+  <h2>Balance between the components: EU/AU</h2>
+  <img src="assets/paper_figs/figA_eu_au_ratio.png" alt="EU over AU ratio" style="width: 1440px; display: block; margin: 30px auto 0 auto">
+</section>
+<section>
+  <h2>Acquisition in domain: no gain over random</h2>
+  <img src="assets/paper_figs/figA_acquisition_id.png" alt="Energy-ID acquisition gains" style="height: 640px; width: auto; display: block; margin: 20px auto 0 auto">
+</section>
+<section>
+  <h2>Training and validation curves</h2>
+  <img src="assets/paper_figs/figA_train_curves.png" alt="Training and validation loss and RMSE" style="height: 720px; width: auto; display: block; margin: 16px auto 0 auto">
+</section>
+<section>
+  <h2>Scope of the study</h2>
+  <div class="findings" style="margin-top: 30px; gap: 22px">
+    <div class="fd"><div class="n bad">1</div><div><b>Energies only</b><span>force uncertainty is local, vector-valued and drives MD stability</span></div></div>
+    <div class="fd"><div class="n bad">2</div><div><b>One estimator</b><span>mean–variance deep ensembles; cheaper alternatives untested; no ablation of the variance head</span></div></div>
+    <div class="fd"><div class="n bad">3</div><div><b>Operational decomposition</b><span>no ground truth for AU and EU separately; calibration is judged on TU</span></div></div>
+    <div class="fd"><div class="n bad">4</div><div><b>Data access</b><span>LF→HF also sees the DFT labels; not separated from the change of fidelity</span></div></div>
+    <div class="fd"><div class="n bad">5</div><div><b>One dataset, controlled shifts; one acquisition round</b><span>real workflows shift composition, size, temperature and energy at once</span></div></div>
+  </div>
+</section>
+
+</div></div>
+
+<script src="lib/reveal/reveal.js"></script>
+<script src="lib/reveal/plugin/notes/notes.js"></script>
+<script src="lib/reveal/plugin/zoom/zoom.js"></script>
+<script src="lib/katex/katex.min.js"></script>
+<script src="lib/katex/contrib/auto-render.min.js"></script>
+<script src="lib/d3.min.js"></script>
+<script src="data/paper_figures.js"></script>
+<script src="js/plots.js"></script>
+<script>
+  renderMathInElement(document.body, {
+    delimiters: [{left: "\\[", right: "\\]", display: true}, {left: "\\(", right: "\\)", display: false}],
+    throwOnError: false,
+  });
+  const PRINT = /print-pdf/.test(window.location.search);
+  const figures = new Map();
+  document.querySelectorAll(".d3fig").forEach((el) => figures.set(el, new UQFigures.Figure(el)));
+  const figuresIn = (slide) => [...slide.querySelectorAll(".d3fig")].map((el) => figures.get(el));
+  const stepsShown = (slide) => slide.querySelectorAll(".fragment.step.visible").length;
+  function sync(slide) {
+    const n = stepsShown(slide);
+    figuresIn(slide).forEach((f) => f.goto(n, n === 0));  // animate on entry, jump when coming back
+  }
+  function onFragment() {
+    const slide = Reveal.getCurrentSlide(), n = stepsShown(slide);
+    figuresIn(slide).forEach((f) => { if (f.n !== n) f.goto(n, n === f.n + 1); });
+  }
+  Reveal.initialize({
+    width: 1600, height: 900, margin: 0, minScale: 0.2, maxScale: 2.5,
+    center: false, hash: true, controls: false, progress: true, slideNumber: "c",
+    transition: "fade", backgroundTransition: "fade", defaultTiming: 60, pdfSeparateFragments: false,
+    plugins: [RevealNotes, RevealZoom],
+  }).then(() => {
+    if (PRINT) figures.forEach((f) => f.last());
+    else sync(Reveal.getCurrentSlide());
+  });
+  Reveal.on("slidechanged", (e) => { if (!PRINT) sync(e.currentSlide); });
+  Reveal.on("fragmentshown", onFragment);
+  Reveal.on("fragmenthidden", onFragment);
+  Reveal.addKeyBinding({keyCode: 82, key: "R", description: "Replay the animation"},
+    () => figuresIn(Reveal.getCurrentSlide()).forEach((f) => f.replay()));
+</script>
+</body>
+</html>
