@@ -3,8 +3,10 @@
 /runs/*
 !/runs/README.md
 # Large dataset files are ignored by data/.gitignore; *.xyz is ignored everywhere below.
-# Overleaf-synchronized manuscript: an independent Git repository with its own remote.
+# Overleaf-synchronized manuscripts (ICLR27, arXiv, RPS workshop): independent Git repositories.
 /ICLR27-UQ-MF/
+/UQ-MF-Arxiv-/
+/RPS-UQ-MF/
 # results/: the ledger and curated tables/figures are tracked; MACE's default
 # results_dir (./results) would otherwise dump training outputs here.
 /results/*
