@@ -183,6 +183,7 @@ def train(
     epoch_test_loaders: Optional[Dict[str, DataLoader]] = None,
     log_epoch_outputs: bool = False,
     epoch_logger: Optional[MetricsLogger] = None,
+    resume_exact: bool = False,  ### MVE ###
 ):
     lowest_loss = np.inf
     valid_loss = np.inf
@@ -226,7 +227,9 @@ def train(
     while epoch < max_num_epochs:
         # LR scheduler and SWA update
         if swa is None or epoch < swa.start:
-            if epoch > start_epoch:
+            # MVE: a resumed run steps the scheduler on its first epoch too, with the validation
+            # loss of the loaded checkpoint, as the uninterrupted run would have done
+            if epoch > start_epoch or resume_exact:  ### MVE ###
                 lr_scheduler.step(
                     metrics=valid_loss
                 )  # Can break if exponential LR, TODO fix that!

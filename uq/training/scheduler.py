@@ -97,7 +97,8 @@ class _Adopted:
 def running_members(pending):
     """{job: (pid, gpu)} for pending members already being trained by a live process of this user
     (matched on the exact ``launch.command``), e.g. after the scheduler itself was restarted."""
-    wanted = {"\0".join(launch.command(*job)): job for job in pending}
+    wanted = {"\0".join(launch.command(*job, resume=resume)): job
+              for job in pending for resume in (False, True)}
     found = {}
     for entry in os.scandir("/proc"):
         if not entry.name.isdigit():
@@ -118,7 +119,7 @@ def running_members(pending):
 
 
 def run(names, gpus, splits=None, members=None, jobs_per_gpu=1, dry_run=False, poll_seconds=30,
-        by_experiment=False, threads_per_job=8) -> int:
+        by_experiment=False, threads_per_job=8, resume=False) -> int:
     gpus = list(dict.fromkeys(gpus))
     if len(gpus) > MAX_GPUS:
         raise SystemExit(f"at most {MAX_GPUS} GPUs may be used at the same time (got {gpus})")
@@ -130,7 +131,8 @@ def run(names, gpus, splits=None, members=None, jobs_per_gpu=1, dry_run=False, p
         for exp_id, s, m in pending:
             parent = registry.experiment(exp_id).parent
             wait = f"  (after {parent.label} s{s} m{m})" if parent and not parent.member_complete(s, m) else ""
-            print(f"  {registry.experiment(exp_id).label} split {s} member {m}{wait}")
+            partial = " (partial: resume)" if resume and launch.stale_outputs(exp_id, s, m) else ""
+            print(f"  {registry.experiment(exp_id).label} split {s} member {m}{wait}{partial}")
         return 0
 
     paths.SCHEDULER_LOGS.mkdir(parents=True, exist_ok=True)
@@ -167,18 +169,27 @@ def run(names, gpus, splits=None, members=None, jobs_per_gpu=1, dry_run=False, p
                     log(f"skipped {name}: completed meanwhile (another scheduler?)")
                     continue
                 stale = launch.stale_outputs(*runnable)
-                if stale:
+                resuming = bool(stale) and resume
+                if stale and not resume:
                     log(f"REFUSED {name}: {len(stale)} outputs of an unfinished earlier run "
-                        f"(e.g. {paths.rel(stale[0])}); remove them, then rerun")
+                        f"(e.g. {paths.rel(stale[0])}); remove them or pass --resume, then rerun")
                     failed.append(runnable)
                     continue
+                if resuming:
+                    try:
+                        epoch = launch.prepare_resume(*runnable)
+                    except SystemExit as error:
+                        log(f"REFUSED {name}: cannot resume ({error})")
+                        failed.append(runnable)
+                        continue
                 launch.prepare(runnable[0], runnable[1])
-                handle = (paths.SCHEDULER_LOGS / f"{name}.log").open("w")
-                proc = subprocess.Popen(launch.command(*runnable), cwd=paths.ROOT, stdout=handle,
-                                        stderr=subprocess.STDOUT,
+                handle = (paths.SCHEDULER_LOGS / f"{name}.log").open("a" if resuming else "w")
+                proc = subprocess.Popen(launch.command(*runnable, resume=resuming), cwd=paths.ROOT,
+                                        stdout=handle, stderr=subprocess.STDOUT,
                                         env=job_env(gpu, jobs_per_gpu, threads_per_job))
                 running.append((runnable, proc))
-                log(f"started {name} (GPU {gpu}, pid {proc.pid})")
+                what = f"resumed after epoch {epoch}" if resuming else "started"
+                log(f"{what} {name} (GPU {gpu}, pid {proc.pid})")
         failed_parents = {(registry.experiment(j[0]).id, j[1], j[2]) for j in failed}
         for job in [j for j in pending if registry.experiment(j[0]).parent_id]:
             parent = registry.experiment(job[0]).parent

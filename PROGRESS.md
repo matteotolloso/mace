@@ -4,7 +4,45 @@ Living status of work in progress, so that any new session can continue. Update 
 **State** and **Next** sections in place and append to the **Log** (newest last).
 Numbers are not stated here: citable values live only in `results/results.md`.
 
-## Current study: MSE-ensemble baseline (rebuttal / follow-up)
+## Current study: ICLR 2027 rebuttal (since 2026-11-06)
+
+Reviews arrived 2026-11-06 (ratings 1/2/2). **The rebuttal hub is
+`papers/iclr27/rebuttal/PLAN.md`** (tasks, work packages, GPU schedule, decisions, log); reviews
+verbatim in `reviews.md`, draft responses in `draft_rebuttal.md`, every job on the local server or CINECA Leonardo in `RUNS.md` (same folder). Branch
+`iclr_rebuttal`. Record in this file only machine state (running jobs, GPUs).
+
+**Latest local check (2026-11-06 15:31 CET, codex-audit; check only):** scheduler
+`uq-train-mse` PID 2144073 and postprocessor PID 2144075 active. Nine fresh energy
+LF-only members progressing on GPUs 0/2/6 (PIDs 2144084-86, 2144088-93), plus the
+existing scratch resume test PID 2214645 on GPU 6. Scratch epochs 270/271 completed
+without duplicate validation epochs; final dataset evaluation still running.
+The nine production partials have **not** resumed: the running scheduler has no
+`--resume`, and already refused their parents and skipped their children. It cannot
+finish the energy ensembles without owner intervention. Do not blindly restart the
+systemd unit: `KillMode=control-group` also kills its running members. No jobs or code
+changed during this check. Full evidence and handoff:
+`papers/iclr27/rebuttal/LOCAL_AUDIT_2026-11-06.md`. GPU owner remains `mace-80`.
+
+**Machine state (2026-11-06 ~14:31, superseded at 14:37 below):** none of our jobs was running. At the user's request the
+MSE-ensemble scheduler (pid 3432145), the post-processing job `runs/_jobs/mse_postprocess.sh`
+(pid 2031848) and the 9 training members below were stopped with SIGTERM. No file was deleted.
+
+Stopped mid-run (`ani1x-energy/mace-mse/lf-only`, partial outputs kept; last epoch checkpoint of
+300): s2_m5 269, s3_m5 266, s4_m5 266, s0_m6 266, s1_m6 262, s2_m6 260, s3_m6 184, s4_m6 180,
+s0_m7 179. `uq train` refuses partial members (`launch.stale_outputs`): to finish them either
+resume by hand from the latest checkpoint (MACE `--restart_latest`; check that the appended
+`results/*_train.txt` has no duplicated epochs before checkpoint selection) or, with the user's
+explicit permission, delete their partial outputs and retrain. Whether to resume at all is
+decision D1 in `PLAN.md`.
+
+Status at the stop (`uq status`): energy LF-only 27/50 (6 6 5 5 5), energy LF->HF 27/50, system
+LF-only and LF->HF 0/50 each; HF-only pairs evaluated and recorded (ledger 2026-11-03/04).
+Do not restart `mse_postprocess.sh` before D1: it would evaluate and prune as soon as an
+experiment reaches 50/50.
+
+## Paused study: MSE-ensemble baseline (rebuttal / follow-up)
+
+Paused 2026-11-06 (see above). The text below is the state before the pause.
 
 **Question.** Does splitting uncertainty into AU and EU (MVE ensembles) beat a standard
 deep ensemble whose only signal is member disagreement? Three arms, all on ANI-1x
@@ -84,8 +122,10 @@ scheduler process and relaunching is safe.)
   are complete: `uq evaluate <exp> --gpu 0`, then (only if that succeeded)
   `uq prune-checkpoints <exp> --apply`. Markers in `runs/_jobs/`: `<exp>.pruned`,
   `<exp>.eval_failed` (needs a human; delete the marker to retry), `<exp>.prune_failed`.
-  Restart it the same way if it is not running (`pgrep -af mse_postprocess`):
-  `setsid nohup runs/_jobs/mse_postprocess.sh >> runs/_jobs/mse_postprocess.log 2>&1 < /dev/null &`.
+  Runs as the systemd user unit `uq-mse-postprocess`; restart if inactive:
+  `systemd-run --user --unit=uq-mse-postprocess --working-directory=<repo> -E HOME=$HOME
+  -p StandardOutput=append:<repo>/runs/_jobs/mse_postprocess.log
+  -p StandardError=append:<repo>/runs/_jobs/mse_postprocess.log runs/_jobs/mse_postprocess.sh`.
 - Not automated (needs judgment): `python -m uq.evaluation.compare_uq`, checking the
   outputs, ledger entries (evaluation and pruning), paper/rebuttal text.
 - Post-processing is independent of the scheduler (it only polls `uq status`); at 11:04 it
@@ -105,7 +145,10 @@ scheduler process and relaunching is safe.)
 
 ## Open questions for the user
 
-- (none)
+- (superseded) The 9 partial energy LF-only members (s2-s4 m5, s0-s4 m6, s0 m7) are handled by
+  session mace-80, which owns all GPU jobs (see `papers/iclr27/rebuttal/RUNS.md`): it is adding a
+  resume path and will launch them. Do not delete their outputs; REFUSED lines for them in the
+  scheduler log are expected.
 
 **Approved 2026-11-02:** prune each `mace-mse` experiment right after its evaluation:
 `uq prune-checkpoints <exp>` (dry run, check), then `--apply` (keeps every 5th epoch + each
@@ -164,3 +207,21 @@ it is evaluated (its LF->HF children only need its `.model` and every-5th epochs
   system 0/100), no FAILED/REFUSED in the scheduler log; one scheduler (pid 3432145), post-processing
   job alive (idle, waiting for 50/50); ours: 3 run_train per GPU on 0, 2, 6 only. Second wave of energy
   LF-only members at epoch ~60 after ~3.7 h (~3.7 min/epoch, ~19 h/member): ETA above unchanged.
+- 2026-11-06 — ICLR reviews out. User asked to commit (`30afae8` on `main`, not pushed), stop the
+  MSE-ensemble work and switch to branch `iclr_rebuttal`. Scheduler, post-processing job and 9
+  running energy LF-only members stopped (SIGTERM, ~14:31; list in "Current study"); GPUs 0, 2, 6
+  freed. Rebuttal plan in `papers/iclr27/rebuttal/PLAN.md`.
+- 2026-11-06 14:37 — (session of 2026-11-02) Restarted the MSE scheduler and post-processing as
+  systemd user units `uq-train-mse` (GPUs 0 2 6, 9 jobs) and `uq-mse-postprocess`, wrongly believing
+  the 14:31 stop was a crash (it was the user's deliberate stop, see the entry above). The user then
+  decided to resume the MSE runs, so both units stay; ownership of all GPU jobs is session mace-80
+  (`RUNS.md`). This session only reports anomalies from now on and does not start/stop jobs.
+- 2026-11-06 15:31 CET — Local-only check requested by user after token exhaustion:
+  live production jobs healthy, resume unfinished; `uq check` and all 49 CPU tests
+  pass. Persistent audit linked above; no Leonardo work or operational changes.
+- 2026-11-06 20:01 — (session mace-80) The 9 partial energy LF-only members resumed after their latest
+  epoch checkpoint with the new `uq train --resume` (scratch test passed first), as units
+  `uq-resume-mse-a` (`--members 5,6`, GPUs 0 2 6) and `uq-resume-mse-b` (`--splits 0 --members 7`,
+  GPU 6), log `runs/_logs/scheduler_mace-mse-resume_2026-11-06.log`; their LF->HF children follow in the
+  same units. Each resumed results log was backed up as `<log>.pre-resume-<time>` and cut to the
+  checkpointed epoch. Full job table: `papers/iclr27/rebuttal/RUNS.md`.

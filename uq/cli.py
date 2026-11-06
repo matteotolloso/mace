@@ -93,7 +93,8 @@ def cmd_train(args) -> int:
         raise SystemExit(f"at most {MAX_GPUS} GPUs may be used at the same time (got {args.gpus})")
     return scheduler.run(args.experiments, gpus=args.gpus, splits=args.splits, members=args.members,
                          jobs_per_gpu=args.jobs_per_gpu, dry_run=args.dry_run,
-                         by_experiment=args.by_experiment, threads_per_job=args.threads_per_job)
+                         by_experiment=args.by_experiment, threads_per_job=args.threads_per_job,
+                         resume=args.resume)
 
 
 def cmd_prune(args) -> int:
@@ -194,6 +195,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--threads-per-job", type=int, default=8, help="CPU threads per member (default 8)")
     p.add_argument("--by-experiment", action="store_true",
                    help="finish experiments in the order given instead of interleaving members")
+    p.add_argument("--resume", action="store_true",
+                   help="continue interrupted members after their latest epoch checkpoint instead of "
+                        "refusing them (their results log is backed up and cut to that epoch)")
     p.add_argument("--dry-run", action="store_true", help="print the plan, run nothing")
     p.set_defaults(func=cmd_train)
 

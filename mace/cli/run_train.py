@@ -868,11 +868,20 @@ def run(args) -> None:
                 restart_lbfgs = True
         if opt_start_epoch is not None:
             start_epoch = opt_start_epoch
+            ### MVE ###
+            if args.resume_exact:  # the checkpoint of epoch N is saved after training epoch N
+                start_epoch = opt_start_epoch + 1
+                logging.info(f"Resuming after epoch {opt_start_epoch} (lr {optimizer.param_groups[0]['lr']:.3g})")
+            ### /MVE ###
+    ### MVE ###
+    if args.resume_exact and opt_start_epoch is None:
+        raise RuntimeError("--resume_exact needs --restart_latest and an epoch checkpoint to resume from")
+    ### /MVE ###
 
     ema: Optional[ExponentialMovingAverage] = None
     if args.ema:
         ema = ExponentialMovingAverage(model.parameters(), decay=args.ema_decay)
-    else:
+    elif not args.resume_exact:  ### MVE ### (resume keeps the checkpoint's learning rate)
         for group in optimizer.param_groups:
             group["lr"] = args.lr
 
@@ -983,6 +992,7 @@ def run(args) -> None:
         checkpoint_handler=checkpoint_handler,
         eval_interval=args.eval_interval,
         start_epoch=start_epoch,
+        resume_exact=args.resume_exact,  ### MVE ###
         max_num_epochs=args.max_num_epochs,
         logger=logger,
         patience=args.patience,

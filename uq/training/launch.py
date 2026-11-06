@@ -13,15 +13,18 @@ The interpreter is ``$PYTHON_BIN`` if set, else the current Python.
 
 from __future__ import annotations
 
+import json
 import os
+import re
 import shlex
 import subprocess
 import sys
+import time
 
 from uq import paths, registry
 
 
-def command(experiment, split: int, member: int) -> list:
+def command(experiment, split: int, member: int, resume: bool = False) -> list:
     exp = registry.experiment(experiment)
     registry.require_backend(exp)
     if split not in exp.splits:
@@ -45,6 +48,8 @@ def command(experiment, split: int, member: int) -> list:
     if exp.parent:
         cmd += ["--foundation_model", str(exp.parent.final_model(split, member))]
     cmd += ["--wandb_dir", str(paths.WANDB)]
+    if resume:   # continue after the latest epoch checkpoint (see prepare_resume)
+        cmd += ["--restart_latest", "--resume_exact"]
     return cmd
 
 
@@ -71,6 +76,53 @@ def stale_outputs(experiment, split: int, member: int) -> list:
     found = [exp.train_log(split, member), exp.final_model(split, member)]
     found += sorted(paths.checkpoints_dir(exp.id, split).glob(f"{exp.run_name}_run-{member}_epoch-*.pt"))
     return [path for path in found if path.exists()]
+
+
+def latest_epoch(experiment, split: int, member: int):
+    """Highest epoch with a checkpoint ``<name>_run-<m>_epoch-<e>.pt``, or None."""
+    exp = registry.experiment(experiment)
+    pattern = re.compile(rf"{re.escape(exp.run_name)}_run-{member}_epoch-(\d+)\.pt$")
+    directory = paths.checkpoints_dir(exp.id, split)
+    if not directory.is_dir():
+        return None
+    epochs = [int(match.group(1)) for path in directory.iterdir() if (match := pattern.match(path.name))]
+    return max(epochs, default=None)
+
+
+def prepare_resume(experiment, split: int, member: int) -> int:
+    """Make an interrupted member resumable after its latest epoch checkpoint N; returns N.
+
+    MACE logs an epoch's rows before saving its checkpoint, so the results log of a killed run
+    can hold rows of epoch N+1 (training rows, maybe its validation row) without a checkpoint.
+    Those rows would be duplicated by the resumed run. The log is copied unchanged to
+    ``<log>.pre-resume-<time>`` and rewritten with only the rows of epochs <= N (and the
+    epoch-less rows); nothing else is touched. The resumed run then appends epochs N+1, ...
+    """
+    exp = registry.experiment(experiment)
+    if exp.member_complete(split, member):
+        raise SystemExit(f"{exp.label} s{split} m{member} is complete; nothing to resume")
+    if exp.final_model(split, member).exists():
+        raise SystemExit(f"{paths.rel(exp.final_model(split, member))} exists: not an interrupted run")
+    epoch = latest_epoch(exp.id, split, member)
+    if epoch is None:
+        raise SystemExit(f"{exp.label} s{split} m{member}: no epoch checkpoint to resume from")
+    log_path = exp.train_log(split, member)
+    if log_path.is_file():
+        lines = log_path.read_text().splitlines(keepends=True)
+        kept = []
+        for line in lines:
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:   # a line cut by the kill
+                continue
+            row_epoch = row.get("epoch") if isinstance(row, dict) else None
+            if row_epoch is None or int(row_epoch) <= epoch:
+                kept.append(line if line.endswith("\n") else line + "\n")
+        if len(kept) != len(lines):
+            backup = log_path.with_name(f"{log_path.name}.pre-resume-{time.strftime('%Y%m%d-%H%M%S')}")
+            backup.write_bytes(log_path.read_bytes())
+            log_path.write_text("".join(kept))
+    return epoch
 
 
 def prepare(experiment, split: int) -> None:
