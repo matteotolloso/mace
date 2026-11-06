@@ -44,21 +44,25 @@ stop is announced here first and done only by the owner.
 ## 3. Runs
 
 Status: `planned` -> `queued` -> `running` -> `trained` -> `evaluated` -> `synced` -> `recorded`
-(ledger entry), or `failed` / `cancelled`. Last verified: **2026-11-06 20:27** (mace-80).
+(ledger entry), or `failed` / `cancelled`. Last verified: **2026-11-06 20:50** (mace-80).
 
 | Experiment | WP | Machine | Scope | Commit | Unit / job ids | Status | Started | ETA | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| `*/mace-mse/*`, main scheduler | 3.6 | DGX, GPUs 0 2 6 | energy LF-only s1-s4 m7, s0-s4 m8 running; queue: s0-s4 m9, LF->HF children of m7-m9, then the **system split** (100 members) | 30afae8 | `uq-train-mse` (pid 2144073); log `runs/_logs/scheduler_mace-mse_2026-11-02.log` | running | 2026-11-06 14:37 | energy ~2026-11-08; system ~2026-11-13 | started by mace-23; system split: D1b (move to Leonardo?) |
-| MSE post-processing | 3.6 | DGX, GPU 0 | at 50/50: `uq evaluate <exp> --gpu 0`, then `uq prune-checkpoints <exp> --apply` | 30afae8 | `uq-mse-postprocess` (pid 2144075); log `runs/_jobs/mse_postprocess.log` | running (waiting) | 2026-11-06 14:37 | first: energy ~2026-11-08 | prune approved 2026-11-02 |
+| energy MSE, main members s1-s4 m7, s0-s4 m8 (started by the old scheduler `uq-train-mse`) | 3.6 | DGX, GPUs 0 2 6 | 9 running | 30afae8 | moved to scope `uq-mse-adopted` (2026-11-06 20:35), adopted by `uq-mse-energy-x/y` | running | 2026-11-06 14:37 | ~2026-11-07 afternoon | old scheduler stopped 20:35 (D1b) without killing them |
+| energy MSE, remaining s1-s4 m7-m9 + their LF->HF children | 3.6 | DGX, GPUs 0 2 6 | 12 + 12 (8 adopted) | c7fa140 | `uq-mse-energy-x` (`--splits 1-4 --members 7,8,9`); log `runs/_logs/scheduler_mace-mse-energy_2026-11-06.log` | running | 2026-11-06 20:36 | ~2026-11-08 | s1 m9 started 20:36 (GPU 2) |
+| energy MSE, s0 m8-m9 + children | 3.6 | DGX, GPU 2 | 2 + 2 (1 adopted) | c7fa140 | `uq-mse-energy-y` (`--splits 0 --members 8,9`, 2 jobs on GPU 2); same log | running | 2026-11-06 20:36 | ~2026-11-08 | s0 m9 started 20:36 |
+| system MSE, `ani1x-system/mace-mse/{lf-only,lf-to-hf}` | 3.6 | **Leonardo** (D1b) | 100 | | | planned | | | after the smoke test; nothing of it runs on the DGX |
+| MSE post-processing | 3.6 | DGX, GPU 0 | at 50/50: `uq evaluate <exp> --gpu 0`, then `uq prune-checkpoints <exp> --apply` | 30afae8 | `uq-mse-postprocess` (pid 2144075); log `runs/_jobs/mse_postprocess.log` | running (waiting) | 2026-11-06 14:37 | energy ~2026-11-08 | prune approved 2026-11-02; **owner stops it after the two energy evaluations** (the system split is evaluated on Leonardo) |
 | energy MSE, 8 resumed parents s2-s4 m5, s0-s4 m6 + 8 LF->HF children | 3.6 | DGX, GPUs 0 2 6 | 8 + 8 | 30afae8 + resume code (committed in 32c2e64) | `uq-resume-mse-a`; log `runs/_logs/scheduler_mace-mse-resume_2026-11-06.log` | running | 2026-11-06 20:01 | m5, s0-s2 m6 ~23:00; s3-s4 m6 ~08:00-09:00 Nov 7; children +0.5 h | resumed after epochs 269 266 266 266 262 260 184 180; ~6 min/epoch with 6-7 jobs per GPU |
 | energy MSE, resumed parent s0 m7 + child | 3.6 | DGX, GPU 6 | 1 + 1 | same | `uq-resume-mse-b`; same log | running | 2026-11-06 20:01 | ~09:00 Nov 7 + 0.5 h | resumed after epoch 179 |
+| Leonardo env setup | 11.2 | Leonardo, `lrd_all_serial` (budget-free) | conda env + `pip -e` + checks | c7fa140 | `leonardo/setup_env.sbatch` | **blocked: Anaconda ToS** for `defaults` not accepted on our Miniconda (user decision) | | | Miniconda installed in `$WORK/uq-mf/miniconda3`; clone at c7fa140; data copied + manifest OK |
 | Leonardo smoke test | 11.8 | Leonardo | 1 HF + 1 FT member, `boost_qos_dbg` | | | planned | | | after WP11.2-11.5 |
 
 ## 4. Leonardo budget (local h; 1 GPU-h = 8 local h)
 
 | Date | Item | Consumed (`saldo -b`) | Remaining of 80,000 | Month quota used |
 |---|---|---|---|---|
-| 2026-11-06 | nothing run yet | 0 | 80,000 | 0 of 8,759 |
+| 2026-11-06 | network test job 63697024 (`lrd_all_serial`, budget-free) | 0 | 80,000 | 0 of 8,759 |
 
 ## 5. Reconciliation log (newest last)
 
@@ -69,3 +73,11 @@ Status: `planned` -> `queued` -> `running` -> `trained` -> `evaluated` -> `synce
 - 2026-11-06 20:16 — Leonardo: first login from the DGX (certificate valid until 2026-11-07 08:14);
   read-only checks; nothing installed or submitted.
 - 2026-11-06 20:27 — DGX: 4 `uq-*` units active, GPUs 0 2 6 only; Leonardo: no jobs.
+- 2026-11-06 20:35 — DGX (D1b): the 27 processes of `uq-train-mse` (9 members + W&B helpers) moved to the
+  delegated scope `uq-mse-adopted` (tested first on a dummy unit), then `uq-train-mse` stopped (only its
+  main process died); `uq-mse-energy-x/y` adopted the 9 members and train the rest of the energy split.
+  GPU memory after the two new m9 members: 35.8 / 35.6 / 31.9 GB of 41 on GPUs 0 / 2 / 6; no OOM.
+- 2026-11-06 20:40-20:50 — Leonardo: compute (serial) nodes have internet (job 63697024: PyPI, conda,
+  GitHub reachable); repo cloned to `$WORK/uq-mf/mace` (c7fa140); Miniconda in `$WORK/uq-mf/miniconda3`;
+  ANI-1x splits rsynced (2.3 GB, 26 s), `data/MANIFEST.sha256` verified (182 files). Env creation waits
+  for the ToS decision. Untouched: `$WORK/envs`, `$WORK/mace` (Aug 2026, user's earlier setup).

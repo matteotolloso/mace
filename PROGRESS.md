@@ -20,7 +20,7 @@ ensemble whose only signal is member disagreement? ANI-1x only (water is out of 
 |---|---|---|---|
 | MVE ensemble | AU, EU, TU of the paper's models | `experiments/ani1x-*/mace-mve/*` | done |
 | Single MVE model | AU of one member, ensemble size M = 1..10 | `ensemble_size_*` of B, D, E, F | done (ledger 2026-11-02) |
-| MSE ensemble | EU of ten MSE members (no variance head) | `experiments/ani1x-*/mace-mse/*` | HF-only done (ledger 2026-11-03/04); energy LF-only/LF->HF training; system split queued |
+| MSE ensemble | EU of ten MSE members (no variance head) | `experiments/ani1x-*/mace-mse/*` | HF-only done (ledger 2026-11-03/04); energy LF-only/LF->HF training on the DGX; system split on Leonardo (planned) |
 
 **Decisions (user, 2026-11-02).** Checkpoint per member by its own validation loss (MSE for
 `mace-mse`); LF->HF MSE members fine-tuned from MSE parents; same hyperparameters and 300/100-epoch
@@ -32,13 +32,14 @@ epoch + each member's best + `.model`; record the pruning in the ledger).
 uq status ani1x-energy/mace-mse/lf-only ani1x-energy/mace-mse/lf-to-hf \
           ani1x-system/mace-mse/lf-only ani1x-system/mace-mse/lf-to-hf
 systemctl --user list-units 'uq-*'                       # scheduler, resume units, post-processing
-tail runs/_logs/scheduler_mace-mse_2026-11-02.log          # main scheduler: started/done/FAILED
+tail runs/_logs/scheduler_mace-mse-energy_2026-11-06.log   # energy schedulers uq-mse-energy-x/y
 tail runs/_logs/scheduler_mace-mse-resume_2026-11-06.log   # the 9 resumed members and their children
 tail runs/_jobs/mse_postprocess.log                        # automatic evaluate + prune at 50/50
 nvidia-smi                                                 # only GPUs 0, 2 and 6 may be ours
 ```
-Expected, harmless: the main scheduler's log of 2026-11-06 14:37 has `REFUSED` lines for the 9
-partial members and `SKIPPED` lines for their children; both are handled by the resume units.
+History: the original scheduler (`uq-train-mse`, log `scheduler_mace-mse_2026-11-02.log`, with harmless
+`REFUSED`/`SKIPPED` lines of 14:37 for the 9 partial members) was stopped on 2026-11-06 20:35 without
+killing its members; the system split moved to Leonardo (D1b).
 Post-processing markers in `runs/_jobs/`: `<exp>.pruned`, `<exp>.eval_failed` (needs a human; delete
 the marker to retry), `<exp>.prune_failed`.
 
@@ -110,3 +111,5 @@ at ~30-111. Possible extra arm: compare both methods after the same recalibratio
   GPU 6), log `runs/_logs/scheduler_mace-mse-resume_2026-11-06.log`; their LF->HF children follow in the
   same units. Each resumed results log was backed up as `<log>.pre-resume-<time>` and cut to the
   checkpointed epoch. Full job table: `papers/iclr27/rebuttal/RUNS.md`.
+- 2026-11-06 20:35 — (mace-80) D1b: `uq-train-mse` replaced by `uq-mse-energy-x/y` (energy split only); its 9
+  running members moved to scope `uq-mse-adopted` first and adopted, none killed. System split -> Leonardo.

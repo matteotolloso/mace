@@ -226,12 +226,12 @@ proportion to the decrease of training error; (d) a head fitted on held-out resi
 
 - [x] 11.1 Access (2026-11-06 20:16): `ssh leonardo` from the DGX; 12 h certificate renewed by the
       user with `leonardo-login` (`LEONARDO.md` Section 1).
-- [ ] 11.2 Environment (user, 2026-11-06: separate Miniconda): `$WORK/uq-mf/miniconda3`, env `mace`
+- [~] 11.2 (agent: mace-80, since 2026-11-06 20:38; Miniconda installed, env waits for D12) Environment (user, 2026-11-06: separate Miniconda): `$WORK/uq-mf/miniconda3`, env `mace`
       from `environment.yml`; clone `iclr_rebuttal` to `$WORK/uq-mf/mace`;
       `pip install --no-deps --no-build-isolation -e .`; `uq check` and the 54 unit tests pass; torch
       sees a GPU on a Booster node (smoke test). Heavy installs in a job if the login node's 10-min
       CPU limit bites (`LEONARDO.md` Section 3).
-- [ ] 11.3 Data: make `data/MANIFEST.sha256` locally (ANI splits + dataset.yaml), rsync
+- [x] 11.3 (mace-80, 2026-11-06 20:45; 182 files verified on Leonardo) Data: make `data/MANIFEST.sha256` locally (ANI splits + dataset.yaml), rsync
       `data/ani1x-{system,energy}/` (2.3 GB), verify the manifest on Leonardo.
 - [ ] 11.4 Run directory and variables: `UQ_RUNS=$WORK/uq-mf/runs` (overflow `$FAST/uq-mf/runs`),
       `PYTHON_BIN`, `WANDB_MODE=offline` with W&B files in `$CINECA_SCRATCH/uq-mf`; at most ~3 unpruned
@@ -316,10 +316,13 @@ Decided (user, 2026-11-06):
 - **D9** Leonardo epoch checkpoints: prune after evaluation (every 5th epoch + each member's best +
   `.model`), as for `mace-mse` on the DGX.
 - **D11** Leonardo environment: a separate Miniconda in `$WORK/uq-mf/miniconda3`.
+- **D1b** The system-split MSE members (100, LF-scale) run on Leonardo, not on the DGX (done 20:35: the
+  local scheduler was replaced by energy-only ones).
 
 Open:
-- **D1b** Move the system-split MSE members (100, LF-scale, ~5 days on the DGX, queued after the energy
-  split, i.e. from ~2026-11-08) to Leonardo, freeing the DGX for the cheap ablations? (recommended)
+- **D12** Accept the Anaconda Terms of Service for the `defaults` channels on our Leonardo Miniconda
+  (needed by `environment.yml`; accepted on the DGX on 2026-01-28)? Alternative: rebuild the env from
+  conda-forge/PyPI only (new pins, more work, not identical to the DGX env).
 - **D2** Fidelity-aware training: multi-head replay FT from existing parents (WP6.2, cheap) and/or
   joint training from scratch (WP6.3, ~900 GPU-h).
 - **D3** Forces in pretraining (WP5.2): energy split only, or both splits.
@@ -346,3 +349,6 @@ Open:
 - 2026-11-06 evening — mace-80: read the CINECA guide (filesystems, SLURM, accounting, linearization):
   `LEONARDO.md` (replaces `LEONARDO_LOGIN.md`). D9, D11 decided. Cleaned all rebuttal Markdown files;
   `README.md` added as entry point; `CLAUDE.md` points to it.
+- 2026-11-06 20:35-20:50 — mace-80: D1b done on the DGX (old scheduler replaced by energy-only ones without
+  killing members; `RUNS.md`). Leonardo: compute nodes of `lrd_all_serial` have internet; repo cloned,
+  Miniconda installed, data copied and verified (WP11.3). Env creation blocked on D12 (Anaconda ToS).
