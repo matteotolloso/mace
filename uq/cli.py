@@ -97,6 +97,15 @@ def cmd_train(args) -> int:
                          resume=args.resume)
 
 
+def cmd_train_slurm(args) -> int:
+    from uq.training import slurm
+
+    return slurm.run(args.experiments, splits=args.splits, members=args.members, pack=args.pack,
+                     by_experiment=args.by_experiment, resume=args.resume, qos=args.qos, walltime=args.time,
+                     account=args.account, partition=args.partition, out=args.out, submit=args.submit,
+                     dry_run=args.dry_run)
+
+
 def cmd_prune(args) -> int:
     from uq.training import prune
 
@@ -106,7 +115,8 @@ def cmd_prune(args) -> int:
 def cmd_train_member(args) -> int:
     from uq.training import launch
 
-    return launch.train_member(args.experiment, args.split, args.member, args.gpu, dry_run=args.dry_run)
+    return launch.train_member(args.experiment, args.split, args.member, args.gpu, dry_run=args.dry_run,
+                               resume=args.resume)
 
 
 def cmd_evaluate(args) -> int:
@@ -201,11 +211,29 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dry-run", action="store_true", help="print the plan, run nothing")
     p.set_defaults(func=cmd_train)
 
+    p = sub.add_parser("train-slurm", help="write (and submit) 1-GPU SLURM jobs for the missing members")
+    p.add_argument("experiments", nargs="+")
+    p.add_argument("--splits", type=_ints)
+    p.add_argument("--members", type=_ints)
+    p.add_argument("--pack", type=int, default=1, help="member chains run in parallel on each GPU (default 1)")
+    p.add_argument("--by-experiment", action="store_true")
+    p.add_argument("--resume", action="store_true", help="continue interrupted members")
+    p.add_argument("--qos", default="normal", help="e.g. normal, boost_qos_dbg, boost_qos_lprod")
+    p.add_argument("--time", default="24:00:00", help="walltime per job")
+    p.add_argument("--account", help="default $UQ_SLURM_ACCOUNT")
+    p.add_argument("--partition", help="default $UQ_SLURM_PARTITION or boost_usr_prod")
+    p.add_argument("--out", help="directory for scripts and SLURM output (default runs/_slurm/<time>)")
+    p.add_argument("--submit", action="store_true", help="sbatch the scripts (otherwise only write them)")
+    p.add_argument("--dry-run", action="store_true", help="print the scripts, write nothing")
+    p.set_defaults(func=cmd_train_slurm)
+
     p = sub.add_parser("train-member", help="train one ensemble member (split, member seed)")
     p.add_argument("experiment")
     p.add_argument("split", type=int)
     p.add_argument("member", type=int)
-    p.add_argument("--gpu", type=int, required=True)
+    p.add_argument("--gpu", type=int, default=None,
+                   help="GPU index (default: keep the inherited CUDA_VISIBLE_DEVICES, e.g. under SLURM)")
+    p.add_argument("--resume", action="store_true", help="continue an interrupted member (see uq train --resume)")
     p.add_argument("--dry-run", action="store_true", help="print the command, run nothing")
     p.set_defaults(func=cmd_train_member)
 

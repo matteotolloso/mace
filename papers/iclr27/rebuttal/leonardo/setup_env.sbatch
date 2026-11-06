@@ -20,6 +20,8 @@ ENV=$UQ/miniconda3/envs/mace
 unset CONDA_PREFIX CONDA_DEFAULT_ENV CONDA_SHLVL PYTHONPATH   # never the other project's conda
 export PATH=$UQ/miniconda3/bin:/usr/bin:/bin
 export TMPDIR=${TMPDIR:-/tmp} PIP_CACHE_DIR=$TMPDIR/pip-cache
+export CONDA_CHANNEL_PRIORITY=flexible   # as on the DGX, where environment.yml was exported
+export CONDA_OVERRIDE_CUDA=12.4          # the serial node has no GPU; the env targets CUDA 12.4
 
 cd $UQ/mace
 echo "commit $(git rev-parse --short HEAD), $(date)"

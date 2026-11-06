@@ -63,7 +63,7 @@ editable mode (`pip install --no-deps --no-build-isolation -e .` after adding a 
 - Do not open `*_raw.csv` (5k-50k rows), `.npz`, checkpoints or W&B files to "look":
   use `uq summary`, `uq status`, or a pandas one-liner that prints a few numbers.
 - Verify with the narrowest check: `uq check`; `python -m unittest discover -s uq/tests -t .`
-  (54 tests, CPU; they pin every recorded experiment's commands); `uq evaluate <exp> --gpu G
+  (58 tests, CPU; they pin every recorded experiment's commands); `uq evaluate <exp> --gpu G
   --dry-run`; `uq train ... --dry-run`.
 - A change that alters numbers must be followed by `uq aggregate` (CPU) and a ledger entry.
 - GPU inference is not bit-reproducible (EU varies ~5% relative per configuration).

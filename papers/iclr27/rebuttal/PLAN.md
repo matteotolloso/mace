@@ -228,7 +228,7 @@ proportion to the decrease of training error; (d) a head fitted on held-out resi
       user with `leonardo-login` (`LEONARDO.md` Section 1).
 - [~] 11.2 (agent: mace-80, since 2026-11-06 20:38; Miniconda installed, env waits for D12) Environment (user, 2026-11-06: separate Miniconda): `$WORK/uq-mf/miniconda3`, env `mace`
       from `environment.yml`; clone `iclr_rebuttal` to `$WORK/uq-mf/mace`;
-      `pip install --no-deps --no-build-isolation -e .`; `uq check` and the 54 unit tests pass; torch
+      `pip install --no-deps --no-build-isolation -e .`; `uq check` and the 58 unit tests pass; torch
       sees a GPU on a Booster node (smoke test). Heavy installs in a job if the login node's 10-min
       CPU limit bites (`LEONARDO.md` Section 3).
 - [x] 11.3 (mace-80, 2026-11-06 20:45; 182 files verified on Leonardo) Data: make `data/MANIFEST.sha256` locally (ANI splits + dataset.yaml), rsync

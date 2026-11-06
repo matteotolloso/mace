@@ -133,23 +133,36 @@ def prepare(experiment, split: int) -> None:
     paths.WANDB.mkdir(parents=True, exist_ok=True)
 
 
-def train_member(experiment, split: int, member: int, gpu: int, dry_run: bool = False) -> int:
+def train_member(experiment, split: int, member: int, gpu=None, dry_run: bool = False,
+                 resume: bool = False) -> int:
+    """Train one member. ``gpu=None`` keeps the inherited ``CUDA_VISIBLE_DEVICES`` (e.g. set by SLURM).
+    A complete member is skipped; with ``resume`` an interrupted one continues (see prepare_resume)."""
     exp = registry.experiment(experiment)
-    cmd = command(exp.id, split, member)
+    if exp.member_complete(split, member):
+        print(f"{exp.label} split {split} member {member} is already complete; skipped")
+        return 0
+    stale = stale_outputs(exp.id, split, member)
+    resuming = bool(stale) and resume
+    cmd = command(exp.id, split, member, resume=resuming)
     missing = check_inputs(exp.id, split, member)
-    print(f"Experiment: {exp.label}\nSplit: {split}  Member: {member}  GPU: {gpu}\n"
+    where = f"GPU: {gpu}" if gpu is not None else f"GPU: inherited ({os.environ.get('CUDA_VISIBLE_DEVICES', 'unset')})"
+    print(f"Experiment: {exp.label}\nSplit: {split}  Member: {member}  {where}\n"
           f"Outputs: {paths.rel(paths.run_dir(exp.id, split))}/{{models,logs,checkpoints,results}}")
-    print(f"CUDA_VISIBLE_DEVICES={gpu} " + " ".join(shlex.quote(part) for part in cmd))
+    prefix = f"CUDA_VISIBLE_DEVICES={gpu} " if gpu is not None else ""
+    print(prefix + " ".join(shlex.quote(part) for part in cmd))
     if dry_run:
         for path in missing:
             print(f"warning: missing input {path}")
         return 0
     if missing:
         raise SystemExit("missing inputs:\n  " + "\n  ".join(map(str, missing)))
-    stale = stale_outputs(exp.id, split, member)
-    if stale:
+    if stale and not resume:
         raise SystemExit(f"{len(stale)} outputs of an unfinished earlier run exist (MACE would append to its "
-                         f"result log); remove them first:\n  " + "\n  ".join(map(str, stale[:5])))
+                         f"result log); pass --resume or remove them first:\n  " + "\n  ".join(map(str, stale[:5])))
+    if resuming:
+        print(f"resuming after epoch {prepare_resume(exp.id, split, member)}")
     prepare(exp.id, split)
-    env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(gpu))
+    env = dict(os.environ)
+    if gpu is not None:
+        env["CUDA_VISIBLE_DEVICES"] = str(gpu)
     return subprocess.call(cmd, cwd=paths.ROOT, env=env)
