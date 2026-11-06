@@ -13,7 +13,7 @@ checkout and `$UQ_HOME` / `$UQ_RUNS` for the Leonardo checkout and run directory
 | Machine | GPUs | Limits | Budget | Access |
 |---|---|---|---|---|
 | **local** (shared server) | 8x A100 40GB, shared with other users | **max 3 GPUs for this project at any time** (CLAUDE.md; `uq train` enforces it); ~3 jobs per GPU packed | free, ~3 x 24 = 72 GPU-h/day | agents have shell access |
-| **leonardo** (CINECA, Booster) | 4x A100 64GB per node, 32 cores, 512 GB RAM per node | `boost_usr_prod` 24 h walltime; `boost_qos_lprod` 4 days, max 32 GPUs; `boost_qos_dbg` 30 min, max 2 jobs (docs.hpc.cineca.it, checked 2026-11-06); booster `$TMPDIR` is 10 GB in RAM | **10,000 GPU-h** (user, 2026-11-06); how a 1-GPU job is charged (per GPU or per node, packed jobs): **check with `saldo -b` after the smoke test** | 2FA (CINECA step certificate); agents on the local server have **no** SSH configuration for it yet (WP11.1) |
+| **leonardo** (CINECA, Booster; account **`IscrC_UQ-MF`**, valid 2026-07-29 to 2027-04-29) | 4x A100 64GB per node, 32 cores, 512 GB RAM per node | `boost_usr_prod` 24 h walltime; `boost_qos_lprod` 4 days, max 32 GPUs; `boost_qos_dbg` 30 min, max 2 jobs (docs.hpc.cineca.it, checked 2026-11-06); booster `$TMPDIR` is 10 GB in RAM | **80,000 local h = ~10,000 GPU-h** (1 GPU = 8 cores; `saldo -b`, 2026-11-06: 0 consumed). `monthTotal` 8,759 local h (~1,100 GPU-h) for this month: check whether exceeding it only lowers priority. Do **not** charge the other account `IscrB_ProAmmo` (another project). Storage: `$WORK=/leonardo_work/IscrC_UQ-MF` 1 TB (11 GB used), `$FAST=/leonardo_scratch/fast/IscrC_UQ-MF` 1 TB, `$HOME` 50 GB (6.4 GB used, has a `miniconda3` of the other project) | 2FA: **works** (2026-11-06 20:16). Agents use `ssh leonardo` (login01-ext, user mtolloso) while the 12 h certificate is valid; the user renews it with `leonardo-login` on the DGX (`LEONARDO_LOGIN.md`). Login node has internet (PyPI, GitHub) |
 
 **Confirmed by the user (2026-11-06, D7):** the 3-GPU cap applies only to the shared local server;
 Leonardo is managed by its SLURM queues and our budget.
@@ -101,3 +101,5 @@ Status: `planned` -> `queued` -> `running` -> `trained` -> `evaluated` -> `synce
   the 9 partial members (+ their children). Local GPUs: 0, 2, 6 only (cap respected); 6-7 of our jobs
   per GPU until the resumed members finish. Energy MSE ensembles (50/50) expected when the main
   scheduler's m9 members finish (~2026-11-08); the post-processing unit then evaluates and prunes.
+- 2026-11-06 20:16 — Leonardo: first agent login from the DGX (certificate valid until 2026-11-07 08:14).
+  Read-only reconnaissance only (`saldo -b`, `cindata`, env, network); nothing installed or submitted.

@@ -31,8 +31,9 @@ Branch: `iclr_rebuttal` (created 2026-11-06 from `main` at `30afae8`). Manuscrip
    outputs. New variants are new experiments (`new-experiment` skill) under new ids.
 5. **Five splits x ten members** for anything reported as a result. A reduced pilot is allowed only
    if labelled "pilot" everywhere (ledger, plan, rebuttal) and approved in Section 6.
-6. **Anonymity.** No author names, affiliations, absolute paths or the OpenReview forum URL in
-   tracked files of this repo (it is mirrored anonymously) or in the rebuttal text.
+6. **Anonymity.** The anonymous mirror is built from `main` only (user, 2026-11-06): files on
+   `iclr_rebuttal` need no anonymization. Keep author names out of the *rebuttal text* posted on
+   OpenReview and of anything merged into `main`.
 7. **Literature.** Every factual statement in the rebuttal about prior work cites a reference in
    Section 7 of `draft_rebuttal.md`; add new ones there with how they were verified.
 8. **No commits/pushes** unless the user asks.
@@ -255,7 +256,8 @@ proportion to the decrease of training error; (d) a head fitted on held-out resi
 
 ### WP11 Leonardo setup and sync (critical path; target: smoke test passed by 2026-11-08)
 
-- [ ] 11.1 Access (user, 2026-11-06: do this first). Recommended: a CINECA step certificate written
+- [x] 11.1 Access: done 2026-11-06 20:16 (`LEONARDO_LOGIN.md`; `ssh leonardo` from the DGX, 12 h
+      certificate renewed by the user with `leonardo-login`). Original note: Recommended: a CINECA step certificate written
       to files on the local server, so that agents here can `ssh leonardo` for its 12 h validity;
       the user renews it (twice a day, at the RUNS.md sync points). Alternative: a `claude rc`
       session on a Leonardo login node (then it owns the Leonardo rows of RUNS.md and syncs the
@@ -369,7 +371,8 @@ flags: [`LOCAL_AUDIT_2026-11-06.md`](LOCAL_AUDIT_2026-11-06.md). Leonardo not ch
   uses its queues.
 - **D8 Code sync: DECIDED (user, 2026-11-06)**: push `iclr_rebuttal` to `origin` once the files are
   updated; Leonardo pulls from it.
-- **D9 Storage of Leonardo epoch checkpoints**: keep on Leonardo, prune after evaluation (every 5th
+- **D9 Storage of Leonardo epoch checkpoints** (urgent: `$WORK` and `$FAST` are 1 TB each, an LF-scale
+  experiment with every epoch checkpoint is ~255 GB): keep on Leonardo, prune after evaluation (every 5th
   epoch + best, as approved for `mace-mse` locally), or copy back (~255 GB per LF-scale experiment).
 - **D10 Leonardo budget allocation** (Section 5 table).
 

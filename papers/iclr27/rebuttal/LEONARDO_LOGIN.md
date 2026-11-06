@@ -1,38 +1,53 @@
-# Leonardo login — checked 2026-11-06
-
-Instructions only: no local settings changed and no login attempted.
+# Leonardo login (CINECA 2FA) — updated 2026-11-06
 
 Official sources: [Leonardo](https://docs.hpc.cineca.it/hpc/leonardo.html),
-[authentication](https://docs.hpc.cineca.it/general/access.html).
+[authentication](https://docs.hpc.cineca.it/general/access.html). Certificates from
+`step ssh login` last **12 hours**. The browser step (CINECA password + OTP) is always
+done by the user; agents never see credentials.
 
-For Linux/bash, first activate 2FA at <https://sso.hpc.cineca.it> and install
-the Smallstep CLI using the installation link in CINECA's authentication guide.
-Do not use `apt install step`: CINECA warns this is a different program.
+Account: user `mtolloso`, registered email `matteo.tolloso@phd.unipi.it`, login host
+`login01-ext.leonardo.cineca.it`.
 
-Configure once:
-
-```bash
-step ca bootstrap --ca-url=https://sshproxy.hpc.cineca.it --fingerprint 2ae1543202304d3f434bdc1a2c92eff2cd2b02110206ef06317e70c1c1735ecd
-```
-
-Authenticate and connect (start ssh-agent only if none is active):
+## A. From the user's MacBook (interactive use)
 
 ```bash
-eval "$(ssh-agent -s)"
-step ssh login 'YOUR_REGISTERED_EMAIL' --provisioner cineca-hpc
-# Complete browser authentication with your CINECA credentials and OTP.
-ssh YOUR_CINECA_USERNAME@login.leonardo.cineca.it
+step ssh login 'matteo.tolloso@phd.unipi.it' --provisioner cineca-hpc   # browser + OTP
+ssh mtolloso@login01-ext.leonardo.cineca.it
 ```
 
-Certificates last 12 hours; repeat `step ssh login` when expired.
-Email and cluster username are separate placeholders.
+Optional (a colleague's setup): a `~/.ssh/config` entry whose `ProxyCommand` runs
+`step ssh login ... >/dev/null 2>&1; nc %h %p` renews the certificate automatically on each
+connection. It works only where a browser is available (the laptop), and it disables
+host-key checking, so we do not use it on the DGX.
 
-File-based alternative to ssh-agent:
+## B. On the DGX, for agents (`ssh leonardo`)
 
-```bash
-step ssh certificate 'YOUR_REGISTERED_EMAIL' --provisioner cineca-hpc ~/.ssh/leonardo_key
-ssh -i ~/.ssh/leonardo_key YOUR_CINECA_USERNAME@login.leonardo.cineca.it
-```
+Everything is in user space (no root):
 
-That alternative prompts for a private-key passphrase. Keep authentication secrets
-out of repository files and chat. Access from the shared server remains untested.
+| Item | Where |
+|---|---|
+| Smallstep CLI v0.31.0 (sha256 checked against the release's `checksums.txt`) | `~/.local/bin/step` |
+| CINECA CA bootstrap (`step ca bootstrap --ca-url=https://sshproxy.hpc.cineca.it --fingerprint 2ae1543202304d3f434bdc1a2c92eff2cd2b02110206ef06317e70c1c1735ecd`) | `~/.step/` |
+| ssh-agent holding the certificate only in memory | systemd user unit `leonardo-ssh-agent`, socket `~/.ssh/agent-leonardo.sock` |
+| `Host leonardo` (login01-ext, user mtolloso, the agent socket above, shared connection for 4 h) | `~/.ssh/config` |
+| login helper | `~/.local/bin/leonardo-login` |
+
+**Renewal, every 12 h (user):** in a terminal *on the DGX* run `leonardo-login`, open the URL it
+prints in the MacBook browser and log in within ~5 minutes. The browser is then redirected to
+`http://127.0.0.1:10000` **of the DGX**, so that port must reach the DGX:
+- from a VS Code Remote terminal it is normally forwarded automatically (check the "Ports" panel);
+- otherwise, on the MacBook first: `ssh -N -L 10000:127.0.0.1:10000 m.tolloso@dgx-a100-2.unipi.it`.
+
+The helper ends with `connected to <host> as mtolloso` when it worked. Agents then use
+`ssh leonardo '<command>'` until the certificate expires (`ssh-add -l` with
+`SSH_AUTH_SOCK=~/.ssh/agent-leonardo.sock` shows it; an expired one gives
+`Permission denied (publickey,...)`).
+
+Not available: the terminal-only flow (`step ssh login --console`) is disabled by CINECA
+("Client is not allowed to initiate OAuth 2.0 Device Authorization Grant").
+
+## Rules for agents
+
+- Never try to log in yourself or ask for passwords/OTP; ask the user to run `leonardo-login`.
+- Do not write certificates or keys to disk; do not copy the agent socket elsewhere.
+- After a renewal, record it in `RUNS.md` Section 5 (time, expiry).
