@@ -226,7 +226,7 @@ proportion to the decrease of training error; (d) a head fitted on held-out resi
 
 - [x] 11.1 Access (2026-11-06 20:16): `ssh leonardo` from the DGX; 12 h certificate renewed by the
       user with `leonardo-login` (`LEONARDO.md` Section 1).
-- [~] 11.2 (agent: mace-80, since 2026-11-06 20:38; Miniconda installed, env waits for D12) Environment (user, 2026-11-06: separate Miniconda): `$WORK/uq-mf/miniconda3`, env `mace`
+- [~] 11.2 (agent: mace-80, since 2026-11-06 20:38; Miniconda installed, env job 63699144) Environment (user, 2026-11-06: separate Miniconda): `$WORK/uq-mf/miniconda3`, env `mace`
       from `environment.yml`; clone `iclr_rebuttal` to `$WORK/uq-mf/mace`;
       `pip install --no-deps --no-build-isolation -e .`; `uq check` and the 58 unit tests pass; torch
       sees a GPU on a Booster node (smoke test). Heavy installs in a job if the login node's 10-min
@@ -236,7 +236,9 @@ proportion to the decrease of training error; (d) a head fitted on held-out resi
 - [ ] 11.4 Run directory and variables: `UQ_RUNS=$WORK/uq-mf/runs` (overflow `$FAST/uq-mf/runs`),
       `PYTHON_BIN`, `WANDB_MODE=offline` with W&B files in `$CINECA_SCRATCH/uq-mf`; at most ~3 unpruned
       LF-scale experiments on `$WORK` (1 TB; ~255 GB each before pruning).
-- [ ] 11.5 SLURM launcher in `uq` (new module, e.g. `uq/training/slurm.py`, + `uq train --slurm`):
+- [x] 11.5 (mace-80, 2026-11-06 21:10; `uq/training/slurm.py`, `uq/tests/test_slurm.py`) `uq train-slurm`
+      writes/submits 1-GPU jobs; `uq train-member` gained `--resume`, skip-if-complete and the
+      SLURM-assigned GPU. Original spec: SLURM launcher in `uq` (new module, e.g. `uq/training/slurm.py`, + `uq train --slurm`):
       writes sbatch scripts that run exactly `launch.command(job)` per member, optionally k members
       packed per 1-GPU job (`--cpus-per-task=8`, `--mem<=120G` so one GPU is charged as 1/4 node;
       `LEONARDO.md` Section 3), job arrays, `--dependency=afterok` for LF->HF children, `--resume` for
@@ -316,13 +318,12 @@ Decided (user, 2026-11-06):
 - **D9** Leonardo epoch checkpoints: prune after evaluation (every 5th epoch + each member's best +
   `.model`), as for `mace-mse` on the DGX.
 - **D11** Leonardo environment: a separate Miniconda in `$WORK/uq-mf/miniconda3`.
+- **D12** Anaconda ToS for the `defaults` channels accepted on our Leonardo Miniconda (user, 2026-11-06).
 - **D1b** The system-split MSE members (100, LF-scale) run on Leonardo, not on the DGX (done 20:35: the
   local scheduler was replaced by energy-only ones).
 
 Open:
-- **D12** Accept the Anaconda Terms of Service for the `defaults` channels on our Leonardo Miniconda
-  (needed by `environment.yml`; accepted on the DGX on 2026-01-28)? Alternative: rebuild the env from
-  conda-forge/PyPI only (new pins, more work, not identical to the DGX env).
+
 - **D2** Fidelity-aware training: multi-head replay FT from existing parents (WP6.2, cheap) and/or
   joint training from scratch (WP6.3, ~900 GPU-h).
 - **D3** Forces in pretraining (WP5.2): energy split only, or both splits.
@@ -352,3 +353,11 @@ Open:
 - 2026-11-06 20:35-20:50 — mace-80: D1b done on the DGX (old scheduler replaced by energy-only ones without
   killing members; `RUNS.md`). Leonardo: compute nodes of `lrd_all_serial` have internet; repo cloned,
   Miniconda installed, data copied and verified (WP11.3). Env creation blocked on D12 (Anaconda ToS).
+- 2026-11-06 21:10 — mace-80: D12 accepted (user): Anaconda ToS accepted on our Leonardo Miniconda. First env
+  job failed to solve (no `__cuda` on the serial node; strict channel priority): fixed with
+  `CONDA_OVERRIDE_CUDA=12.4`, `CONDA_CHANNEL_PRIORITY=flexible` (the DGX uses flexible); resubmitted
+  (63699144). WP11.5 done (`uq train-slurm`, 58 tests). `git push` from this shell hangs (stale VS Code
+  askpass): commits reach Leonardo by `git bundle` (same hashes) until the user pushes.
+- 2026-11-06 ~21:30 — mace-80 paused. Next: fix the pip step of the Leonardo env (job 63699144 log), then
+  WP11.8 smoke test (`UQ_RUNS=$CINECA_SCRATCH/uq-mf/smoke/runs uq train-slurm ... --qos boost_qos_dbg`),
+  then system-split MSE (D1b) and FT ablations. `git push` may need the user (stale VS Code askpass).
