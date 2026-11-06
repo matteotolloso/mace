@@ -24,6 +24,6 @@ Schema and procedures: `docs/experiments.md`, `docs/datasets.md` (skills
   same dataset, splits and members. Run `uq check` after editing any spec.
 - Existing dataset splits are never regenerated (`uq data build` refuses); a changed
   split design is a new dataset folder. Keep large files out of Git (`data/.gitignore`).
-- Training: dry-run first (`uq train <exp> --gpus G --dry-run`), respect the two-GPU
+- Training: dry-run first (`uq train <exp> --gpus G --dry-run`), respect the three-GPU
   limit, check `uq status` afterwards. Evaluation outputs of the ICLR27 experiments are
   tracked and cited: do not regenerate them unless asked.

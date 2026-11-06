@@ -1,6 +1,6 @@
 ---
 name: train-experiment
-description: Train (or resume) the ensemble members of one or more experiments with `uq train`, respecting the two-GPU limit and parent dependencies, and confirm completeness with `uq status`. Use when asked to train, retrain missing members, or add splits/members to an experiment.
+description: Train (or resume) the ensemble members of one or more experiments with `uq train`, respecting the three-GPU limit and parent dependencies, and confirm completeness with `uq status`. Use when asked to train, retrain missing members, or add splits/members to an experiment.
 ---
 
 # Train an experiment
@@ -8,7 +8,7 @@ description: Train (or resume) the ensemble members of one or more experiments w
 1. `uq show <exp>` and `uq status <exp> -v`: know what exists; never retrain complete
    members unless the user explicitly asks (they are provenance for recorded results).
 2. Pick GPUs: `nvidia-smi --query-gpu=index,memory.used,utilization.gpu --format=csv`.
-   **At most two GPUs in total**, counting every job already running for this project.
+   **At most three GPUs in total**, counting every job already running for this project.
 3. Dry run: `uq train <exp> [<exp> ...] --gpus G1 [G2] [--splits 0-4] [--members 0-9] --dry-run`.
    Check the member list and that `lf-to-hf` members wait for their parent member.
 4. Launch detached so it survives the session, e.g.

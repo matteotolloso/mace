@@ -28,15 +28,17 @@ static fallback: every slide in its final state.
 
 | Path | Content |
 |---|---|
+| `CLAUDE.md` (`AGENTS.md` points to it) | full build and maintenance guide for agents and humans |
 | `index.html` | the slides: text, speaker notes, timings (edit directly; no build step) |
 | `js/plots.js` | D3 drawing and animation of the paper figures and the three schematics |
 | `css/theme.css` | layout and typography |
 | `data/paper_figures.{json,js}` | every value plotted on the result slides |
 | `assets/` | crops of the paper's Fig. 1 (`make_assets.py`), QR code, appendix figures for the backup slides |
-| `lib/` | reveal.js 5.2.1, D3 7.9.0, KaTeX 0.16.11, Inter font |
+| `lib/` | reveal.js 5.2.1, D3 7.9.0, KaTeX 0.16.11, Inter and Source Serif 4 fonts |
 | `scripts/extract_data.py` | regenerates `data/` (mace env, CPU, ~1 min) |
 | `scripts/make_assets.py` | regenerates the Fig. 1 crops and the QR code (needs `pymupdf`, `qrcode`) |
 | `scripts/export_pdf.py` | regenerates `slides.pdf` (needs Playwright + Chromium) |
+| `scripts/screenshots.py` | screenshots of every slide (first and final state) for visual checks |
 
 ## Where the numbers come from
 

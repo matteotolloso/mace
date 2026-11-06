@@ -6,7 +6,7 @@ Common tasks:
     uq list                                  what experiments exist
     uq status                                training completeness (450 members)
     uq summary B --test ood                  headline metrics from the tracked aggregates
-    uq train B --gpus 6 7 --dry-run          train missing members (<= 2 GPUs)
+    uq train B --gpus 6 7 --dry-run          train missing members (<= 3 GPUs)
     uq evaluate B --gpu 6 --dry-run          per-split evaluation + five-split aggregate
     uq aggregate                             rebuild all five-split aggregates (CPU only)
     uq where experiment_D/checkpoints_3      old (pre-2026-09) path -> new path
@@ -17,7 +17,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-MAX_GPUS = 2  # project rule: never more than two GPUs at the same time
+MAX_GPUS = 3  # project rule (user, 2026-11-03): never more than three GPUs at the same time
 
 
 def _ints(text: str) -> list:

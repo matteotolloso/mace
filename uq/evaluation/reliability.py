@@ -1131,6 +1131,8 @@ def compute_ause(scores: np.ndarray, abs_errors: np.ndarray) -> float:
     abs_errors = abs_errors[valid]
     if np.any(abs_errors < 0.0):
         return float("nan")
+    if np.ptp(scores) == 0.0:   # constant signal (e.g. AU of an MSE ensemble): no ranking, undefined
+        return float("nan")
 
     n = len(scores)
     unc_order = np.argsort(scores)[::-1]

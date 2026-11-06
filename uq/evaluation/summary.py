@@ -61,7 +61,7 @@ def main(experiment, test=None, calibrated=False, members=None) -> int:
             print(f"{exp.label}: no rows for {members} members in {paths.rel(path)}")
             status = 1
             continue
-        n = next(iter(rows.values())).get("value_n", "?")
+        n = rows.get(("rmse", "ensemble"), next(iter(rows.values()))).get("value_n", "?")
         size = f" | M={members} members" if members is not None else ""
         print(f"{exp.label} | {role} | {'isotonic-recalibrated' if calibrated else 'uncalibrated'}{size} | "
               f"n={n} splits | {paths.rel(path)}")

@@ -1,4 +1,4 @@
-"""Train every missing member of one or more experiments on at most two GPUs.
+"""Train every missing member of one or more experiments on at most three GPUs.
 
     uq train B --gpus 6 7 --dry-run          # show the plan
     uq train wA wB wC --gpus 6 7 --jobs-per-gpu 3
@@ -15,7 +15,8 @@ threads (``OMP_NUM_THREADS``/``MKL_NUM_THREADS``, default 8: torch otherwise sta
 thread per core and six packed jobs saturated the shared 256-core machine), and packed
 jobs use ``PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`` (about 5 GB instead of
 12-18 GB per ANI-1x member). Neither changes what is computed.
-Hard limit: never more than two GPUs at the same time (project rule).
+Hard limit: never more than three GPUs at the same time (project rule). A restarted scheduler
+adopts members still being trained by the previous one and skips members completed meanwhile.
 
 Safe to restart: complete members are skipped. Logs go to
 ``runs/_logs/<id with / -> __>_s<split>_m<member>.log``.
@@ -31,7 +32,7 @@ import time
 from uq import paths, registry
 from uq.training import launch
 
-MAX_GPUS = 2
+MAX_GPUS = 3  # project rule (user, 2026-11-03): never more than three GPUs at the same time
 
 
 def log(message: str) -> None:
@@ -79,14 +80,52 @@ def job_env(gpu, jobs_per_gpu=1, threads_per_job=8) -> dict:
     return env
 
 
+class _Adopted:
+    """A member process started by an earlier scheduler that is still running (no exit code)."""
+
+    def __init__(self, pid):
+        self.pid = pid
+        self.returncode = None
+
+    def poll(self):
+        if os.path.exists(f"/proc/{self.pid}"):
+            return None
+        self.returncode = 0   # unknown; success is judged by member_complete
+        return 0
+
+
+def running_members(pending):
+    """{job: (pid, gpu)} for pending members already being trained by a live process of this user
+    (matched on the exact ``launch.command``), e.g. after the scheduler itself was restarted."""
+    wanted = {"\0".join(launch.command(*job)): job for job in pending}
+    found = {}
+    for entry in os.scandir("/proc"):
+        if not entry.name.isdigit():
+            continue
+        try:
+            with open(f"/proc/{entry.name}/cmdline", "rb") as handle:
+                cmdline = handle.read().decode(errors="replace").rstrip("\0")
+            job = wanted.get(cmdline)
+            if job is None:
+                continue
+            with open(f"/proc/{entry.name}/environ", "rb") as handle:
+                env = dict(item.split("=", 1) for item in handle.read().decode(errors="replace").split("\0")
+                           if "=" in item)
+        except OSError:
+            continue
+        found[job] = (int(entry.name), int(env.get("CUDA_VISIBLE_DEVICES", "-1").split(",")[0]))
+    return found
+
+
 def run(names, gpus, splits=None, members=None, jobs_per_gpu=1, dry_run=False, poll_seconds=30,
         by_experiment=False, threads_per_job=8) -> int:
     gpus = list(dict.fromkeys(gpus))
     if len(gpus) > MAX_GPUS:
         raise SystemExit(f"at most {MAX_GPUS} GPUs may be used at the same time (got {gpus})")
     pending = plan(names, splits, members, by_experiment)
+    adopted = running_members(pending)
     log(f"{len(pending)} members to train on GPUs {gpus} ({jobs_per_gpu} jobs per GPU, "
-        f"{threads_per_job} CPU threads per job)")
+        f"{threads_per_job} CPU threads per job; {len(adopted)} already running)")
     if dry_run:
         for exp_id, s, m in pending:
             parent = registry.experiment(exp_id).parent
@@ -96,6 +135,12 @@ def run(names, gpus, splits=None, members=None, jobs_per_gpu=1, dry_run=False, p
 
     paths.SCHEDULER_LOGS.mkdir(parents=True, exist_ok=True)
     slots = {gpu: [] for gpu in gpus}   # gpu -> list of (job, Popen)
+    for job, (pid, gpu) in adopted.items():   # wait for them instead of refusing their partial outputs
+        if gpu not in slots:
+            raise SystemExit(f"{job_name(*job)} is running on GPU {gpu} (pid {pid}), not in {gpus}")
+        pending.remove(job)
+        slots[gpu].append((job, _Adopted(pid)))
+        log(f"adopted {job_name(*job)} (GPU {gpu}, pid {pid})")
     failed = []
     while pending or any(slots.values()):
         for gpu, running in slots.items():   # reap finished jobs
@@ -118,6 +163,9 @@ def run(names, gpus, splits=None, members=None, jobs_per_gpu=1, dry_run=False, p
                     break
                 pending.remove(runnable)
                 name = job_name(*runnable)
+                if registry.experiment(runnable[0]).member_complete(runnable[1], runnable[2]):
+                    log(f"skipped {name}: completed meanwhile (another scheduler?)")
+                    continue
                 stale = launch.stale_outputs(*runnable)
                 if stale:
                     log(f"REFUSED {name}: {len(stale)} outputs of an unfinished earlier run "

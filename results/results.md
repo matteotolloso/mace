@@ -584,3 +584,144 @@ How to use it:
   quantity separately, not paired tests; paired contrasts come with `compare_uq` once the MSE
   ensembles are evaluated. Metrics keep improving up to M = 10 on Energy-OOD (curves in
   `ensemble_size_ood.svg`), so ten members is not saturated there.
+
+### 2026-11-03 MSE-ensemble baseline, ANI-1x energy split, HF-only: evaluation and paired comparison with the MVE ensemble (F)
+
+- **Status:** verified (computed in this task; the MVE side reproduces the recorded F values, e.g.
+  Energy-OOD TU Spearman 0.556 [0.537, 0.574] and ENCE 1.636 [1.318, 2.031]; the MSE side of the
+  comparison table, read from `ensemble_size_*`, matches its own reliability aggregate, e.g. OOD EU
+  Spearman 0.438 [0.411, 0.465], AUSE 0.297 [0.277, 0.318]).
+- **Purpose:** rebuttal / follow-up ablation: does the AU/EU decomposition (MVE ensemble) beat a
+  standard deep ensemble whose only signal is member disagreement (MSE ensemble)? First pair: HF-only
+  on the energy split (MVE twin F).
+- **Code commit:** `60524e6562fce798f8dae501fa5b0cb6f4d39fe8`; dirty tree: yes. This task:
+  `uq/evaluation/{reliability,epoch_quality}.py` (AUSE of a constant signal is NaN),
+  `uq/evaluation/aggregate.py` (`mask_constant_signals`, `_defined`), `uq/evaluation/summary.py`
+  (n read from the RMSE row); MVE aggregate CSVs of B, D, E, F re-computed into a scratch directory
+  are byte-identical to the tracked ones. Other session's uncommitted edits (GPU cap 3, scheduler
+  adoption) do not touch evaluation.
+- **Command(s):** training `uq train ani1x-energy/mace-mse/hf-only ... --gpus 0 2 --jobs-per-gpu 3 --by-experiment`
+  (2026-11-02 12:18 - 2026-11-03 01:26); evaluation `uq evaluate ani1x-energy/mace-mse/hf-only --gpu 0`
+  (by `runs/_jobs/mse_postprocess.sh`, 01:43-13:14, log `runs/_jobs/ani1x-energy__mace-mse__hf-only.evaluate.log`);
+  then, after the AUSE fix, `uq aggregate ani1x-energy/mace-mse/hf-only` (CPU) and
+  `python -m uq.evaluation.compare_uq`.
+- **Configuration:** `experiments/ani1x-energy/mace-mse/hf-only/{experiment.yaml,config.yaml}`: as F
+  (`experiments/ani1x-energy/mace-mve/hf-only`) except `predict_mve: False`, `loss: "energy_only"`
+  (per-atom energy MSE). Per-member checkpoint = lowest validation MSE: selected epochs median 282.5,
+  range 244-299 of 300 (F: median 67), i.e. the MSE members use nearly the whole budget.
+- **Dataset and split:** `data/ani1x-energy/split_{0..4}/cc_{train,val,test_id,test_ood}.xyz`;
+  training-support filter: Energy-OOD 13-16 and Energy-ID 0-2 configurations removed per split.
+- **Random seeds:** split seeds 0-4; member seeds 0-9 (50/50 members; no split or member missing).
+- **Compute:** retraining (50 members) + GPU inference + CPU.
+- **Metrics:** paired per split (same data and member seeds); five-split mean [95% Student-t, df = 4]
+  of each value and of the contrast with the MSE-ensemble EU: difference for Spearman/AUSE, geometric
+  ratio [log-space interval] for ENCE and RMSE. Signals: `mse_eu` (MSE ensemble, its only signal),
+  `mve_eu`, `mve_au`, `mve_tu` (MVE ensemble F), `mve_single_au` (one MVE member, mean over the ten).
+  Values copied from `results/tables/mse_vs_mve.csv` (printed to 4 significant digits):
+
+  | Test | Metric | MSE EU | MVE EU - MSE EU | MVE TU - MSE EU | single MVE AU - MSE EU |
+  |---|---|---|---|---|---|
+  | OOD | Spearman | 0.4379 [0.4112, 0.4646] | 0.006994 [-0.007935, 0.02192] | 0.1179 [0.09477, 0.141] | -0.01237 [-0.02983, 0.005095] |
+  | OOD | AUSE | 0.2973 [0.2772, 0.3175] | 0.0009726 [-0.01117, 0.01312] | -0.1116 [-0.1291, -0.0942] | -0.02533 [-0.03918, -0.01149] |
+  | OOD | ENCE (ratio) | 13.13 [11.02, 15.64] | x1.107 [0.9703, 1.263] | x0.1246 [0.09637, 0.1611] | x0.5312 [0.4166, 0.6772] |
+  | ID | Spearman | 0.2593 [0.2282, 0.2904] | -0.004608 [-0.04112, 0.0319] | 0.05569 [0.02196, 0.08942] | 0.02643 [-0.004547, 0.0574] |
+  | ID | AUSE | 0.3965 [0.3762, 0.4168] | -0.0003056 [-0.02465, 0.02404] | -0.05388 [-0.07504, -0.03272] | -0.02904 [-0.05069, -0.007384] |
+  | ID | ENCE (ratio) | 1.514 [1.315, 1.741] | x0.8882 [0.7302, 1.08] | x0.2935 [0.2401, 0.3587] | x0.2833 [0.214, 0.3751] |
+
+  RMSE (eV/atom), MSE ensemble: OOD 0.07387 [0.06712, 0.08129], ID 0.0154 [0.01503, 0.01577];
+  ratio MVE ensemble / MSE ensemble: OOD 1.017 [0.9695, 1.067], ID 1.013 [0.9938, 1.032]; single MVE
+  member / MSE ensemble: OOD 1.051 [1.001, 1.103], ID 1.281 [1.25, 1.313]. Full table (also MVE AU):
+  `results/tables/mse_vs_mve.csv`; MSE-ensemble aggregates: `uq summary ani1x-energy/mace-mse/hf-only`.
+
+- **Output files:** new: `experiments/ani1x-energy/mace-mse/hf-only/evaluation/` (per split and
+  aggregates; aggregates rebuilt after the AUSE fix), `results/tables/mse_vs_mve.csv` (other pairs
+  listed as missing until trained). Caveat: the per-split `epoch_quality_*.csv` of this experiment were
+  written before the fix and hold an arbitrary `ause_aleatoric` for the all-zero AU (other AU columns
+  NaN); `aggregate.mask_constant_signals` masks it, never read it from the per-split files.
+- **Interpretation:** Without pretraining on the energy split: (1) the loss does not change the
+  epistemic signal: MSE-ensemble EU and MVE-ensemble EU are indistinguishable on all three metrics on
+  both tests (intervals contain 0 / 1); (2) the decomposition's total variance beats the deep-ensemble
+  signal on every metric and test: OOD Spearman +0.118, AUSE -0.112, ENCE x0.12 (all intervals exclude
+  0 / 1), ID likewise; most of the gain comes from AU (MVE AU alone also beats MSE EU, see the csv);
+  (3) even one MVE model's AU ranks as well as the ten-member MSE ensemble on OOD (Spearman difference
+  interval contains 0), sparsifies better (AUSE) and is better calibrated (ENCE x0.53), at the cost of a
+  less accurate prediction (RMSE x1.05 OOD, x1.28 ID); (4) MVE training costs no ensemble accuracy
+  (RMSE ratio intervals contain 1). Caveats: one dataset/protocol so far (system split and LF->HF pending);
+  the MSE members were still improving at the end of the shared 300-epoch budget (selected epochs
+  244-299), so a longer budget might favour the MSE ensemble's accuracy; ENCE of an uncalibrated EU is
+  expected to be poor by construction (no recalibration compared yet).
+
+### 2026-11-03 Epoch-checkpoint pruning: ani1x-energy/mace-mse/hf-only (no result changed)
+
+- **Status:** verified (pruning tool's own pre/post checks; user-approved 2026-11-02 for every
+  `mace-mse` experiment after its evaluation).
+- **Command(s):** `uq prune-checkpoints ani1x-energy/mace-mse/hf-only --apply` (run by
+  `runs/_jobs/mse_postprocess.sh` right after the evaluation, 2026-11-03 13:14; log
+  `runs/_jobs/ani1x-energy__mace-mse__hf-only.prune.log`).
+- **Effect:** deleted 11958 epoch checkpoints, 189.3 GiB; kept every `epoch % 5 == 0` checkpoint, each
+  member's best (validation MSE) and every `.model`; record in
+  `runs/ani1x-energy/mace-mse/hf-only/split_<s>/checkpoints/PRUNED.json`. The run folder is now 49 GB.
+  Checkpoint re-selection (selected epochs above) works on the pruned folders.
+
+### 2026-11-04 MSE-ensemble baseline, ANI-1x system split, HF-only: evaluation and paired comparison with the MVE ensemble (E)
+
+- **Status:** verified (computed in this task; the MVE side reproduces the recorded E values, e.g.
+  System-OOD TU Spearman 0.411 [0.367, 0.455], ENCE 0.391 [0.323, 0.472]; MSE side consistent with
+  `uq summary ani1x-system/mace-mse/hf-only`, e.g. OOD EU Spearman 0.362 [0.333, 0.391]).
+- **Purpose:** second pair of the MSE-vs-MVE ablation (see the 2026-11-03 energy entry): HF-only on
+  the system split (MVE twin E).
+- **Code commit:** `60524e6562fce798f8dae501fa5b0cb6f4d39fe8`; dirty tree: yes (the 2026-11-03 AUSE
+  fix in `uq/evaluation/{reliability,epoch_quality,aggregate,summary}.py`, active during this
+  evaluation; other session's GPU-cap/scheduler edits; ledger, PROGRESS.md).
+- **Command(s):** training as in the energy entry (`uq train ... --by-experiment`, GPUs 0, 2 and,
+  from 2026-11-03 11:00, 6; members done 2026-11-03 13:52); evaluation
+  `uq evaluate ani1x-system/mace-mse/hf-only --gpu 0` (by `runs/_jobs/mse_postprocess.sh`,
+  2026-11-03 14:04 - 2026-11-04 02:56); `python -m uq.evaluation.compare_uq`.
+- **Configuration:** `experiments/ani1x-system/mace-mse/hf-only/{experiment.yaml,config.yaml}`: as E
+  except `predict_mve: False`, `loss: "energy_only"`. Selected epochs (validation MSE): median 273,
+  range 118-299 of 300 (E: median 60, range 30-111).
+- **Dataset and split:** `data/ani1x-system/split_{0..4}/cc_*.xyz`; training-support filter: System-ID
+  0-1, System-OOD 0 configurations removed per split.
+- **Random seeds:** split seeds 0-4; member seeds 0-9 (50/50; nothing missing).
+- **Compute:** retraining (50 members) + GPU inference + CPU.
+- **Metrics:** as in the energy entry (paired per split, df = 4; difference for Spearman/AUSE, geometric
+  ratio for ENCE/RMSE). From `results/tables/mse_vs_mve.csv` (4 significant digits):
+
+  | Test | Metric | MSE EU | MVE EU - MSE EU | MVE TU - MSE EU | single MVE AU - MSE EU |
+  |---|---|---|---|---|---|
+  | OOD | Spearman | 0.3618 [0.333, 0.3905] | 0.007908 [-0.01586, 0.03168] | 0.04945 [0.02668, 0.07222] | 0.02553 [0.01709, 0.03398] |
+  | OOD | AUSE | 0.302 [0.2864, 0.3176] | -0.01408 [-0.02996, 0.001793] | -0.05517 [-0.06456, -0.04578] | -0.02771 [-0.0375, -0.01793] |
+  | OOD | ENCE (ratio) | 1.475 [1.311, 1.659] | x1.368 [1.019, 1.837] | x0.2649 [0.207, 0.339] | x0.5149 [0.3999, 0.6629] |
+  | ID | Spearman | 0.3219 [0.2965, 0.3472] | 0.01624 [-0.003098, 0.03558] | 0.0551 [0.03262, 0.07758] | 0.03307 [0.0131, 0.05305] |
+  | ID | AUSE | 0.3511 [0.3344, 0.3677] | -0.02996 [-0.04876, -0.01116] | -0.07823 [-0.0943, -0.06215] | -0.05296 [-0.06751, -0.03842] |
+  | ID | ENCE (ratio) | 1.396 [1.064, 1.831] | x1.57 [1.089, 2.263] | x0.2874 [0.1917, 0.4309] | x0.3857 [0.3044, 0.4887] |
+
+  RMSE (eV/atom), MSE ensemble: OOD 0.02745 [0.02384, 0.03161], ID 0.02079 [0.02005, 0.02156];
+  ratio MVE ensemble / MSE ensemble: OOD 1.235 [1.072, 1.423], ID 1.727 [1.018, 2.93]; single MVE
+  member / MSE ensemble: OOD 1.521 [1.184, 1.955], ID 1.995 [1.123, 3.542]. Per-split ensemble ID RMSE
+  (meV/atom, `ensemble_size_id.csv`, M = 10): MVE 74.4 / 27.7 / 31.6 / 29.7 / 30.8, MSE 20.3 / 21.5 /
+  20.9 / 20.1 / 21.3 (MVE split 0 carries the known 4.402 eV/atom System-ID configuration, see the
+  2026-09-23 main-text entry).
+
+- **Output files:** new: `experiments/ani1x-system/mace-mse/hf-only/evaluation/` (per split and
+  aggregates); `results/tables/mse_vs_mve.csv` regenerated (energy HF-only rows unchanged; LF->HF pairs
+  still missing).
+- **Interpretation:** Consistent with the energy split on uncertainty: MVE TU beats the MSE-ensemble
+  EU on every metric and test (OOD Spearman +0.049, AUSE -0.055, ENCE x0.26; intervals exclude 0 / 1),
+  and here even a single MVE model's AU ranks better than the ten-member MSE ensemble (OOD Spearman
+  +0.026 [0.017, 0.034], AUSE -0.028). The EU itself is similar in ranking (Spearman intervals contain
+  0) but the MVE EU is worse calibrated (ENCE x1.37 OOD, x1.57 ID). New relative to the energy split:
+  the MSE ensemble is more accurate on the system split (MVE/MSE RMSE x1.24 OOD; ID x1.73, also
+  excluding split 0 MVE is ~30 vs MSE ~21 meV/atom), whereas on the energy split accuracy was equal.
+  So on unseen molecules the decomposition trades prediction accuracy for much better uncertainty;
+  the ranking metrics rank each method's own errors. Caveats: MSE members selected late (median epoch
+  273), MVE members early (median 60), under the same 300-epoch budget; LF->HF pairs pending.
+
+### 2026-11-04 Epoch-checkpoint pruning: ani1x-system/mace-mse/hf-only (no result changed)
+
+- **Status:** verified (pruning tool's own checks; user-approved 2026-11-02).
+- **Command(s):** `uq prune-checkpoints ani1x-system/mace-mse/hf-only --apply` (by
+  `runs/_jobs/mse_postprocess.sh`, 2026-11-04 02:57; log `runs/_jobs/ani1x-system__mace-mse__hf-only.prune.log`).
+- **Effect:** deleted 11956 epoch checkpoints, 189.2 GiB; kept every 5th epoch, each member's best
+  (validation MSE) and every `.model`; records in `runs/ani1x-system/mace-mse/hf-only/split_<s>/checkpoints/PRUNED.json`.
+  Run folder now 49 GB; checkpoint re-selection works on it (selected epochs above).

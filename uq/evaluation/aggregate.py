@@ -126,6 +126,14 @@ def use_log_intervals(ax, rows, metrics):
     return False
 
 
+def _defined(rows, metric: str) -> bool:
+    """False for a signal that is undefined at every epoch: all NaN (constant signal) or all
+    exactly zero (e.g. AU of an MSE ensemble, which has no variance head)."""
+    values = np.asarray([float(row.get(metric, np.nan)) for row in rows], dtype=float)
+    finite = values[np.isfinite(values)]
+    return finite.size > 0 and np.any(finite != 0.0)
+
+
 def draw_epoch_quality(
     rows: Sequence[Dict[str, object]],
     metrics: Sequence[str],
@@ -135,6 +143,7 @@ def draw_epoch_quality(
 ):
     """Draw one epoch-quality view with intervals matched to each axis scale."""
     rows = sorted(rows, key=lambda row: float(row["epoch"]))
+    metrics = [metric for metric in metrics if _defined(rows, metric)]
     x = np.asarray([float(row["epoch"]) for row in rows])
     panel_specs = [
         ("spearman", "Spearman ↑"),
@@ -196,6 +205,30 @@ def draw_epoch_quality(
     return fig, axes
 
 
+def mask_constant_signals(replicate_rows):
+    """Copies of epoch-quality rows where the rank/calibration metrics of a signal whose mean
+    magnitude is exactly 0 at that epoch (AU of an MSE ensemble: no variance head) are NaN.
+    Such a signal is constant, so Spearman/Pearson/AUSE/ENCE are undefined; evaluations
+    written before the 2026-11-03 fix stored an arbitrary AUSE for it."""
+    masked = []
+    for rows in replicate_rows:
+        out = []
+        for row in rows:
+            row = dict(row)
+            for uncertainty in UNCERTAINTIES:
+                try:
+                    zero = float(row.get(f"magnitude_{uncertainty}", "nan")) == 0.0
+                except ValueError:
+                    zero = False
+                if zero:
+                    for prefix in ("pearson", "spearman", "ause", "ence"):
+                        if f"{prefix}_{uncertainty}" in row:
+                            row[f"{prefix}_{uncertainty}"] = "nan"
+            out.append(row)
+        masked.append(out)
+    return masked
+
+
 def aggregate_epoch_quality(
     replicate_rows: Sequence[Sequence[Dict[str, str]]], output_csv: Path, output_plot: Path
 ) -> None:
@@ -208,7 +241,7 @@ def aggregate_epoch_quality(
         if f"{prefix}_{uncertainty}" in first
     ]
     metrics += [metric for metric in ("rmse_e_atom", "nll_energy") if metric in first]
-    rows = aggregate_rows(replicate_rows, key_fields=key_fields, metric_fields=metrics)
+    rows = aggregate_rows(mask_constant_signals(replicate_rows), key_fields=key_fields, metric_fields=metrics)
     write_csv(output_csv, rows)
 
     free_scale_path = output_plot.with_name(f"{output_plot.stem}-free-scale{output_plot.suffix}")

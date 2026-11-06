@@ -7,6 +7,9 @@ distribution shift and during training; ICLR 2027 submission + follow-ups. Two
 workspaces share this root: this repository (code, data, experiments, results) and
 `ICLR27-UQ-MF/` (the manuscript: separate Git repo synced with Overleaf, own CLAUDE.md).
 
+**Ongoing work:** read `PROGRESS.md` first (state, open questions, next steps of the
+current study); update it as you work.
+
 ## Orient cheaply (prefer these to reading files)
 
 ```bash
@@ -40,7 +43,7 @@ editable mode (`pip install --no-deps --no-build-isolation -e .` after adding a 
 - LF->HF member (s, m) is fine-tuned from parent member (s, m). Checkpoints are selected
   per member by its own validation loss only (Gaussian NLL for `mace-mve`, energy MSE for
   the `mace-mse` baseline); test sets never select anything.
-- **Never use more than 2 GPUs at the same time**, counting every running job (shared
+- **Never use more than 3 GPUs at the same time**, counting every running job (shared
   machine; check `nvidia-smi`). `uq train` enforces it; `uq evaluate` uses one GPU.
 - Never overwrite, delete, rename or retrain datasets, checkpoints, per-split evaluation
   outputs or results unless the user asks for that exact action.

@@ -76,8 +76,8 @@ New datasets, models, UQ methods and studies: [docs/extending.md](docs/extending
 - Five dataset splits are the statistical replicates; the ten members of a split are
   one ensemble. Intervals are 95% Student-t over splits ([concepts](docs/concepts.md)).
 - Checkpoints are selected per member by validation Gaussian NLL, never by test data.
-- Never use more than **two GPUs** at a time, counting every job (shared machine):
-  `uq train` refuses more than two and `uq evaluate` uses one per invocation.
+- Never use more than **three GPUs** at a time, counting every job (shared machine):
+  `uq train` refuses more than three and `uq evaluate` uses one per invocation.
 - Do not overwrite, delete or retrain datasets, checkpoints or evaluation outputs
   without a recorded reason; the per-split outputs cost GPU days.
 - A number is citable only with a ledger entry.

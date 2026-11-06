@@ -81,7 +81,7 @@ loss; same `--selection-key loss` code path). Water is not included (not in the 
 
 ```bash
 uq train-member B 2 7 --gpu 4 --dry-run    # one member: split 2, member seed 7
-uq train B --gpus 6 7 --dry-run            # every missing member of B (<= 2 GPUs)
+uq train B --gpus 6 7 --dry-run            # every missing member of B (<= 3 GPUs)
 uq train wA wB wC --gpus 6 7 --jobs-per-gpu 3
 ```
 
@@ -92,7 +92,7 @@ with the split's train/val/test files, the run directories
 `--foundation_model runs/<parent>/split_<s>/checkpoints/mace_run-<m>.model`. It
 refuses to start if an input is missing. `uq train` skips complete members, trains
 parents first, waits for the matching parent member before a fine-tuning job, and
-never uses more than two GPUs; logs go to `runs/_logs/`. Fine-tuning members start as
+never uses more than three GPUs; logs go to `runs/_logs/`. Fine-tuning members start as
 soon as their parent member is complete; `--by-experiment` finishes experiments in the
 order given instead of interleaving members. Each member is capped at
 `--threads-per-job` CPU threads (default 8) and packed jobs use PyTorch's expandable
