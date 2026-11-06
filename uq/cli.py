@@ -186,7 +186,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-v", "--verbose", action="store_true", help="list incomplete members")
     p.set_defaults(func=cmd_status)
 
-    p = sub.add_parser("train", help="train all missing members on <= 2 GPUs (skips complete ones)")
+    p = sub.add_parser("train", help="train all missing members on <= 3 GPUs (skips complete ones)")
     p.add_argument("experiments", nargs="+")
     p.add_argument("--gpus", type=int, nargs="+", required=True)
     p.add_argument("--splits", type=_ints, help="e.g. 0-4 or 1,3 (default: all of the spec)")

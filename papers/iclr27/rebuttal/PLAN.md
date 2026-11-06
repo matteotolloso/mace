@@ -1,42 +1,11 @@
-# ICLR 2027 rebuttal: central plan (Submission 18667)
+# ICLR 2027 rebuttal: plan (Submission 18667)
 
-**This file is the single source of truth for the rebuttal.** Every agent working on the
-rebuttal reads it first, claims a task here before starting, and updates it when done.
+Entry point and standing rules: [`README.md`](README.md). This file holds *what* we do: reviewer
+asks (Section 2), merged work packages (3), the TODO with claims (4), the compute plan (5),
+decisions (6) and the log (7). *Where* jobs run: [`RUNS.md`](RUNS.md).
 
-| File | Role | Who edits |
-|---|---|---|
-| `papers/iclr27/rebuttal/reviews.md` | verbatim reviews, point IDs `G*` / `J*` / `Q*` | nobody (frozen; append follow-ups only) |
-| `papers/iclr27/rebuttal/PLAN.md` (this) | per-reviewer tasks, merged work packages, TODO, decisions, log | every agent |
-| `papers/iclr27/rebuttal/draft_rebuttal.md` | draft OpenReview responses with literature | writing agents |
-| `papers/iclr27/rebuttal/RUNS.md` | every job on every machine (local, Leonardo), sync protocol, Leonardo budget | every agent launching or checking jobs |
-| `results/results.md` | the only source of citable numbers | via the `record-result` skill |
-| `PROGRESS.md` (repo root) | machine state: jobs, GPUs, paused MSE study | every agent running jobs |
-
-Branch: `iclr_rebuttal` (created 2026-11-06 from `main` at `30afae8`). Manuscript changes go to
-`ICLR27-UQ-MF/` (separate Git repo, synced with Overleaf; do not push there unless asked).
-
-## 0. Coordination rules (read before doing anything)
-
-1. **Claim before working.** Put `[~] (agent: <short name>, since YYYY-MM-DD HH:MM)` on the TODO
-   line. Do not touch a line claimed by someone else; leave a note in the Log instead.
-   Mark `[x]` when done, with the ledger entry or output path; `[!]` if blocked, with the reason.
-2. **Numbers.** The rebuttal states only numbers in `results/results.md` (or in a file an entry
-   lists). A new experiment is not done until it has a ledger entry. In `draft_rebuttal.md`,
-   unrecorded numbers are written `[PENDING: WPx.y]`, never guessed.
-3. **GPUs and machines.** Local server: never more than 3 GPUs for this project, counting every
-   running job (`nvidia-smi`; `uq train` enforces it). Leonardo: QOS limits and the 10,000 GPU-h
-   budget. **Before launching anything, on either machine, add a row to `RUNS.md`** (experiment,
-   machine, commit) and follow its sync protocol; local pids/logs also go to `PROGRESS.md`.
-4. **Artifacts.** Never delete, overwrite or retrain existing checkpoints, datasets or evaluation
-   outputs. New variants are new experiments (`new-experiment` skill) under new ids.
-5. **Five splits x ten members** for anything reported as a result. A reduced pilot is allowed only
-   if labelled "pilot" everywhere (ledger, plan, rebuttal) and approved in Section 6.
-6. **Anonymity.** The anonymous mirror is built from `main` only (user, 2026-11-06): files on
-   `iclr_rebuttal` need no anonymization. Keep author names out of the *rebuttal text* posted on
-   OpenReview and of anything merged into `main`.
-7. **Literature.** Every factual statement in the rebuttal about prior work cites a reference in
-   Section 7 of `draft_rebuttal.md`; add new ones there with how they were verified.
-8. **No commits/pushes** unless the user asks.
+TODO markers: `[ ]` open, `[~] (agent: <name>, since <time>)` claimed, `[x]` done (with output or
+ledger entry), `[!]` blocked (with reason). Keep IDs stable; record who did what in the Log.
 
 ## 1. Situation (2026-11-06)
 
@@ -52,7 +21,7 @@ Branch: `iclr_rebuttal` (created 2026-11-06 from `main` at `30afae8`). Manuscrip
   standard: ANI-1ccx itself was built by DFT-pretraining + CC transfer learning), G3 (CC data
   have no forces), G5 and G7 (LF-only).
 - **Deadline: author responses by 2026-11-18** (user). Revised-PDF deadline and per-comment
-  character limit: [FILL IN from OpenReview]. **Post results as early as possible** to start the
+  character limit: [FILL IN from OpenReview, WP10.1]. **Post results as early as possible** to start the
   discussion (user, 2026-11-06): answer in waves, not in one block on the last day.
   - Wave A (target **2026-11-10/11**): text-only answers (G1, G3, G5, G6, J2/J3 arguments, Q3) +
     results that already exist (MSE vs MVE HF-only, single model, ledger) + first cheap results
@@ -62,13 +31,12 @@ Branch: `iclr_rebuttal` (created 2026-11-06 from `main` at `30afae8`). Manuscrip
   - Wave C (target **2026-11-16/17**): LF-scale experiments from Leonardo (forces WP5.2, joint
     fidelity-aware training WP6.3, model size WP4.4, optional 2nd dataset WP7.2) + revised PDF.
   - Keep **2026-11-18** as buffer for replies only; never post a result without a ledger entry.
-- **Compute:** local server (3 GPUs) + **CINECA Leonardo, 10,000 GPU-h** (user, 2026-11-06). With
-  Leonardo, the LF-scale experiments (~16-19 h per member, ~800 GPU-h per 50-member experiment)
-  become affordable; the critical path is setting Leonardo up (WP11) without losing track of what
-  runs where (`RUNS.md`).
+- **Compute:** local DGX (3 GPUs) + **CINECA Leonardo, ~10,000 GPU-h** (account `IscrC_UQ-MF`).
+  LF-scale experiments (~16-19 h per member, ~800 GPU-h per 50-member experiment) go to Leonardo;
+  its setup (WP11) is the critical path. Access works since 2026-11-06 (`LEONARDO.md`).
 - Already available and citable (ledger): single MVE model vs ensemble size (2026-11-02);
   MSE-ensemble baseline, HF-only, energy (2026-11-03) and system (2026-11-04) splits.
-  Not yet available: MSE-ensemble LF->HF (training paused 2026-11-06, see `PROGRESS.md`).
+  In training (DGX): MSE-ensemble energy LF-only / LF->HF (complete ~2026-11-08, `RUNS.md`).
 
 ## 2. Tasks asked by each reviewer (annotated)
 
@@ -121,10 +89,9 @@ Similar asks are merged so one piece of work answers several reviewers.
 | WP10 | Rebuttal assembly and logistics | all | P0 | writing |
 | WP11 | Leonardo setup and sync (env, data, SLURM launcher, resume, smoke test) | enables WP5, WP6.3, WP7, parts of WP3/4 | **P0, critical path** | engineering + ~10 GPU-h |
 
-Priorities changed on 2026-11-06 after the user added Leonardo (10,000 GPU-h): the LF-scale items
-(WP3.6 system MSE, WP4.4, WP5.2, WP6.3) are no longer blocked by compute, only by WP11 and by
-decisions D1-D4. Cheap FT-scale items stay on the local server so that Wave A does not wait for
-Leonardo.
+LF-scale items (WP3.6 system MSE, WP4.4, WP5.2, WP6.3) need only WP11 and decisions D2-D4, not
+compute. FT-scale items run on whichever machine has free GPUs first (DGX GPUs are full until the
+MSE energy members finish, ~2026-11-08), so Wave A does not wait.
 
 ## 4. TODO (by work package)
 
@@ -162,7 +129,7 @@ Status: `[ ]` open, `[~]` claimed, `[x]` done, `[!]` blocked. Keep IDs stable.
 
 ### WP3 Mechanism and objective ablations (Q1/Q4, Q2/Q5)
 
-Hypothesis to test (paper Sec. 4.2, App. B): during HF training the variance head fits the
+Hypothesis to test (paper Sec. 4.2, App. "Technical background"): during HF training the variance head fits the
 shrinking *training* residuals and transfers that scale to held-out data. Predictions: (a) AU on
 held-out data tracks the training MSE, not the held-out MSE; (b) re-initializing the head does not
 prevent the collapse (it re-learns the same small residuals); (c) slower fine-tuning delays it in
@@ -182,9 +149,10 @@ proportion to the decrease of training error; (d) a head fitted on held-out resi
       mean readout, fit only the variance head on half of the CC validation set, select on the other
       half. Prediction (d); also a practical fix to report.
 - [ ] 3.5 (E, P1) **Slower fine-tuning** (lr 1e-4 instead of 1e-3; shared with WP4.3). Prediction (c).
-- [~] 3.6 (agent: mace-80) (E/A, P0) **MSE ensembles**, training resumed locally 2026-11-06 (D1; RUNS.md) (objective without variance head; EU-only estimator):
-      HF-only pairs done (ledger 2026-11-03/04). LF->HF energy: 27/50 members done, training paused;
-      resuming needs a decision (Section 6, D1) and a resume path for 9 partial members.
+- [~] 3.6 (agent: mace-80) (E/A, P0) **MSE ensembles** (objective without variance head; EU-only
+      estimator). HF-only pairs done (ledger 2026-11-03/04). Energy LF-only / LF->HF training on the
+      DGX (9 partial members resumed 2026-11-06 20:01); automatic evaluation + pruning at 50/50; then
+      `compare_uq` vs D and a ledger entry. System split: placement pending (D1b).
 - [ ] 3.7 Evaluate 3.2-3.5 (`uq evaluate`, ~10 h per experiment on 1 GPU incl. per-epoch metrics;
       consider restricting to final + epoch quality), `compare_uq`-style paired contrasts vs B/D,
       ledger entries, one appendix figure "ablations of the AU collapse".
@@ -193,7 +161,7 @@ proportion to the decrease of training error; (d) a head fitted on held-out resi
 
 - [ ] 4.1 (CPU) Count gradient steps and GPU-hours per protocol from run logs (ledger 2026-09-25 has
       hours); write the compute-matching argument: HF-only is validation-selected at epoch 30-111 of
-      300 (App. D), so giving it more steps only increases validation NLL; the extra compute of
+      300 (App. "Training details"), so giving it more steps only increases validation NLL; the extra compute of
       LF->HF buys cheap LF labels, which is the point of MF training.
 - [ ] 4.2 (E, P1) HF-only learning-rate sweep (lr 3e-3, 1e-3 vs 1e-2), energy split first, then system.
       ~50 members x ~1.4 h per config = ~8 h wall on 9 slots.
@@ -256,54 +224,48 @@ proportion to the decrease of training error; (d) a head fitted on held-out resi
 
 ### WP11 Leonardo setup and sync (critical path; target: smoke test passed by 2026-11-08)
 
-- [x] 11.1 Access: done 2026-11-06 20:16 (`LEONARDO_LOGIN.md`; `ssh leonardo` from the DGX, 12 h
-      certificate renewed by the user with `leonardo-login`). Original note: Recommended: a CINECA step certificate written
-      to files on the local server, so that agents here can `ssh leonardo` for its 12 h validity;
-      the user renews it (twice a day, at the RUNS.md sync points). Alternative: a `claude rc`
-      session on a Leonardo login node (then it owns the Leonardo rows of RUNS.md and syncs the
-      file through git). Commands: final message of session mace-80, 2026-11-06; record the
-      choice in `RUNS.md` Section 1.
-- [ ] 11.2 Environment on Leonardo: conda env from `environment.yml` (login node has internet; check),
-      `pip install --no-deps --no-build-isolation -e .`, torch 2.4 with CUDA working on a Booster node;
-      `python -m unittest discover -s uq/tests -t .` (49 tests) and `uq check` pass.
+- [x] 11.1 Access (2026-11-06 20:16): `ssh leonardo` from the DGX; 12 h certificate renewed by the
+      user with `leonardo-login` (`LEONARDO.md` Section 1).
+- [ ] 11.2 Environment (user, 2026-11-06: separate Miniconda): `$WORK/uq-mf/miniconda3`, env `mace`
+      from `environment.yml`; clone `iclr_rebuttal` to `$WORK/uq-mf/mace`;
+      `pip install --no-deps --no-build-isolation -e .`; `uq check` and the 54 unit tests pass; torch
+      sees a GPU on a Booster node (smoke test). Heavy installs in a job if the login node's 10-min
+      CPU limit bites (`LEONARDO.md` Section 3).
 - [ ] 11.3 Data: make `data/MANIFEST.sha256` locally (ANI splits + dataset.yaml), rsync
       `data/ani1x-{system,energy}/` (2.3 GB), verify the manifest on Leonardo.
-- [ ] 11.4 Run directory and variables: `UQ_RUNS` on the work filesystem, `PYTHON_BIN`,
-      `WANDB_MODE=offline`; check quotas (`cindata` or equivalent) against storage: an LF-scale
-      experiment with `save_all_checkpoints` is ~255 GB (17 MB x 300 epochs x 50 members).
+- [ ] 11.4 Run directory and variables: `UQ_RUNS=$WORK/uq-mf/runs` (overflow `$FAST/uq-mf/runs`),
+      `PYTHON_BIN`, `WANDB_MODE=offline` with W&B files in `$CINECA_SCRATCH/uq-mf`; at most ~3 unpruned
+      LF-scale experiments on `$WORK` (1 TB; ~255 GB each before pruning).
 - [ ] 11.5 SLURM launcher in `uq` (new module, e.g. `uq/training/slurm.py`, + `uq train --slurm`):
       writes sbatch scripts that run exactly `launch.command(job)` per member, optionally k members
-      packed per GPU (3 on 64 GB is safe memory-wise; check CPU threads: 8 cores per GPU), job arrays,
-      parent dependencies (`--dependency=afterok`) for LF->HF children, `--dry-run`; unit tests;
-      no change to the local scheduler's behaviour.
-- [x] 11.6 (agent: mace-80, done 2026-11-06 20:01) Resume support (`uq train --resume`). Fork flag
-      `--resume_exact` (default off; pinned commands unchanged) starts at epoch N+1 and keeps the
-      checkpoint's learning rate and scheduler state; `launch.prepare_resume` backs up and cuts the
-      results log to epoch N; 5 new unit tests (54 total pass); scratch test on a copy of s2_m5
-      passed. Not bit-exact (data-loader RNG restarts), as for any resume. Original text:: continue a partial member from its latest epoch
-      checkpoint (MACE `--restart_latest`) and keep `results/*_train.txt` free of duplicated epochs.
-      Needed for 24 h walltime overruns (forces runs may exceed it; else `boost_qos_lprod`, 4 days,
-      max 32 GPUs) and for the 9 paused local MSE members (D1).
+      packed per 1-GPU job (`--cpus-per-task=8`, `--mem<=120G` so one GPU is charged as 1/4 node;
+      `LEONARDO.md` Section 3), job arrays, `--dependency=afterok` for LF->HF children, `--resume` for
+      jobs that hit the 24 h walltime, `--dry-run`; unit tests; local scheduler unchanged.
+- [x] 11.6 (mace-80, 2026-11-06) Resume support: fork flag `--resume_exact` (default off; pinned
+      commands unchanged) continues at epoch N+1 with the checkpoint's learning rate and scheduler
+      state; `uq train --resume` backs up and cuts the results log to epoch N; `uq/tests/test_resume.py`;
+      scratch test passed; used for the 9 partial MSE members. Not bit-exact (data-loader RNG restarts).
 - [ ] 11.7 Evaluation on Leonardo: one job per split (`uq evaluate <id> --splits s --no-aggregate`),
       outputs synced back, `uq aggregate` locally (RUNS.md protocol item 8).
 - [ ] 11.8 Smoke test on `boost_qos_dbg` (30 min): one HF-only member for a few epochs and one FT
-      member; compare per-epoch time and the first epochs' losses with the local run of the same
-      seed (close, not bit-identical); measure charge with `saldo -b`; write throughput (single
-      and packed) in `RUNS.md`.
+      member; compare per-epoch time and first-epoch losses with the DGX run of the same seed (close,
+      not bit-identical); check internet from the compute node; charge via `saldo -b`; throughput
+      single and packed (2-3 members per GPU) into `RUNS.md`.
 - [ ] 11.9 Sync-back script (rsync Leonardo -> local, paths from `RUNS.md` protocol), dry-run first.
 
 ### WP10 Rebuttal assembly
 
 - [ ] 10.1 Fill revised-PDF deadline and character limits in Section 1 (response deadline: 2026-11-18).
-- [ ] 10.5 Post Wave A by 2026-11-10/11, Wave B by 2026-11-13/14, Wave C by 2026-11-16/17 (Section 1).
 - [ ] 10.2 General response (to all reviewers + AC) summarizing new experiments.
 - [ ] 10.3 Per-reviewer responses from `draft_rebuttal.md`; replace every `[PENDING]` or drop the claim.
-- [ ] 10.4 Final check: each number -> ledger entry; each prior-work statement -> reference; anonymity.
+- [ ] 10.4 Final check: each number -> ledger entry; each prior-work statement -> reference; no author
+      names; every "we added / revised" sentence matches a change that exists.
+- [ ] 10.5 Post Wave A by 2026-11-10/11, Wave B by 2026-11-13/14, Wave C by 2026-11-16/17 (Section 1).
 
 ## 5. Compute plan: local server + Leonardo (timeline to 2026-11-18)
 
-Unit costs (local A100 40 GB; `PROGRESS.md`, ledger 2026-09-25; Leonardo throughput to be measured
-in WP11.8): HF-only member ~1.4 h; LF->HF fine-tuning member ~0.5 h; LF-only member ~15-16 h alone,
+Unit costs (DGX A100 40 GB; ledger 2026-09-25 and MSE runs; Leonardo throughput to be measured in
+WP11.8): HF-only member ~1.4 h; LF->HF fine-tuning member ~0.5 h; LF-only member ~15-16 h alone,
 ~19 h packed 3/GPU; full `uq evaluate` of one experiment ~10-11 GPU-h (parallel by split). One
 50-member experiment: FT-scale ~25 GPU-h, HF-scale ~70 GPU-h, LF-scale ~800 GPU-h (+ ~11 GPU-h
 evaluation each). Forces in training add an unknown factor (backward through forces): measure.
@@ -313,13 +275,12 @@ ablations, inference, evaluations of local experiments), so Wave A does not depe
 Leonardo: everything LF-scale or from scratch, plus overflow of FT/HF-scale items once WP11 works.
 Every placement goes in `RUNS.md` before launch.
 
-### Leonardo budget proposal (10,000 GPU-h; to approve, D10)
+### Leonardo budget proposal (~10,000 GPU-h; to approve, D10)
 
 | Item | WP | Machine | Estimate (GPU-h) | Needs |
 |---|---|---|---|---|
 | Setup, smoke tests, throughput probes | 11 | leonardo | ~20 | - |
-| MSE ensemble, system split LF-only + LF->HF (+ eval) | 3.6 | leonardo | ~850 | D1 |
-| MSE ensemble, energy split: 14 unstarted LF + children (the 9 partial ones resume locally) | 3.6 | leonardo | ~300 | D1, 11.6 |
+| MSE ensemble, system split LF-only + LF->HF (+ eval) | 3.6 | leonardo | ~850 | D1b |
 | LF pretraining **with DFT forces** + CC FT, energy split (+ eval) | 5.2 | leonardo | ~900-1,700 | D3 |
 | Same, system split | 5.2 | leonardo | ~900-1,700 | D3 |
 | Joint fidelity-aware training from scratch (DFT+CC heads), energy split | 6.3 | leonardo | ~900 | D2 |
@@ -332,75 +293,56 @@ Every placement goes in `RUNS.md` before launch.
 The full list exceeds the budget only if both forces runs are expensive; start with the energy split
 (strongest effects in the paper) and add the system split if throughput allows.
 
-### Timeline
+### Timeline (revised 2026-11-06 evening)
 
-| Dates | Local server (3 GPUs) | Leonardo | Writing |
+| Dates | DGX (3 GPUs) | Leonardo | Writing |
 |---|---|---|---|
-| Nov 6-7 | WP2 inference; WP3.1 (CPU); implement head reset / beta-NLL / held-out head variants (WP3.2-3.4); start WP3.2 head reset (both splits, ~6 h wall on 9 slots) | WP11.1-11.4 (access, env, data, run dir) | WP1, WP8, G6 text; fill deadlines |
-| Nov 7-8 | WP3.5 (FT lr 1e-4) and WP4.3; evaluations of WP3.2 by split on free GPUs; resume the 6 nearly finished MSE members if D1 (needs 11.6) | WP11.5-11.8 (SLURM launcher, resume, smoke test); then launch LF-scale jobs (WP5.2, WP3.6, WP6.3, WP4.4) | Wave A drafts per reviewer |
-| Nov 9-10 | WP3.3, WP3.4, WP6.2 (or move to Leonardo); evaluations; ledger entries | LF-scale jobs running (~16-19 h, longer with forces) | **Post Wave A (Nov 10-11)** |
-| Nov 11-13 | remaining evaluations; WP4.2 HF-only LR sweep | LF->HF children (~0.5 h each), evaluations by split, sync back | **Post Wave B (Nov 13-14)** |
-| Nov 14-16 | aggregates, figures for the revision (CPU) | reruns / gaps from the reserve | revised PDF; **Wave C (Nov 16-17)** |
+| Nov 6-7 | GPUs full: MSE energy members (main scheduler 9 + 9 resumed); CPU: WP3.1 gap analysis, code for WP2 / WP3.2-3.4 | WP11.2-11.5 (env, data, layout, SLURM launcher) | WP1, WP8, G6 text; fill deadlines |
+| Nov 7-8 | resumed members finish; WP2 inference when a slot frees | WP11.8 smoke test, then FT-scale ablations (WP3.2-3.5) and LF-scale jobs (WP5.2, WP6.3, WP3.6 system if D1b) | Wave A drafts per reviewer |
+| Nov 8-10 | MSE energy complete -> automatic evaluation; WP4.2-4.3 sweeps | evaluations by split, sync back | **Post Wave A (Nov 10-11)** |
+| Nov 11-13 | remaining evaluations, `compare_uq`, ledger entries | LF->HF children of LF-scale runs, evaluations | **Post Wave B (Nov 13-14)** |
+| Nov 14-16 | aggregates and figures for the revision (CPU) | reruns / gaps from the reserve | revised PDF; **Wave C (Nov 16-17)** |
 | Nov 17-18 | - | - | replies only; buffer |
 
-### Currently running
+What is running now: `RUNS.md` Section 3 (single source).
 
-See `RUNS.md` Section 3 (single source). Local check 2026-11-06 15:31 CET:
-nine fresh MSE members plus the existing scratch resume test on GPUs 0/2/6;
-production resume of nine partial members remains unfinished. Details and code-review
-flags: [`LOCAL_AUDIT_2026-11-06.md`](LOCAL_AUDIT_2026-11-06.md). Leonardo not checked.
+## 6. Decisions
 
-## 6. Decisions needed from the user
+Decided (user, 2026-11-06):
+- **D1** MSE ensembles: resume on the DGX first (done 20:01), cheap experiments on the DGX, heavy ones
+  on Leonardo.
+- **D7** The 3-GPU cap applies only to the DGX; Leonardo uses its queues and our budget.
+- **D8** Code reaches Leonardo by pushing `iclr_rebuttal` to `origin` (pull there, clean checkouts).
+- **D9** Leonardo epoch checkpoints: prune after evaluation (every 5th epoch + each member's best +
+  `.model`), as for `mace-mse` on the DGX.
+- **D11** Leonardo environment: a separate Miniconda in `$WORK/uq-mf/miniconda3`.
 
-- **D1 MSE-ensemble LF->HF: DECIDED (user, 2026-11-06)**: resume the MSE experiments on the local
-  server first (the 9 partial members with `uq train --resume`), then cheap experiments here and
-  heavy ones on Leonardo. Open sub-question: the system-split MSE members (100, LF-scale) are in the
-  local queue; move them to Leonardo to free local GPUs for the cheap ablations? History: training stopped 2026-11-06 on request: energy LF-only 27/50 and energy
-  LF->HF 27/50 complete; 9 energy LF-only members stopped mid-run (6 at epoch ~260-269 of 300, 3 at
-  ~180), partial outputs kept; system 0/100. It is the most direct answer to Q1/Q2 "other
-  objective / estimator" for the *pretrained* protocol. With Leonardo, recommendation: resume the 9
-  partial energy members locally (WP11.6), run the 14 unstarted energy members and the whole system
-  split on Leonardo (~1,150 GPU-h).
-- **D2 Fidelity-aware training**: multi-head replay FT from existing parents (WP6.2, cheap) and/or
+Open:
+- **D1b** Move the system-split MSE members (100, LF-scale, ~5 days on the DGX, queued after the energy
+  split, i.e. from ~2026-11-08) to Leonardo, freeing the DGX for the cheap ablations? (recommended)
+- **D2** Fidelity-aware training: multi-head replay FT from existing parents (WP6.2, cheap) and/or
   joint training from scratch (WP6.3, ~900 GPU-h).
-- **D3 Forces in pretraining (WP5.2)**: energy split only, or both splits.
-- **D4 Second dataset/architecture (WP7.2)**: argue only, or water with aligned splits on Leonardo.
-- **D5 Rename AU/EU** in the revision (WP8.2).
+- **D3** Forces in pretraining (WP5.2): energy split only, or both splits.
+- **D4** Second dataset/architecture (WP7.2): argue only, or water with aligned splits on Leonardo.
+- **D5** Rename AU/EU in the revision (WP8.2).
 - **D6** Is a revised PDF planned (ICLR allows revisions during discussion)?
-- **D7 GPU cap scope: DECIDED (user, 2026-11-06)**: max 3 GPUs only on the local server; Leonardo
-  uses its queues.
-- **D8 Code sync: DECIDED (user, 2026-11-06)**: push `iclr_rebuttal` to `origin` once the files are
-  updated; Leonardo pulls from it.
-- **D9 Storage of Leonardo epoch checkpoints** (urgent: `$WORK` and `$FAST` are 1 TB each, an LF-scale
-  experiment with every epoch checkpoint is ~255 GB): keep on Leonardo, prune after evaluation (every 5th
-  epoch + best, as approved for `mace-mse` locally), or copy back (~255 GB per LF-scale experiment).
-- **D10 Leonardo budget allocation** (Section 5 table).
+- **D10** Leonardo budget allocation (Section 5 table).
 
 ## 7. Log (newest last)
 
-- 2026-11-06 15:27–15:31 CET — [x] (agent: codex-audit) User requested a local-only,
-  read-only handoff audit after the previous agent exhausted its tokens. Checking
-  documentation, services, logs, resume changes and CPU checks; only audit notes
-  written in `LOCAL_AUDIT_2026-11-06.md` and machine-state pointers. All 49 CPU tests
-  and `uq check` pass; production jobs healthy, production resume still pending.
-  No GPU ownership transfer, job changes or Leonardo work.
-
-- 2026-11-06 — Reviews received (1/2/2). On user request: work committed on `main` (`30afae8`, not
-  pushed); MSE-ensemble scheduler (pid 3432145), post-processing job (pid 2031848) and its 9 running
-  members stopped with SIGTERM (no outputs deleted); branch `iclr_rebuttal` created. This plan,
-  `reviews.md` and `draft_rebuttal.md` written; literature for the draft verified on the web.
-- 2026-11-06 — User: response deadline 2026-11-18, post results early (waves A/B/C in Section 1);
-  CINECA Leonardo available with 10,000 GPU-h. Added `RUNS.md` (machine/run registry, sync
-  protocol, Leonardo budget ledger), WP11 (Leonardo setup, critical path), the two-machine compute
-  plan and timeline (Section 5), decisions D7-D10. Leonardo facts (partitions, walltimes, node
-  hardware) from docs.hpc.cineca.it; charging model and compute-node internet still to verify.
-- 2026-11-06 — Correction: the MSE stop was at ~14:31 (not ~14:40). At 14:37 session mace-23 restarted
-  the MSE scheduler + post-processing as systemd user units (misread the stop as a crash); the user then
-  decided to resume MSE locally (D1), so they stay. Ownership of local GPU jobs: mace-80 (`RUNS.md`).
-  D7, D8 decided. WP11.6 resume support implemented (fork: `--resume_exact`, default off; uq:
-  `uq train --resume`, `launch.prepare_resume`); 49 tests pass; scratch end-to-end test running.
-- 2026-11-06 20:05 — mace-80: read `LOCAL_AUDIT_2026-11-06.md` and acted on it: scratch resume test passed;
-  `latest_epoch` now tolerates a missing checkpoint directory (audit's static edge case) + unit tests;
-  the 9 partial MSE members resumed with two `uq-resume-mse-*` units; draft corrected where the audit
-  flagged it (train-set AU "conservative", not "calibrated"; no "triggered by the fidelity change").
-  User rule: never message other sessions (cost); coordinate through these files only.
+- 2026-11-06 ~14:30 — mace-80: reviews received (1/2/2). On request: work committed on `main`
+  (`30afae8`); MSE-ensemble scheduler, post-processing and 9 running members stopped (SIGTERM, ~14:31);
+  branch `iclr_rebuttal`; `reviews.md`, this plan and `draft_rebuttal.md` (literature checked online).
+- 2026-11-06 14:37 — mace-23 (MSE-study session) misread the stop as a crash and restarted scheduler and
+  post-processing as systemd user units; kept, since the user then chose to resume MSE locally (D1).
+- 2026-11-06 — user: deadline 2026-11-18, post results early; Leonardo with ~10,000 GPU-h. Added
+  `RUNS.md`, WP11, the two-machine compute plan; D7, D8 decided.
+- 2026-11-06 15:31 — codex-audit (read-only, on user request): `LOCAL_AUDIT_2026-11-06.md`.
+- 2026-11-06 20:01 — mace-80: resume support (WP11.6) tested on a scratch copy, then the 9 partial MSE
+  members resumed (units `uq-resume-mse-a/b`); audit findings fixed (missing checkpoint dir; two
+  overstated draft claims). Pushed `32c2e64`. User rule: never message other sessions.
+- 2026-11-06 20:16 — mace-80: Leonardo access from the DGX works (WP11.1); account, storage and budget
+  facts recorded. Pushed `caa794c`.
+- 2026-11-06 evening — mace-80: read the CINECA guide (filesystems, SLURM, accounting, linearization):
+  `LEONARDO.md` (replaces `LEONARDO_LOGIN.md`). D9, D11 decided. Cleaned all rebuttal Markdown files;
+  `README.md` added as entry point; `CLAUDE.md` points to it.

@@ -7,8 +7,11 @@ distribution shift and during training; ICLR 2027 submission + follow-ups. Two
 workspaces share this root: this repository (code, data, experiments, results) and
 `ICLR27-UQ-MF/` (the manuscript: separate Git repo synced with Overleaf, own CLAUDE.md).
 
-**Ongoing work:** read `PROGRESS.md` first (state, open questions, next steps of the
-current study); update it as you work.
+**Current focus (since 2026-11-06): the ICLR 2027 rebuttal, due 2026-11-18, on branch
+`iclr_rebuttal`. Start at `papers/iclr27/rebuttal/README.md`** (standing rules, file map), then
+`PLAN.md` (tasks to claim) and `RUNS.md` (every job on this DGX and on CINECA Leonardo). Never
+message other agent sessions; coordinate through those files. `PROGRESS.md` keeps short notes on
+the MSE-ensemble study; update it as you work.
 
 ## Orient cheaply (prefer these to reading files)
 
@@ -43,14 +46,16 @@ editable mode (`pip install --no-deps --no-build-isolation -e .` after adding a 
 - LF->HF member (s, m) is fine-tuned from parent member (s, m). Checkpoints are selected
   per member by its own validation loss only (Gaussian NLL for `mace-mve`, energy MSE for
   the `mace-mse` baseline); test sets never select anything.
-- **Never use more than 3 GPUs at the same time**, counting every running job (shared
-  machine; check `nvidia-smi`). `uq train` enforces it; `uq evaluate` uses one GPU.
+- **Never use more than 3 GPUs at the same time on this DGX**, counting every running job (shared
+  machine; check `nvidia-smi`). `uq train` enforces it; `uq evaluate` uses one GPU. CINECA
+  Leonardo has its own queues and budget (`papers/iclr27/rebuttal/LEONARDO.md`).
 - Never overwrite, delete, rename or retrain datasets, checkpoints, per-split evaluation
   outputs or results unless the user asks for that exact action.
 - Never claim a result that is not in `results/results.md` (or read from a file an entry
   lists); record new ones with the `record-result` skill.
 - Reportable reliability numbers use the support filter and `trim: 0.0`.
-- Never reset or revert changes you did not make. Do not commit or push unless asked.
+- Never reset or revert changes you did not make. Do not commit or push unless asked; standing
+  exception: commit and push finished work to `iclr_rebuttal` (never to `main`).
 
 ## Working rules
 
@@ -58,7 +63,7 @@ editable mode (`pip install --no-deps --no-build-isolation -e .` after adding a 
 - Do not open `*_raw.csv` (5k-50k rows), `.npz`, checkpoints or W&B files to "look":
   use `uq summary`, `uq status`, or a pandas one-liner that prints a few numbers.
 - Verify with the narrowest check: `uq check`; `python -m unittest discover -s uq/tests -t .`
-  (49 tests, CPU; they pin every recorded experiment's commands); `uq evaluate <exp> --gpu G
+  (54 tests, CPU; they pin every recorded experiment's commands); `uq evaluate <exp> --gpu G
   --dry-run`; `uq train ... --dry-run`.
 - A change that alters numbers must be followed by `uq aggregate` (CPU) and a ledger entry.
 - GPU inference is not bit-reproducible (EU varies ~5% relative per configuration).

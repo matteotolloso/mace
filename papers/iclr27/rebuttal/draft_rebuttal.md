@@ -153,7 +153,7 @@ the quantity is meaningful and worth reporting, for four reasons:
    e.g. Energy-OOD Spearman difference +0.1179 [0.09477, 0.141] and ENCE ratio x0.1246
    [0.09637, 0.1611] in favour of MVE TU `[ledger 2026-11-03]`; System-OOD +0.04945
    [0.02668, 0.07222] and x0.2649 [0.207, 0.339] `[ledger 2026-11-04]`; most of the gain comes from AU.
-   (HF-only protocol; LF->HF `[PENDING: WP3.6, decision D1]`.)
+   (HF-only protocol; LF->HF `[PENDING: WP3.6]`, energy split in training.)
 4. *The reviewer's reading is in fact one of our results.* If labels are deterministic, all error is
    in principle reducible (the excess-risk view of epistemic uncertainty, lahlou2023deup). Our
    training dynamics show exactly this: the learned variance behaves as a reducible estimate of
