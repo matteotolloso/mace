@@ -2,6 +2,7 @@
 # `conda env export --no-builds`; install prefix and the self-referencing mace-torch pin removed).
 #   conda env create -f environment.yml && conda activate mace
 #   pip install --no-deps --no-build-isolation -e .   # this repository: MACE fork + the uq package
+# aseMolec (not on PyPI, unused by uq/ and mace/) removed 2026-11-06 so the env builds on Leonardo.
 # Exact pins favour reproducing old numbers; for a newer stack, start from setup.cfg instead.
 name: mace
 channels:
@@ -145,7 +146,6 @@ dependencies:
       - annotated-types==0.7.0
       - ase==3.27.0
       - ase-ga==1.0.3
-      - asemolec==1.0.0
       - certifi==2026.1.4
       - charset-normalizer==3.4.4
       - click==8.3.1
