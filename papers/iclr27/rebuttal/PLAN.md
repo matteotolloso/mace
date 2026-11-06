@@ -226,7 +226,7 @@ proportion to the decrease of training error; (d) a head fitted on held-out resi
 
 - [x] 11.1 Access (2026-11-06 20:16): `ssh leonardo` from the DGX; 12 h certificate renewed by the
       user with `leonardo-login` (`LEONARDO.md` Section 1).
-- [~] 11.2 (agent: mace-80, since 2026-11-06 20:38; Miniconda installed, env job 63699144) Environment (user, 2026-11-06: separate Miniconda): `$WORK/uq-mf/miniconda3`, env `mace`
+- [x] 11.2 (mace-80, 2026-11-06 21:52; job 63701795, aseMolec dropped from environment.yml) Environment (user, 2026-11-06: separate Miniconda): `$WORK/uq-mf/miniconda3`, env `mace`
       from `environment.yml`; clone `iclr_rebuttal` to `$WORK/uq-mf/mace`;
       `pip install --no-deps --no-build-isolation -e .`; `uq check` and the 58 unit tests pass; torch
       sees a GPU on a Booster node (smoke test). Heavy installs in a job if the login node's 10-min
