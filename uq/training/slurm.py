@@ -126,6 +126,17 @@ def script(chain_group, *, account, partition, qos, walltime, pack, python, resu
     return "\n".join(lines)
 
 
+def sbatch(path: Path, attempts: int = 3) -> str:
+    """Submit one script; retry transient controller errors (e.g. socket time-outs) a few times."""
+    for attempt in range(1, attempts + 1):
+        result = subprocess.run(["sbatch", "--parsable", str(path)], capture_output=True, text=True)
+        if result.returncode == 0:
+            return result.stdout.strip().split(";")[0]
+        print(f"sbatch {path.name} failed (attempt {attempt}): {result.stderr.strip()}", file=sys.stderr)
+        time.sleep(10 * attempt)
+    raise SystemExit(f"sbatch {path} failed {attempts} times; jobs.tsv lists what was submitted")
+
+
 def run(names, splits=None, members=None, pack=1, by_experiment=False, resume=False, qos="normal",
         walltime="24:00:00", account=None, partition=None, python=None, out=None, submit=False,
         dry_run=False, after=None, after_ok=None) -> int:
@@ -158,12 +169,11 @@ def run(names, splits=None, members=None, pack=1, by_experiment=False, resume=Fa
             continue
         path = out_dir / f"{tag}.sbatch"
         path.write_text(text)
-        job_id = ""
-        if submit:
-            result = subprocess.run(["sbatch", "--parsable", str(path)], capture_output=True, text=True, check=True)
-            job_id = result.stdout.strip().split(";")[0]
+        job_id = sbatch(path) if submit else ""
         manifest.append(f"{tag}\t{job_id}\t{names_in_job}")
         print(f"{tag}\t{job_id or '(not submitted)'}\t{names_in_job}")
+        # written after every submission, so a failure part-way leaves an exact record of what was queued
+        (out_dir / "jobs.tsv").write_text("tag\tjob_id\tmembers\n" + "\n".join(manifest) + "\n")
     if not dry_run:
         (out_dir / "jobs.tsv").write_text("tag\tjob_id\tmembers\n" + "\n".join(manifest) + "\n")
     return 0

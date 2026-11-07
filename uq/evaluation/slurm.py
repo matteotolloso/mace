@@ -98,8 +98,9 @@ def prune_script(exp_ids, *, account, partition, walltime, python, out_dir, afte
 
 
 def _sbatch(path: Path) -> str:
-    result = subprocess.run(["sbatch", "--parsable", str(path)], capture_output=True, text=True, check=True)
-    return result.stdout.strip().split(";")[0]
+    from uq.training.slurm import sbatch
+
+    return sbatch(path)
 
 
 def run(names, splits=None, after=None, prune=False, qos="normal", walltime="24:00:00",
@@ -134,6 +135,7 @@ def run(names, splits=None, after=None, prune=False, qos="normal", walltime="24:
         eval_ids.append(job_id)
         manifest.append(f"{tag}\t{job_id}\t{exp_id} split {split}")
         print(f"{tag}\t{job_id or '(not submitted)'}")
+        (out_dir / "jobs.tsv").write_text("tag\tjob_id\twhat\n" + "\n".join(manifest) + "\n")
     if prune:
         tag = f"uqprune_{stamp}"
         text = prune_script([exp.id for exp in exps], account=account, partition=prune_partition,
