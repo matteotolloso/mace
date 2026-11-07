@@ -574,7 +574,18 @@ def main() -> None:
         replicates = load_replicates(args.cache_dir, args.split_seeds, filename)
         stem = Path(filename).stem
         LOGGER.info("Aggregating %s", filename)
-        if stem.startswith("reliability_") and stem.endswith("_raw"):
+        if stem.startswith(("reliability_", "lfonly_reliability_")) and stem.endswith("_raw"):
+            continue
+        if stem.startswith("lfonly_reliability_") and stem.endswith("_bins"):
+            # LF-only parent scored on this LF->HF experiment's HF tests (uq/evaluation/lf_on_hf.py):
+            # lfonly_reliability_<test>_<nocal|cal>_bins -> test; same rows, filter and metrics as reliability_
+            raw_filename = filename.replace("_bins.csv", "_raw.csv")
+            raw_replicates = load_replicates(args.cache_dir, args.split_seeds, raw_filename)
+            aggregate_reliability(filename, raw_replicates, args.output_dir, experiment=experiment,
+                                  test=stem.split("_")[2], split_seeds=args.split_seeds, num_bins=args.num_bins,
+                                  log_log=args.log_log_reliability, axis_min=args.reliability_axis_min,
+                                  axis_max=args.reliability_axis_max)
+            processed.add(raw_filename)
             continue
         if stem.startswith("reliability_") and stem.endswith("_bins"):
             raw_filename = filename.replace("_bins.csv", "_raw.csv")

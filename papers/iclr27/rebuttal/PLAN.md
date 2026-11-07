@@ -115,15 +115,15 @@ Status: `[ ]` open, `[~]` claimed, `[x]` done, `[!]` blocked. Keep IDs stable.
 
 ### WP2 LF-only baseline on CC labels (G7, G4 "pretrain-only")
 
-- [ ] 2.1 Design (write here before coding): predict the converged LF-only ensembles A (system) and
+- [x] (mace-leo, 2026-11-07) 2.1 Design (write here before coding): predict the converged LF-only ensembles A (system) and
       C (energy) on `cc_train`, `cc_test_id`, `cc_test_ood` of every split; refit atomic reference
       energies by least squares on the CC training residuals (per member, mirroring the E0 refit of
       LF->HF fine-tuning), keep the variance heads unchanged; report RMSE/Spearman/AUSE/ENCE for AU,
       EU, TU next to HF-only and LF->HF. Also report the variant without E0 refit only if
       meaningful (absolute DFT and CC energies differ by large per-element offsets).
-- [ ] 2.2 Implement as a `uq evaluate` step (new step, new output files; do not overwrite A/C outputs);
+- [x] (mace-leo, 2026-11-07; `uq/evaluation/lf_on_hf.py`, step `lfonly_baseline` via `lf_only_baseline: true` in B/D, aggregate branch `lfonly_reliability_*`, tests `uq/tests/test_lf_on_hf.py`; the shift is a per-member least-squares fit of per-element offsets to the CC-train residuals) 2.2 Implement as a `uq evaluate` step (new step, new output files; do not overwrite A/C outputs);
       unit test; `--dry-run`.
-- [ ] 2.3 Run (1 GPU, inference only; ~1.5 min per split/test at batch 256 for M=10, cf. ledger
+- [~] (agent: mace-leo, since 2026-11-07 01:54; DGX GPU 0) 2.3 Run (1 GPU, inference only; ~1.5 min per split/test at batch 256 for M=10, cf. ledger
       2026-11-02), aggregate, ledger entry.
 - [ ] 2.4 Add an LF-only (E0-refit) row/marker to Fig. 2 or an appendix table (`paper-figures`).
 
@@ -138,11 +138,15 @@ proportion to the decrease of training error; (d) a head fitted on held-out resi
 - [ ] 3.1 (CPU, P0) From existing `epoch_quality_{train,id,ood}.csv` of B, D, E, F: per epoch, mean AU
       on held-out vs training MSE vs held-out MSE; plot AU-ENCE against the train/held-out MSE gap
       across epochs and protocols. Ledger entry. Checks prediction (a) with zero new compute.
-- [ ] 3.2 (E, P0) **Variance-head reset at FT start** (Q1 literal ask): new experiments
+- [~] (agent: mace-leo, since 2026-11-07 01:30; training on Leonardo, `RUNS.md`) 3.2 (E, P0) **Variance-head reset at FT start** (Q1 literal ask): new experiments
       `ani1x-{system,energy}/mace-mve/lf-to-hf-reset-var` (names to confirm with `new-experiment`);
       re-initialize the variance branch of the readout, keep everything else as B/D; 5 x 10 members
       each from the same LF parents. Needs a small fork change (inside `### MVE ###` fences) or a
       checkpoint surgery script. Prediction (b).
+      Done as: fork flag `mve_reset_variance_head` (default off; `mace/tools/finetuning_utils.py`): mean and
+      variance share the readout's hidden layer, so the variance-specific parameters are the `linear_2` weights
+      into the variance output (32 per member); re-drawn N(0,1) as at initialization, seeded by the member seed.
+      Ids `ani1x-{system,energy}/mace-mve/lf-to-hf-reset-var`; test `uq/tests/test_reset_variance.py`.
 - [ ] 3.3 (E, P1) **beta-NLL fine-tuning** (beta = 0.5, Seitzer et al. 2022), same parents. Tests
       "alternative training objective" (Q1).
 - [ ] 3.4 (E, P1) **Held-out-fitted variance head**: after the B/D fine-tuning, freeze the backbone and

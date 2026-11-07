@@ -40,6 +40,7 @@ def snapshot_of(exp_id: str) -> dict:
 
 
 def _as_split_0(text: str, split: int) -> str:
+    text = re.sub(rf"--split {split}(?!\d)", "--split 0", text)   # lf_on_hf takes the split number
     return re.sub(rf"split_{split}(?!\d)", "split_0", text)
 
 

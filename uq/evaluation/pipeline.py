@@ -13,6 +13,8 @@ Per split, in this order (``experiment.yaml`` -> ``evaluation`` selects sets/ext
   epoch_quality_<set>      Spearman/AUSE/ENCE/magnitudes/RMSE/GNLL every 5 epochs
   epoch_quality_finetune_mixed_<set>   (LF->HF) parent + fine-tuning trajectory
   finetune                 (``finetune_comparison``) parent vs fine-tuned ensemble
+  lfonly_baseline          (``lf_only_baseline``, LF->HF) the parent LF-only ensemble on the HF tests
+                           after an atomic-reference-energy refit (``lf_on_hf``; rebuttal WP2)
   distribution_<set>       per-configuration AU, EU and error distributions
   energy_ood               (``energy_quantiles``) AU/EU by within-system energy quantile
   member_predictions_<set> (``member_predictions``) each member's prediction and variance (npz)
@@ -130,6 +132,9 @@ def steps(experiment, split: int) -> List[Step]:
                 "--selection-mode-pretrain", "min", "--selection-mode-finetune", "min", "--trim", trim,
                 "--device", "cuda", "--batch-size", bs, "--output-csv", o("finetune.csv"),
                 "--output-plot", o("finetune.svg")]))
+        if ev.get("lf_only_baseline"):
+            result.append(Step("lfonly_baseline", "lf_on_hf", [
+                "--experiment", exp.id, "--split", str(split), "--device", "cuda", "--batch-size", bs]))
 
     for role in sets:
         result.append(Step(f"distribution_{role}", "distribution", [

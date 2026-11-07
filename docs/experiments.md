@@ -32,6 +32,7 @@ evaluation:                       # which steps run; docs/evaluation.md
   reliability: [id, ood]          # sets scored by the final ensemble (cal + nocal)
   sets: [id, ood, train]          # epoch quality, LF->HF trajectory, distributions
   finetune_comparison: true       # optional: parent vs fine-tuned ensemble
+  lf_only_baseline: true          # optional (LF->HF): parent LF-only ensemble on HF tests, E0 refit
   energy_quantiles: true          # optional: AU/EU by within-system energy quantile
   reliability_log_axes: ["1e-4", "1e-1"]   # optional: log-log per-split reliability plots
   train_curves_batch_size: 16     # optional (legacy water setting)

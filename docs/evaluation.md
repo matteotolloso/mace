@@ -19,6 +19,7 @@ module run as `python -m uq.evaluation.<module>`. For split `s`, in order:
 | `epoch_quality_<set>` | `epoch_quality` | Spearman, AUSE, ENCE, AU/EU magnitudes, RMSE, GNLL of the ensemble every 5 epochs |
 | `epoch_quality_finetune_mixed_<set>` | `epoch_quality_mixed` | (LF->HF) parent epochs 0-299 on LF files/labels, then fine-tuning 300-399 on HF |
 | `finetune` | `finetune_comparison` | (`finetune_comparison: true`) parent vs fine-tuned ensemble on the HF tests |
+| `lfonly_baseline` | `lf_on_hf` | (`lf_only_baseline: true`, LF->HF) the parent LF-only ensemble on the HF tests after a per-member least-squares refit of the atomic reference energies on the HF training set; writes `lfonly_reliability_<test>_<cal>_{raw,bins}.csv` (same schema, support filter and aggregate as `reliability_`) and `lfonly_e0_refit.json` |
 | `distribution_<set>` | `distribution` | per-configuration AU, EU and error histograms |
 | `energy_ood` | `energy_ood` | (`energy_quantiles: true`) AU/EU by within-system energy quantile |
 | `member_predictions_<set>` | `member_predictions` | (`member_predictions: [sets]`) each member's energy and predicted variance on the set, selected checkpoints as in `reliability` -> `members_<set>.npz` |
