@@ -20,7 +20,7 @@ ensemble whose only signal is member disagreement? ANI-1x only (water is out of 
 |---|---|---|---|
 | MVE ensemble | AU, EU, TU of the paper's models | `experiments/ani1x-*/mace-mve/*` | done |
 | Single MVE model | AU of one member, ensemble size M = 1..10 | `ensemble_size_*` of B, D, E, F | done (ledger 2026-11-02) |
-| MSE ensemble | EU of ten MSE members (no variance head) | `experiments/ani1x-*/mace-mse/*` | HF-only done (ledger 2026-11-03/04); energy LF-only/LF->HF training on the DGX; system split on Leonardo (planned) |
+| MSE ensemble | EU of ten MSE members (no variance head) | `experiments/ani1x-*/mace-mse/*` | HF-only done (ledger 2026-11-03/04); energy LF-only/LF->HF training on the DGX; system split training on Leonardo since 2026-11-07 01:12 (17 jobs, ETA evening Nov 7) |
 
 **Decisions (user, 2026-11-02).** Checkpoint per member by its own validation loss (MSE for
 `mace-mse`); LF->HF MSE members fine-tuned from MSE parents; same hyperparameters and 300/100-epoch
@@ -113,3 +113,6 @@ at ~30-111. Possible extra arm: compare both methods after the same recalibratio
   checkpointed epoch. Full job table: `papers/iclr27/rebuttal/RUNS.md`.
 - 2026-11-06 20:35 — (mace-80) D1b: `uq-train-mse` replaced by `uq-mse-energy-x/y` (energy split only); its 9
   running members moved to scope `uq-mse-adopted` first and adopted, none killed. System split -> Leonardo.
+- 2026-11-07 01:12 — (mace-leo) System-split MSE (`ani1x-system/mace-mse/lf-only` + `lf-to-hf`, 100 members as 50
+  parent->child chains) running on Leonardo after a passed smoke test; 17 1-GPU jobs, 3 chains each; jobs in
+  `papers/iclr27/rebuttal/RUNS.md`. Evaluation on Leonardo by split, then sync back and aggregate on the DGX.

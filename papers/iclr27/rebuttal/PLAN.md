@@ -152,7 +152,8 @@ proportion to the decrease of training error; (d) a head fitted on held-out resi
 - [~] 3.6 (agent: mace-80) (E/A, P0) **MSE ensembles** (objective without variance head; EU-only
       estimator). HF-only pairs done (ledger 2026-11-03/04). Energy LF-only / LF->HF training on the
       DGX (9 partial members resumed 2026-11-06 20:01); automatic evaluation + pruning at 50/50; then
-      `compare_uq` vs D and a ledger entry. System split: placement pending (D1b).
+      `compare_uq` vs D and a ledger entry. System split: on Leonardo since 2026-11-07 01:12
+      (mace-leo, 17 jobs, `RUNS.md`); then evaluation there by split (11.7) and sync back (11.9).
 - [ ] 3.7 Evaluate 3.2-3.5 (`uq evaluate`, ~10 h per experiment on 1 GPU incl. per-epoch metrics;
       consider restricting to final + epoch quality), `compare_uq`-style paired contrasts vs B/D,
       ledger entries, one appendix figure "ablations of the AU collapse".
@@ -249,7 +250,7 @@ proportion to the decrease of training error; (d) a head fitted on held-out resi
       scratch test passed; used for the 9 partial MSE members. Not bit-exact (data-loader RNG restarts).
 - [ ] 11.7 Evaluation on Leonardo: one job per split (`uq evaluate <id> --splits s --no-aggregate`),
       outputs synced back, `uq aggregate` locally (RUNS.md protocol item 8).
-- [ ] 11.8 Smoke test on `boost_qos_dbg` (30 min): one HF-only member for a few epochs and one FT
+- [x] (mace-leo, 2026-11-07 01:10; jobs 63715545, 63715577, `RUNS.md`) 11.8 Smoke test on `boost_qos_dbg` (30 min): one HF-only member for a few epochs and one FT
       member; compare per-epoch time and first-epoch losses with the DGX run of the same seed (close,
       not bit-identical); check internet from the compute node; charge via `saldo -b`; throughput
       single and packed (2-3 members per GPU) into `RUNS.md`.
@@ -361,3 +362,7 @@ Open:
 - 2026-11-06 ~21:30 — mace-80 paused. Next: fix the pip step of the Leonardo env (job 63699144 log), then
   WP11.8 smoke test (`UQ_RUNS=$CINECA_SCRATCH/uq-mf/smoke/runs uq train-slurm ... --qos boost_qos_dbg`),
   then system-split MSE (D1b) and FT ablations. `git push` may need the user (stale VS Code askpass).
+- 2026-11-07 01:20 — mace-leo: WP11.8 smoke test passed on Leonardo (losses match the DGX; LF member ~3.5 min/epoch
+  with 3 packed per GPU, ~18 h per chain). System-split MSE (WP3.6, D1b) launched: 50 LF->HF chains in 17 1-GPU
+  jobs, QOS normal 24 h, all running. Next on Leonardo: per-split evaluation script (11.7) and sync-back (11.9)
+  before the jobs end (~2026-11-07 evening); other Leonardo experiments wait for D2-D4/D10 or code (WP3.2-3.5).
