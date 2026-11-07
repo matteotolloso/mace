@@ -123,7 +123,7 @@ Status: `[ ]` open, `[~]` claimed, `[x]` done, `[!]` blocked. Keep IDs stable.
       meaningful (absolute DFT and CC energies differ by large per-element offsets).
 - [x] (mace-leo, 2026-11-07; `uq/evaluation/lf_on_hf.py`, step `lfonly_baseline` via `lf_only_baseline: true` in B/D, aggregate branch `lfonly_reliability_*`, tests `uq/tests/test_lf_on_hf.py`; the shift is a per-member least-squares fit of per-element offsets to the CC-train residuals) 2.2 Implement as a `uq evaluate` step (new step, new output files; do not overwrite A/C outputs);
       unit test; `--dry-run`.
-- [~] (agent: mace-leo, since 2026-11-07 01:54; DGX GPU 0) 2.3 Run (1 GPU, inference only; ~1.5 min per split/test at batch 256 for M=10, cf. ledger
+- [x] (mace-leo, 2026-11-07 02:40; ledger "2026-11-07 LF-only (pretrain-only) ensembles on the CC labels", `results/tables/lf_only_vs_hf.csv`) 2.3 Run (1 GPU, inference only; ~1.5 min per split/test at batch 256 for M=10, cf. ledger
       2026-11-02), aggregate, ledger entry.
 - [ ] 2.4 Add an LF-only (E0-refit) row/marker to Fig. 2 or an appendix table (`paper-figures`).
 
@@ -373,3 +373,5 @@ Open:
 - 2026-11-07 01:36 — mace-leo (sole session, owner of all jobs): WP11.7 `uq evaluate-slurm` (per-split GPU jobs after
   training, `afterany` + completeness check, optional prune job) and WP11.9 `uq sync-back` (no overwrite) done; Leonardo
   inference matches the DGX. Queued after the system MSE training: 17 back-up chains (`--resume`), 10 evaluations, prune.
+- 2026-11-07 02:40 — mace-leo: WP2 done and recorded (ledger entry; paired table `results/tables/lf_only_vs_hf.csv`,
+  `python -m uq.evaluation.compare_lf_only`). Side effect logged in `RUNS.md` (one DGX MSE child OOM, retried).

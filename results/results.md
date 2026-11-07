@@ -725,3 +725,64 @@ How to use it:
 - **Effect:** deleted 11956 epoch checkpoints, 189.2 GiB; kept every 5th epoch, each member's best
   (validation MSE) and every `.model`; records in `runs/ani1x-system/mace-mse/hf-only/split_<s>/checkpoints/PRUNED.json`.
   Run folder now 49 GB; checkpoint re-selection works on it (selected epochs above).
+
+### 2026-11-07 LF-only (pretrain-only) ensembles on the CC labels, E0 refit (rebuttal WP2; G7, G4)
+
+- **Status:** verified (computed in this task: 5 splits x 10 members for both datasets; the paired table
+  reproduces the five-split aggregates exactly, e.g. Energy-OOD LF-only TU Spearman 0.46713 in both files).
+- **Purpose:** reviewer ge6X G7 / G4 ("pretrain-only" baseline): is the LF-only ensemble, used as is on
+  the CC task, worse than fine-tuning (LF->HF) and than HF-only, in accuracy and in uncertainty?
+- **Code commit:** `5b89bac1a3d20b2cf7467401259e2c66a374abfa` (aggregates, table); per-split predictions
+  with `uq/evaluation/lf_on_hf.py` as committed in `9f8da8b` (D split 0 ran from the identical
+  uncommitted file at 01:54; D s1-4 and B s0-2 on the DGX, B s3-4 on CINECA Leonardo at `c7710ef`, same
+  code); dirty tree: no.
+- **Command(s):** `python -m uq.evaluation.lf_on_hf --experiment D --split 0`;
+  `uq evaluate D --gpu 0 --splits 1-4 --steps lfonly_baseline --no-aggregate`;
+  `uq evaluate B --gpu 0 --steps lfonly_baseline --no-aggregate` (splits 0-2; split 3 hit CUDA OOM on the
+  shared GPU); on Leonardo (job 63721292) `python -m uq evaluate ani1x-system/mace-mve/lf-to-hf --gpu 0
+  --splits 3,4 --steps lfonly_baseline --no-aggregate`, copied back with `uq sync-back B --host leonardo
+  --splits 3,4 --apply`; `uq aggregate D B --only lfonly_`; `python -m uq.evaluation.compare_lf_only`.
+- **Configuration:** members of A (`ani1x-system/mace-mve/lf-only`) and C (`ani1x-energy/mace-mve/lf-only`),
+  each at its best LF validation-NLL checkpoint (the ensembles of their own evaluations), unchanged except
+  a per-member, per-element shift of the atomic reference energies fitted by least squares to the CC
+  residuals of the split's CC training set (`cc_train.xyz`, 5000 configurations); variance heads unchanged.
+  Step `lfonly_baseline`, enabled by `lf_only_baseline: true` in the B and D specs. Shifts and CC-train
+  RMSE before/after per member: `lfonly_e0_refit.json` per split.
+- **Dataset and split:** `data/ani1x-{system,energy}/split_{0..4}/cc_{train,val,test_id,test_ood}.xyz`
+  (key `ccsd(t)_cbs.energy`); training-support filter as in B/D: Energy-OOD 13-16, Energy-ID 0-2,
+  System-ID 0-1, System-OOD 0 configurations removed per split.
+- **Random seeds:** split seeds 0-4; member seeds 0-9 (nothing missing).
+- **Compute:** GPU inference (+ CPU aggregation); no training.
+- **Metrics:** uncalibrated (`nocal`), per atom; five-split mean [95% Student-t interval, df = 4];
+  RMSE (eV/atom) and ENCE as geometric means. Values from
+  `experiments/ani1x-{energy,system}/mace-mve/lf-to-hf/evaluation/lfonly_reliability_<test>_nocal_summary.csv`;
+  paired contrasts (same split, same configurations) from `results/tables/lf_only_vs_hf.csv`
+  (difference for Spearman/AUSE, ratio for RMSE/ENCE, each vs LF-only).
+
+  | Data | Test | LF-only RMSE | LF-only TU Spearman | LF-only TU AUSE | LF-only TU ENCE | LF->HF vs LF-only: RMSE ratio / Spearman diff / AUSE diff / ENCE ratio | HF-only vs LF-only: RMSE ratio / Spearman diff / AUSE diff / ENCE ratio |
+  |---|---|---|---|---|---|---|---|
+  | Energy | ID | 0.01567 [0.01517, 0.0162] | 0.3885 [0.3794, 0.3976] | 0.3038 [0.2956, 0.312] | 1.856 [1.651, 2.086] | 0.5011 [0.4829, 0.52] / 0.06806 [0.04939, 0.08673] / -0.05762 [-0.06462, -0.05062] / 0.2298 [0.1947, 0.2714] | 0.995 [0.9527, 1.039] / -0.07355 [-0.1021, -0.045] / 0.03885 [0.02431, 0.0534] / 0.2393 [0.2085, 0.2747] |
+  | Energy | OOD | 0.05699 [0.05227, 0.06212] | 0.4671 [0.4504, 0.4838] | 0.2291 [0.2215, 0.2366] | 3.244 [2.753, 3.822] | 1.028 [1.018, 1.038] / 0.1729 [0.1578, 0.1881] / -0.08562 [-0.09737, -0.07387] / 0.9152 [0.7298, 1.148] | 1.319 [1.29, 1.348] / 0.08871 [0.06264, 0.1148] / -0.04337 [-0.05517, -0.03156] / 0.5045 [0.3778, 0.6737] |
+  | System | ID | 0.02367 [0.02218, 0.02527] | 0.4147 [0.4004, 0.4291] | 0.2678 [0.2601, 0.2755] | 1.502 [1.42, 1.587] | 0.6703 [0.6034, 0.7446] / 0.08547 [0.07813, 0.09281] / -0.06289 [-0.06662, -0.05916] / 0.2278 [0.1956, 0.2654] | 1.517 [0.9153, 2.513] / -0.03773 [-0.05077, -0.02468] / 0.005032 [-0.008813, 0.01888] / 0.2672 [0.2174, 0.3285] |
+  | System | OOD | 0.03572 [0.02568, 0.04967] | 0.4545 [0.4422, 0.4668] | 0.2216 [0.2083, 0.2349] | 1.624 [1.415, 1.863] | 0.8884 [0.7572, 1.042] / 0.06335 [0.03794, 0.08876] / -0.05902 [-0.07292, -0.04511] / 0.1967 [0.1779, 0.2175] | 0.9492 [0.6824, 1.32] / -0.04318 [-0.09234, 0.005987] / 0.02515 [-0.002564, 0.05286] / 0.2407 [0.178, 0.3256] |
+
+  AU of the LF-only ensemble (same files): ENCE Energy-ID 3.294 [2.993, 3.624], Energy-OOD 6.174
+  [5.391, 7.071], System-ID 2.643 [2.464, 2.835], System-OOD 2.994 [2.62, 3.421]; AU, EU, AUSE and the
+  isotonic (`cal`) variants are in the same summaries and in the table.
+
+- **Output files:** new: `experiments/ani1x-{energy,system}/mace-mve/lf-to-hf/evaluation/split_{0..4}/
+  lfonly_reliability_{id,ood}_{nocal,cal}_{raw,bins}.csv` + `.svg`, `lfonly_e0_refit.json`; aggregates
+  `experiments/ani1x-{energy,system}/mace-mve/lf-to-hf/evaluation/lfonly_reliability_*`;
+  `results/tables/lf_only_vs_hf.csv`. No existing output changed.
+- **Interpretation:** Fine-tuning beats the zero-shot LF ensemble on every uncertainty metric and test
+  (TU Spearman higher, AUSE lower, all intervals exclude 0; ENCE x0.20-0.23 except Energy-OOD, where the
+  ratio interval contains 1), and is more accurate in-distribution (RMSE x0.50 Energy-ID, x0.67 System-ID);
+  out of distribution its accuracy is the same as or slightly worse than LF-only (Energy-OOD x1.028, System-OOD
+  interval contains 1). Against HF-only, the LF-only ensemble ranks in-distribution errors better (HF-only TU
+  Spearman -0.074 Energy-ID, -0.038 System-ID) and is more accurate on Energy-OOD (HF-only RMSE x1.32),
+  but ranks Energy-OOD errors worse (HF-only +0.089, AUSE -0.043) and is far less calibrated everywhere
+  (HF-only ENCE x0.24-0.50; System-OOD ranking and System accuracy intervals contain 0 / 1). So "pretrain-only" is not a substitute for either
+  protocol on the CC task: its variances, learned on DFT residuals, are miscalibrated for CC errors even
+  after the per-element refit. Caveats: the refit is the most favourable zero-shot use (fitted on the CC
+  training residuals the other protocols train on); other E0 choices (e.g. MACE's `E0s: average`) were not
+  run; B s3-4 were computed on a different GPU type (A100 64 GB), within GPU non-determinism.
