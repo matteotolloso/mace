@@ -41,7 +41,7 @@ Conventions for every agent editing this file:
 | Ranking and calibration can disagree | Metrics capture different properties (rasmussen2023uncertain, lind2024uncertainty); calibration vs sharpness (kuleshov2018accurate) | They move in **opposite directions along the energy-extrapolation axis**, and pretraining *amplifies* the split (TU ENCE Energy-OOD 1.637 HF-only vs 2.969 LF->HF while Spearman 0.556 vs 0.640) `[ledger 2026-09-23]`; in-domain isotonic recalibration does not repair it `[paper App. "Post-hoc isotonic recalibration"]` |
 | AU unreliable under distribution shift | valdenegro2022deeper | AU also collapses **in domain**, and the collapse is located **in the HF stage** and accelerated by pretraining (OOD AU ENCE, end of pretraining -> end of FT: system 0.993 -> 81.913, energy 10.863 -> 207.071) `[ledger 2026-09-23]`; on the training set AU is never overconfident (train ENCE below 1, mean AU above the mean squared training error: conservative, not "calibrated") `[ledger 2026-09-23, interpretation checks]` |
 | NLL variance heads are fragile | nix1994estimating, skafte2019reliable, seitzer2022pitfalls, stirn2023faithful, sluijterman2024optimal | These works study single-task training; we show that the failure emerges during HF optimization in both protocols, is accelerated by pretraining, and quantify it per epoch; whether the target switch itself contributes is what the ablations test `[PENDING: WP3]` |
-| Overconfidence of MACE ensemble UQ | bilbrey2025uncertainty: readout ensembles and quantile readouts of MACE-MP-0 and fine-tuned models | Bilbrey et al. fine-tune only readouts of a foundation model and do not track AU/EU of a deep ensemble across an LF->HF transition or through training; we do, and find that EU, not AU, carries the improvement after pretraining |
+| Overconfidence of MACE ensemble UQ | bilbrey2025uncertainty: readout ensembles of MACE-MP-0 and fine-tuned models are overconfident by orders of magnitude; quantile readouts are not | Bilbrey et al. retrain only readouts of a foundation model (ensemble and quantile model separately) and do not track AU/EU of a deep ensemble across an LF->HF transition or through training; we do, and find that EU, not AU, carries the improvement after pretraining |
 | Pretraining changes the decomposition | - (not found in prior work) | HF-only: EU is the weakest ranking signal on every test set; LF->HF: EU ranks as well as or better than AU on 3 of 4 `[paper Sec. 4.1]` |
 | Pretrained UQ is a better acquisition function | QBC with ensemble disagreement (smith2018less), committee AL (schran2020committee) | Despite starting more accurate, the pretrained ensemble benefits more from uncertainty-guided CC acquisition: gain over random 2.316 / 2.497 / 2.347 vs 0.807 / 1.603 / 1.140 meV/atom (AU/EU/TU) `[ledger 2026-09-23]` |
 
@@ -290,13 +290,21 @@ mechanism is confirmed; if the reset fixes it, the cause is the inherited head s
 ### 4.3 Q3: novelty and Bilbrey et al. (2025)
 
 We added the novelty table (Section 1) to the revision and the related-work paragraph below.
-Bilbrey et al. (bilbrey2025uncertainty) quantify uncertainty of MACE-MP-0 and of fine-tuned versions
-with readout ensembles (fine-tuning only the readout layers) and quantile readouts, and show that the
-two give distinct measures [WP1.3: add their overconfidence observation after reading the full
-text]. Our study differs in three respects: (i) full deep ensembles with a mean-variance head,
-giving AU, EU and TU from the law of total variance; (ii) a controlled LF->HF transition with an
-HF-only control; (iii) the evolution of ranking and calibration through training, which localizes
-the calibration loss to the HF stage.
+Bilbrey et al. (bilbrey2025uncertainty) quantify the uncertainty of MACE-MP-0 and of versions
+fine-tuned to new systems (high-entropy alloys; water in the zeolite H-ZSM-5) with two separate models:
+a *readout ensemble* (seven copies whose readout layers alone are retrained with a Huber loss, the
+interaction layers frozen) and a *quantile-regression* readout (5th and 95th percentiles). They find that
+"the ensemble is overconfident in its predictions and, though ensemble uncertainty tends to increase with
+error, the magnitude of uncertainty is lower than the error by orders of magnitude" (coverage of the
+90% interval 11-64% for the ensemble vs 86-88% for the quantile model), and interpret the quantile width
+as aleatoric and the ensemble spread as mostly epistemic uncertainty. This is consistent with what we
+see for disagreement-only uncertainty (our MSE-ensemble ablation, Section 2.5). Our study differs in
+three respects: (i) full deep ensembles of mean-variance models, which give AU, EU and TU of one
+predictive distribution through the law of total variance (rather than two separately trained
+estimators); (ii) a controlled LF->HF transition (DFT -> CC on the same geometries) with an HF-only
+control and a pretrain-only baseline, whereas their transfer is to new systems without a
+from-scratch comparison; (iii) the evolution of ranking and calibration through training, which
+localizes the calibration loss to the HF stage. We added this paragraph to the related work.
 
 ---
 
@@ -356,7 +364,7 @@ quoted phrases copied from the abstract). `memory` = not yet checked: verify bef
 | gardner2025understanding | Gardner, Schulz, Helie, Sun, Simm, Understanding multi-fidelity training of machine-learned force-fields, arXiv:2506.14963 (v2 2026) | bib; web 2026-11-06 (quotes "critically, the inclusion of force labels"; "marginally reduce model performance in most cases") |
 | tompa2026fine | Tompa, Varga-Umbrich, Batatia, Elena, Bernstein, Csányi, Fine-tuning MLIP foundation models: strategies for accuracy and transferability, arXiv:2606.12704 (2026) | web 2026-11-06 (quotes "increasingly important practice"; naive FT "best convergence for single-system applications"; multihead replay preserves OOD robustness) |
 | radova2025fine | Radova et al., Fine-tuning foundation models of materials interatomic potentials with frozen transfer learning, npj Comput. Mater. (2025) | bib |
-| bilbrey2025uncertainty | Bilbrey, Firoz, Lee, Choudhury, Uncertainty quantification for neural network potential foundation models, npj Comput. Mater. 11, 109 (2025), doi:10.1038/s41524-025-01572-y | web 2026-11-06 (abstract: readout ensembling + quantile readouts, MACE-MP-0 and fine-tuned models); full text not yet read (WP1.3) |
+| bilbrey2025uncertainty | Bilbrey, Firoz, Lee, Choudhury, Uncertainty quantification for neural network potential foundation models, npj Comput. Mater. 11, 109 (2025), doi:10.1038/s41524-025-01572-y | full text read 2026-11-07 (mace-leo, publisher PDF): 7-member readout ensemble (interaction layers frozen, Huber loss, different 80k MPtrj subsets; fine-tuned ensembles differ by seed only) + 5th/95th-percentile quantile readouts; MPtrj, HEA25, H-ZSM-5 + water (n = 8, 16 held out); quote "the ensemble is overconfident in its predictions ... lower than the error by orders of magnitude" (Introduction); Table 1 coverage ensemble 11/21/64%, quantile 87/88/86% |
 | chen2021learning | Chen, Zuo, Ye, Li, Ong, Learning properties of ordered and disordered materials from multi-fidelity data, Nat. Comput. Sci. 1, 46-53 (2021) | web 2026-11-06 |
 | shiota2024taming | Shiota et al., Taming multi-domain, -fidelity data: towards foundation models for atomistic scale simulations, arXiv:2412.13088 | web 2026-11-06 (total energy alignment across fidelities; optional) |
 | hullermeier2021aleatoric | Hüllermeier, Waegeman, Aleatoric and epistemic uncertainty in machine learning: an introduction to concepts and methods, Mach. Learn. 110, 457-506 (2021) | bib; web 2026-11-06 (context-dependence: changing the representation turns aleatoric into epistemic and vice versa) |

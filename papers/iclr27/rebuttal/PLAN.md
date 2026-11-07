@@ -106,7 +106,7 @@ Status: `[ ]` open, `[~]` claimed, `[x]` done, `[!]` blocked. Keep IDs stable.
       in the MF setting (draft in `draft_rebuttal.md` Section 1). Check that each "known" claim
       cites the right paper (Valdenegro-Toro 2022, Seitzer 2022, Rasmussen 2023, Kuleshov 2018,
       Bilbrey 2025).
-- [ ] 1.3 Read Bilbrey et al. 2025 (npj Comput Mater 11, 109) in full; write exactly what they
+- [x] (mace-leo, 2026-11-07; draft Section 4.3, Section 7 row) 1.3 Read Bilbrey et al. 2025 (npj Comput Mater 11, 109) in full; write exactly what they
       observe (readout ensembles + quantile heads of MACE-MP-0, overconfidence) and how it differs
       (no LF/HF transition, no training dynamics, no AU/EU of a deep ensemble). Add to related work.
 - [ ] 1.4 Paragraph for the intro making the motivation explicit: CC labels are scarce and
