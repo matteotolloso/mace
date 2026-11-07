@@ -139,3 +139,14 @@ markers in `runs/_jobs/` keep it away from the system split.
   WP3.2 reset-var (34), FT lr sweep energy (34), HF-only lr sweep energy on `$FAST` (34), WP3.3 beta-NLL on `$FAST` (34),
   each with its 10 evaluation jobs and a prune job. Storage plan: `$WORK` peak ~780 GB (system MSE ~340 unpruned,
   parents 100, reset-var 170, FT lr 170), `$FAST` ~680 GB (HF lr 510, beta-NLL 170); system-split LR sweeps wait for pruning.
+- 2026-11-07 09:45 — mace-leo (Leonardo certificate expired 08:14, but the shared ssh connection from the DGX is still
+  open, so checks continue while it lasts): queue 42 running, 76 pending (dependencies), no FAILED/TIMEOUT job.
+  Done end to end (trained 100/100, 10/10 evaluations with status 0, pruned): **HF-only lr sweeps, both splits**
+  (prune 63720299: 189.7 GiB per experiment freed; 63722493 likewise); copying back to the DGX with `uq sync-back
+  --checkpoints --apply` (log `runs/_jobs/sync_hf_lr_2026-11-07.log`). WP3.2 reset-var: 5/10 evaluations done;
+  FT lr energy: 1/10; beta-NLL: trained 100/100, evaluations running; system FT lr sweep: waiting for the reset-var
+  and FT-lr prunes. System MSE: LF parents at epoch ~145/300 (~3.5 min/epoch) -> parents ~18:30, children after.
+  **Evaluation time on Leonardo:** an LF->HF experiment takes ~7.2 h per split, of which ~6.7 h are the three
+  `epoch_quality_finetune_mixed_*` steps (~2.2 h each: they re-score the parent's 60 sampled epochs on the DFT
+  sets); HF-only ~1 h per split. Storage (`cindata`, ~100 min old): `$WORK` 542 GB, `$FAST` 354 GB of 1 TB each.
+
