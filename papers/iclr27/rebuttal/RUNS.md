@@ -87,7 +87,35 @@ Last verified **2026-11-07 18:15** (mace-leo-2), both machines.
   back-up/eval/prune pending on dependencies. DGX: energy MSE 42/50 + 42/50 members, `uq-mse-*` units active.
 - 2026-11-07 18:17-18:31 — mace-leo-2: system FT lr synced back, aggregated, `compare_ablations` 24/24; recorded (ledger
   "Fine-tuning learning rate on the system split"); appendix figures B, C and table A (`03e6b94`).
-- 2026-11-07 ~18:50 — mace-leo-2, **handoff** (steps 2 and 4 of the handoff above done): left is step 3, tomorrow morning
-  (system MSE prune 63718311 COMPLETED -> sync back `ani1x-system/mace-mse/{lf-only,lf-to-hf}` from `$WORK`, aggregate,
-  contrast vs B, ledger WP3.6; energy MSE on the DGX via `runs/_jobs/mse_postprocess.log`), then the MSE LF->HF row in
-  `figA_ablations` and in the general-response table. Certificate expires ~22:40: renew only when Leonardo is needed.
+- 2026-11-07 ~18:50 — mace-leo-2, **handoff for the session of 2026-11-08 morning** (steps 2 and 4 above done; the
+  next session takes over by writing its name in Section 1). In order:
+  1. **Certificate:** it expires ~22:40 tonight, so tomorrow ask the user to run `leonardo-login` first (tunnel from the
+     Mac `ssh -N -L 10000:127.0.0.1:10000 m.tolloso@<DGX IP, see memory>`; run the script in the background, give the
+     user the printed URL). Never log in yourself.
+  2. **State check (Sections 3-4):** `ssh leonardo 'squeue --me; sacct -X -S 2026-11-07 --state=FAILED,CANCELLED,TIMEOUT,OUT_OF_MEMORY; saldo -b'`;
+     DGX `systemctl --user list-units 'uq-*'`, `nvidia-smi`, `uq status ani1x-energy/mace-mse/lf-only ani1x-energy/mace-mse/lf-to-hf`.
+     System MSE chain: training 63716417-441 (started 01:10, 24 h walltime: if any hit TIMEOUT, back-up jobs
+     63718283-300 resume them), eval 63718301-310 (~10 h per split), prune 63718311. Expect the evaluations still
+     running in the morning if the children finished late; then do 4-5 first and come back.
+  3. **System MSE, when prune 63718311 is COMPLETED:** with `UQ_REMOTE_RUNS` = `$WORK` (Section 2):
+     `uq sync-back ani1x-system/mace-mse/{lf-only,lf-to-hf} --host leonardo --checkpoints --apply` (one at a time;
+     rerun after an interruption, copies only what is missing; template `runs/_jobs/sync_ftlr_system_2026-11-07.sh`,
+     run it with nohup and wait on its log), `uq aggregate` each, `uq status` must show 5/5 + aggregate, check that
+     `evaluation/split_*/ensemble_size_*.csv` exist (needed by `compare_uq`), then `python -m uq.evaluation.compare_uq`
+     (-> `results/tables/mse_vs_mve.csv`, LF->HF pairs vs B become complete; HF-only rows must stay byte-identical,
+     check with `git diff`).
+  4. **Energy MSE (DGX):** `uq-mse-postprocess` evaluates each experiment on GPU 0 when it reaches 50/50 and then prunes;
+     read `runs/_jobs/mse_postprocess.log` (`EVALUATION FAILED` -> marker `runs/_jobs/<tag>.eval_failed`, needs a
+     human: tell the user). Do not start other DGX GPU work next to it (OOM rule). When both energy experiments are
+     evaluated, rerun `compare_uq` (energy LF->HF rows vs D).
+  5. **Ledger (WP3.6):** one entry "MSE ensembles after LF->HF fine-tuning" per completed split, format of the
+     2026-11-03/04 MSE entries (`record-result` skill): MSE LF-only and LF->HF vs their MVE twins (A/B, C/D), the
+     question being whether pretraining changes the MSE-ensemble EU the way it changes MVE EU (Q2LT Q1 "no variance
+     head" control, Q2). Five splits x ten members only; if a member or split is missing, record the gap.
+  6. **Then CPU:** add the MSE LF->HF row (EU-only: RMSE, EU Spearman, EU/TU ENCE vs B/D) to
+     `papers/iclr27/figures/figA_ablations.py` (read `mse_vs_mve.csv`, not `ablations_vs_reference.csv`, which has no
+     MSE pairs) and to the general-response table in `draft_rebuttal.md` Section 5; replace `[PENDING: WP3.6]` in 4.1/4.2.
+     Update PLAN WP3.6, Sections 3-4 here, commit and push to `iclr_rebuttal`.
+  7. **Waiting on the user:** review of the Q1 rewrite (`draft_rebuttal.md` 4.1, including the proposed mechanism
+     sentence for the revision); open decisions D3/D4/D5/D10 in PLAN Section 5. Wave A is planned for Nov 10-11.
+  No reminders or scheduled wake-ups (user rule); never message other sessions.
