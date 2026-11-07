@@ -74,7 +74,7 @@ fix (G6); related work (Bilbrey 2025, Tompa 2026, Gardner 2025, Messerly 2025). 
 - [x] 3.3a `papers/iclr27/figures/figA_lr_sensitivity.py` (item B): RMSE / TU Spearman / TU ENCE vs lr, both protocols and splits, from the aggregate summaries (mace-leo-2, `03e6b94`).
 - [x] 3.3b `papers/iclr27/figures/figA_ablations.py` (item C, forest plot: reset, beta-NLL, FT lr 1e-4/1e-2 x 4 tests; RMSE, AU Spearman, AU/TU ENCE) (mace-leo-2, `03e6b94`). Add an MSE LF->HF row when WP3.6 is recorded.
 - [x] 3.3c `papers/iclr27/figures/tabA_lf_only.py` -> `out/tabA_lf_only.tex` (item A, booktabs; LF-only / HF-only / LF->HF x 4 tests) (mace-leo-2, `03e6b94`).
-- [ ] 3.3d General-response table (Markdown, in `draft_rebuttal.md` Section 5).
+- [x] 3.3d General-response table (Markdown, in `draft_rebuttal.md` Section 5; MSE LF->HF row pending WP3.6) (mace-leo-2).
 
 ## 4. Work packages: status and what is left
 
@@ -135,4 +135,5 @@ WP3.4 dropped (user, 2026-11-07).
 - 2026-11-07 10:30-12:30 — mace-leo: certificate renewed (user); Leonardo healthy (no unexpected failures);
   sync-back of 9 finished experiments (one interrupted, retried); WP4.2 complete and recorded (`5c16649`);
   draft G2/J1/J2/Q2/G7 rewritten per user directions; WP6 paused; PLAN condensed with the presentation plan.
-- 2026-11-07 18:15-18:40 — mace-leo-2: took over; system FT lr synced and recorded (24/24 pairs); 3.3a-c done (`03e6b94`).
+- 2026-11-07 18:15-18:40 — mace-leo-2: took over; system FT lr synced and recorded (24/24 pairs); 3.3a-c done (`03e6b94`);
+  3.3d general-response table; Q1 (draft 4.1) rewritten from the recorded ablations (to review by the user).

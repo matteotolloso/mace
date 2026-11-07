@@ -285,42 +285,56 @@ We thank the reviewer for the detailed summary and for the concrete suggestions,
 
 ### 4.1 Q1 / Q4: validating the mechanism of AU overconfidence
 
-Our explanation predicts four things; we test (a)-(c) directly and relate (d) to an existing result:
-(a) on held-out data, AU should track the *training* error rather than the held-out error;
-(b) re-initializing the variance head at the start of fine-tuning should *not* prevent the collapse,
-    because the new head is fitted to the same shrinking training residuals;
-(c) slower fine-tuning should delay the collapse in proportion to the decrease of the training error;
-(d) a variance scale fitted to *held-out* residuals should repair calibration where held-out data resemble the test data.
+[Rewritten 2026-11-07 (mace-leo-2) from the recorded ablations; all four FT ablations x 2 splits x 5 splits x 10
+members. Sources: ledger 2026-11-07 "Fine-tuning ablations of the AU collapse", its "Correction ... selected
+epochs", "Head reset: AU calibration along fine-tuning", "Fine-tuning learning rate on the system split".]
 
-[Caution (mace-leo, 2026-11-07): a first per-epoch look with the stored *mean* AU and *mean* squared
-errors did not show held-out AU tracking the training MSE in D (means are dominated by heavy tails);
-until WP3.1 is redone with robust per-configuration statistics, say "is consistent with (a)" rather
-than "supports (a)", or drop the sentence. See PLAN.md WP3.1 note.]
-Existing evidence already supports (a): on the training set AU is never overconfident (train ENCE stays
-below one and the mean AU exceeds the mean squared training error `[ledger 2026-09-23, interpretation checks]`),
-while on held-out data it rises by orders of magnitude during
-fine-tuning (App. "Training dynamics"; OOD AU ENCE end of pretraining -> end of FT: system 0.993 -> 81.913, energy
-10.863 -> 207.071 `[ledger 2026-09-23]`); the training error keeps falling while held-out error barely
-moves (App. "Training dynamics", training-curve figure). New experiments:
-- (a) quantitative: AU vs training/held-out MSE per epoch, all protocols `[PENDING: WP3.1]`;
-- (b) **variance-head reset** at FT start, 5 splits x 10 members, both shifts `[PENDING: WP3.2]`;
-- **alternative objective**: beta-NLL (seitzer2022pitfalls) fine-tuning `[PENDING: WP3.3]`, and
-  MSE-trained ensembles (no variance head), already done for HF-only `[ledger 2026-11-03, 2026-11-04]`,
-  LF->HF `[PENDING: WP3.6]`;
-- (c) fine-tuning at lr 1e-4 `[PENDING: WP3.5]`;
-- (d) not a new run: the isotonic recalibration of the appendix is exactly a held-out fit of the uncertainty
-  scale; it repairs in-domain calibration but not energy extrapolation (App. recalibration), as expected if the
-  head inherits the training-error scale and held-out data of known energies do not inform the higher-energy
-  regime. [User 2026-11-07: WP3.4 dropped. Check the exact wording of the recalibration appendix before posting.]
+We thank the reviewer for this suggestion; we ran exactly these ablations. Each fine-tunes the same pretrained
+members as in the paper, on both distribution shifts, 5 splits x 10 members, and is compared with the paper's
+LF->HF ensembles on the same splits (paired contrasts, 95% intervals over splits; new appendix "Additional
+baselines and ablations", forest plot). Our explanation makes three testable predictions.
 
-[Result (ledger 2026-11-07: "Fine-tuning ablations of the AU collapse", its correction, and "Head reset: AU
-calibration along fine-tuning"): (b) holds in the dynamics: a reset head starts underconfident, is best calibrated
-near epoch 10, then loses AU calibration steadily like the inherited head, only ~5-8x slower (System-ID AU ENCE
-7.4 vs 45 at epoch 60). Its validation-selected checkpoint (epochs 2-19) precedes the collapse, so the final
-reset ensembles look better calibrated but rank worse. Story: the mechanism holds; the inherited head makes the
-collapse start at once (paper finding (iii), "faster after pretraining") and carries part of the ranking benefit
-(finding (i)). beta-NLL does not remove the overconfidence. FT lr 1e-4 moves the selected epoch 2 -> 30.]
-[Conclusion to write from the Result note above: mechanism supported by (b) dynamics, (c) time scale, beta-NLL; (d) via recalibration.]
+**(b) Re-initializing the variance head should not prevent the collapse, only restart it.** We re-drew the
+variance-specific readout weights at the start of fine-tuning. Along fine-tuning the reset head starts
+*under*confident, is best calibrated after about ten epochs, and then loses AU calibration steadily, like the
+inherited head but more slowly (System-ID AU ENCE at FT epoch 60: 7.4 with reset vs 45 without)
+`[ledger 2026-11-07, "Head reset: AU calibration along fine-tuning"]`. So the collapse re-emerges once the head is
+fitted to the shrinking training residuals, as predicted. Two further observations refine the paper's account:
+(i) with the inherited head the collapse starts from the first fine-tuning epoch, which is the mechanism behind
+our finding that calibration is lost faster after pretraining; (ii) the reset costs ranking at every epoch (AU
+Spearman lower by 0.09-0.12 at the selected checkpoints), so part of pretraining's ranking benefit is carried by
+the pretrained variance head `[ledger 2026-11-07, "Fine-tuning ablations of the AU collapse"]`. Because
+checkpoints are selected by validation NLL, the reset ensembles are selected before their collapse has developed
+(epochs 2-19 of 100) and therefore look better calibrated at the end, but rank worse.
+
+**(c) Slower fine-tuning should delay the collapse.** At a 10x smaller FT learning rate (1e-4) the
+validation-selected epoch moves from 2 to 25-30 on both splits, while accuracy and ranking barely change and
+AU at the selected checkpoint is as overconfident as before or more (AU ENCE x1.15-1.38)
+`[ledger 2026-11-07, "Fine-tuning learning rate on the system split" and the energy entry]`: the time scale moves
+with the optimization speed, the endpoint does not.
+
+**Alternative objective.** beta-NLL (seitzer2022pitfalls; beta = 0.5), designed to counter the variance-driven
+down-weighting of hard examples in Gaussian NLL, leaves accuracy and ranking unchanged and does not remove the
+overconfidence (AU ENCE slightly worse, x1.15-1.26 on all four tests) `[ledger 2026-11-07, "Fine-tuning ablations
+of the AU collapse"]`. The overconfidence is thus not an artefact of NLL optimization that a re-weighted
+objective fixes. MSE-trained ensembles, which have no variance head, are the complementary control: for HF-only
+they are already in the appendix `[ledger 2026-11-03, 2026-11-04]`; for LF->HF `[PENDING: WP3.6]`.
+
+**(d) A variance scale fitted to held-out residuals should repair calibration where held-out data resemble the
+test data.** This is what the isotonic recalibration of the appendix does (fitted on held-out validation data):
+it repairs in-distribution calibration but not energy extrapolation (App. recalibration), consistent with a
+head that inherits the scale of the training residuals. [Check the exact wording of the recalibration appendix
+before posting. WP3.4 (held-out-fitted head) dropped by the user 2026-11-07: do not claim (d) as newly tested.]
+
+[On prediction (a) (held-out AU tracks the training error): the stored per-epoch means were inconclusive
+(PLAN WP3.1); do not claim it as tested. If space allows, keep only the existing qualitative evidence: on the
+training set AU is never overconfident (train ENCE below one `[ledger 2026-09-23, interpretation checks]`), while
+held-out AU ENCE rises by orders of magnitude during fine-tuning (App. "Training dynamics").]
+
+**Revision.** We will revise the mechanism paragraph accordingly: overconfidence arises as the variance head
+follows the training residuals during fine-tuning; it starts immediately when the head is inherited from
+pretraining and later when it is re-initialized; early stopping on validation NLL therefore determines how much
+of it the final model shows. [Draft wording; check against the paper's Discussion before posting.]
 
 ### 4.2 Q2 / Q5: generality across estimators and multi-fidelity strategies
 
@@ -365,6 +379,22 @@ localizes the calibration loss to the HF stage. We added this paragraph to the r
 3. New experiments (list only those completed): LF-only on CC; variance-head reset; beta-NLL;
    held-out head; LR sweeps; MSE ensembles; single model / ensemble size; [forces].
 4. Revisions: novelty table, renamed AU, design-choices section, Fig. 1 fix, related work.
+
+**Table for item 3 (draft, 3.3d, mace-leo-2 2026-11-07).** Every row: both distribution shifts, 5 dataset
+splits x 10 members, paired contrasts with 95% intervals over splits; details in the new appendix
+"Additional baselines and ablations" (App. A-D). Rows only for recorded results; the MSE LF->HF row is
+`[PENDING: WP3.6]`.
+
+| New experiment (App.) | Asked by | Does the paper's conclusion hold? |
+|---|---|---|
+| Pretrain-only (LF-only) ensembles on CC labels, per-element E0 refit (A) | ge6X G7, G4 | Yes. Fine-tuning beats the zero-shot DFT ensemble on every uncertainty metric and test; LF-only variances are miscalibrated for CC errors even after the refit `[ledger 2026-11-07, "LF-only (pretrain-only) ensembles on the CC labels"]`. |
+| Optimizer steps to the evaluated checkpoints (B, caption) | ge6X G4 | Yes. LF->HF uses ~20x fewer steps on CC labels than HF-only (median 234 vs 4758-5304); its extra compute is on DFT labels `[ledger 2026-11-07, "Gradient steps per protocol"]`. |
+| HF-only lr 1e-3 / 3e-3; fine-tuning lr 1e-4 / 1e-2 (B) | ge6X G4 | Yes for accuracy and ranking: against every tuned HF-only, LF->HF stays ~2x more accurate in distribution and ranks better in all 8 cells; the calibration contrast is split-dependent and is now stated per split. FT lr 1e-4 ~ 1e-3; 1e-2 is worse `[ledger 2026-11-07, "HF-only learning-rate sweep complete"; "Fine-tuning learning rate on the system split"]`. |
+| Variance-head reset at FT start (C) | Q2LT Q1/Q4 | Yes, and refines it: the collapse re-emerges with a fresh head, more slowly; the inherited head makes it start at once `[ledger 2026-11-07, "Head reset: AU calibration along fine-tuning"]`. |
+| beta-NLL fine-tuning (C) | Q2LT Q1/Q4 | Yes: same accuracy and ranking, AU still overconfident `[ledger 2026-11-07, "Fine-tuning ablations of the AU collapse"]`. |
+| Slower fine-tuning, lr 1e-4 (C) | Q2LT Q1/Q4 | Yes: the selected epoch moves 2 -> 25-30, the endpoint does not change `[same entries]`. |
+| Single MVE model, ensemble size M = 1..10, MSE ensembles (HF-only) (D) | Q2LT Q2/Q5 | Yes: the decomposition's TU beats the MSE-ensemble signal on every metric and test; even one MVE model's AU ranks about as well as ten MSE members `[ledger 2026-11-02, 2026-11-03, 2026-11-04]`. |
+| MSE ensembles, LF->HF (C/D) | Q2LT Q1/Q2 | `[PENDING: WP3.6]` |
 
 ---
 
