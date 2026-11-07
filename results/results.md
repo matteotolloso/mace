@@ -786,3 +786,39 @@ How to use it:
   after the per-element refit. Caveats: the refit is the most favourable zero-shot use (fitted on the CC
   training residuals the other protocols train on); other E0 choices (e.g. MACE's `E0s: average`) were not
   run; B s3-4 were computed on a different GPU type (A100 64 GB), within GPU non-determinism.
+
+### 2026-11-07 Gradient steps per protocol to the selected checkpoints (rebuttal WP4.1; G4 compute matching)
+
+- **Status:** verified (computed in this task from logs and result files; selected epochs reproduce the
+  paper's "HF-only selected after 30-111 of 300 epochs, median 60 system / 67 energy").
+- **Purpose:** reviewer ge6X G4 asks whether the protocols are compute-matched: how many optimizer steps,
+  on which labels, does each protocol use up to the checkpoint that is evaluated?
+- **Code commit:** `ffe0dca257b84122926625093326cf1e41defc6d`; dirty tree: no.
+- **Command(s):** `python -m uq.evaluation.training_steps` (CPU).
+- **Configuration:** `experiments/ani1x-{system,energy}/mace-mve/{lf-only,lf-to-hf,hf-only}` (A-F),
+  `batch_size: 64`; MACE's training loader drops the last incomplete batch, so steps per epoch =
+  floor(training set size / 64); the checkpoint of epoch e is written after e + 1 epochs; checkpoint
+  selection as in the evaluation pipeline (`reliability.select_best_checkpoints`, lowest validation NLL).
+  LF->HF counts add the parent member's steps to its selected checkpoint (fine-tuning starts there).
+- **Dataset and split:** training set sizes from the MACE logs: 50000 DFT configurations (A, C), 5000 CC
+  configurations (B, D, E, F), every split and member.
+- **Random seeds:** split seeds 0-4; member seeds 0-9 (50 members per experiment, none missing).
+- **Compute:** log/file reads only.
+- **Metrics:** median [min, max] over the 50 members, from `results/tables/training_steps.csv`.
+
+  | Exp. | Labels | Steps/epoch | Selected epoch | Steps to selected checkpoint (own stage) | Incl. parent | Steps run (own stage) |
+  |---|---|---|---|---|---|---|
+  | A LF-only, system | DFT | 781 | 137 [78, 213] | 107778 [61699, 167134] | - | 234300 (300 epochs) |
+  | B LF->HF, system | CC | 78 | 2 [1, 3] | 234 [156, 312] | 107973 [61855, 167368] | 7800 (100 epochs) |
+  | E HF-only, system | CC | 78 | 60 [30, 111] | 4758 [2418, 8736] | - | 23400 (300 epochs) |
+  | C LF-only, energy | DFT | 781 | 187.5 [128, 298] | 147218.5 [100749, 233519] | - | 234300 (300 epochs) |
+  | D LF->HF, energy | CC | 78 | 2 [1, 3] | 234 [156, 312] | 147491.5 [100983, 233831] | 7800 (100 epochs) |
+  | F HF-only, energy | CC | 78 | 67 [34, 111] | 5304 [2730, 8736] | - | 23400 (300 epochs) |
+
+- **Output files:** `results/tables/training_steps.csv` (new).
+- **Interpretation:** on CC labels, the evaluated LF->HF members have taken a median of 234 steps
+  (2-3 epochs) and HF-only members about 20 times more (4758 / 5304), out of 23400 available; so LF->HF
+  does not get more compute on the scarce labels, it gets much less, and HF-only is not short of steps
+  (its validation NLL is best long before its budget ends). The extra compute of LF->HF (~1.1-1.5 x 10^5
+  steps) is spent on the 10x larger DFT set. Wall-clock hours per protocol: ledger 2026-09-25. Steps are
+  counted, not timed; members of LF->HF also differ in their parent's selected epoch.

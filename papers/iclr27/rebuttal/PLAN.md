@@ -180,7 +180,7 @@ proportion to the decrease of training error; (d) a head fitted on held-out resi
 
 ### WP4 Protocol robustness (G4)
 
-- [ ] 4.1 (CPU) Count gradient steps and GPU-hours per protocol from run logs (ledger 2026-09-25 has
+- [x] (mace-leo, 2026-11-07; ledger "Gradient steps per protocol", `python -m uq.evaluation.training_steps`) 4.1 (CPU) Count gradient steps and GPU-hours per protocol from run logs (ledger 2026-09-25 has
       hours); write the compute-matching argument: HF-only is validation-selected at epoch 30-111 of
       300 (App. "Training details"), so giving it more steps only increases validation NLL; the extra compute of
       LF->HF buys cheap LF labels, which is the point of MF training.

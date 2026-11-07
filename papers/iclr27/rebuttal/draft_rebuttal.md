@@ -120,8 +120,11 @@ scoped to energy prediction, as in the current conclusion.]
   `[paper App. "Training details and hyperparameters"]`; their validation loss then rises. Matching the step count of LF->HF (300 LF epochs
   on 10x more data) would therefore only add steps after the selected checkpoint. The extra compute of
   LF->HF is spent on cheap LF labels, which is the purpose of multi-fidelity training; the
-  comparison is one of data access, as stated in our limitations. Step counts per protocol:
-  `[PENDING: WP4.1]`.
+  comparison is one of data access, as stated in our limitations. Counting optimizer steps up to
+  the evaluated checkpoints `[ledger 2026-11-07, results/tables/training_steps.csv]`: on CC labels the
+  fine-tuned members have taken a median of 234 steps (2-3 epochs), HF-only members about 20 times more
+  (4758 system, 5304 energy, of 23400 available). LF->HF thus uses *less* compute on the scarce labels;
+  its extra ~1.1-1.5 x 10^5 steps are on the 10x larger DFT set.
 - **Learning rates.** We added sweeps for HF-only (3e-3, 1e-3) and for fine-tuning (1e-4, 1e-2)
   `[PENDING: WP4.2, WP4.3]`. [Write the conclusion once results exist: does the
   ranking-improves/calibration-degrades pattern hold at each protocol's best LR?]
