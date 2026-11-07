@@ -126,7 +126,11 @@ scoped to energy prediction, as in the current conclusion.]
   (4758 system, 5304 energy, of 23400 available). LF->HF thus uses *less* compute on the scarce labels;
   its extra ~1.1-1.5 x 10^5 steps are on the 10x larger DFT set.
 - **Learning rates.** We added sweeps for HF-only (3e-3, 1e-3) and for fine-tuning (1e-4, 1e-2)
-  `[PENDING: WP4.2, WP4.3]`. [Write the conclusion once results exist: does the
+  `[PENDING: WP4.2, WP4.3]`. First result (energy split, HF-only at lr 1e-3, `[ledger 2026-11-07]`):
+  the lower LR helps HF-only slightly (OOD RMSE x0.94, TU Spearman +0.03), yet LF->HF remains more
+  accurate (x0.51 ID, x0.83 OOD) and ranks better on both tests; its in-distribution calibration
+  remains worse (x1.35), while the Energy-OOD calibration gap is no longer significant at this LR
+  (x1.30, interval contains 1). [Complete when lr 3e-3 and the system split are synced back.] [Write the conclusion once results exist: does the
   ranking-improves/calibration-degrades pattern hold at each protocol's best LR?]
 - **Model size.** `[PENDING: WP4.4, optional]`.
 - **Pretrain-only (LF-only).** See G7.
