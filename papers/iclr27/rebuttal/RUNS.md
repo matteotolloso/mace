@@ -86,8 +86,8 @@ uq aggregate <exp>                                                    # five-spl
 
 `$WORK` experiments: system MSE (`ani1x-system/mace-mse/{lf-only,lf-to-hf}`), `*/lf-to-hf-reset-var`,
 `*/lf-to-hf-lr1e-{4,2}`. `$FAST` experiments: `*/hf-only-lr{1e-3,3e-3}`, `*/lf-to-hf-beta-nll`.
-Comparisons for the rebuttal: paired against B/D (FT ablations) or E/F (HF-only LR) per split, like
-`uq.evaluation.compare_lf_only`. If an evaluation job failed, its prune job is cancelled automatically
+Comparisons for the rebuttal: `python -m uq.evaluation.compare_ablations` (paired against B/D or E/F per split,
+-> `results/tables/ablations_vs_reference.csv`; pairs with a missing split are reported, not aggregated). If an evaluation job failed, its prune job is cancelled automatically
 (`afterok`): read the `.out`, fix, and re-run `uq evaluate-slurm <exp> --splits <s> --submit` (then prune).
 If a training job hit its walltime, `uq train-slurm <exps> --resume --pack 3 --submit` continues it.
 The DGX side: `uq-mse-postprocess` evaluates and prunes the energy MSE experiments when they reach 50/50;
