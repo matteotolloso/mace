@@ -34,7 +34,7 @@ Type: W writing, A analysis of existing outputs, E new training.
 | G7 | LF-only not reported | WP2: LF-only on CC labels after E0 refit; DFT-label results already in the paper's appendix | A | **recorded** |
 | J2 / Q2 (strategies) | fidelity as input, multi-head, joint | written only: interesting alternatives (multi-head, Delta-learning, joint); we study FT, the most used | W | draft; experiments paused (user) |
 | J3 | better arguments for choices | "Design choices and scope" appendix | W | open (9.2) |
-| Q1 / Q4 | validate mechanism; reset head; other objectives | WP3.2 reset, 3.3 beta-NLL, 3.5 slow FT, 3.6 MSE, (3.4 held-out head) | E | energy in (not recorded); system partly syncing / running |
+| Q1 / Q4 | validate mechanism; reset head; other objectives | WP3.2 reset, 3.3 beta-NLL, 3.5 slow FT, 3.6 MSE; (d) via existing held-out recalibration (App.) | E | **recorded** (reset, beta-NLL; FT lr energy); FT lr system evaluating; MSE LF->HF training |
 | Q2 / Q5 (estimators) | one estimator | single MVE, ensemble size, MSE ensembles | A + E | HF-only recorded; MSE LF->HF training |
 | Q3 | novelty; Bilbrey 2025 | novelty table; Bilbrey read in full | W | draft |
 
@@ -52,7 +52,7 @@ section per sweep; (5) each appendix item names the reviewer question it answers
 |---|---|---|---|
 | A. Pretrain-only baseline | Table: 4 tests x RMSE and TU Spearman/AUSE/ENCE for LF-only (E0 refit), HF-only, LF->HF; one sentence that the DFT-label LF-only results are App. reliability/dynamics | `results/tables/lf_only_vs_hf.csv` (ledger WP2) | G7, G4 |
 | B. Learning rate and compute | **One compact figure**: rows = split (system, energy), columns = RMSE, TU Spearman, TU ENCE; x = lr per protocol (HF-only 1e-2 / 3e-3 / 1e-3; LF->HF 1e-4 / 1e-3 / 1e-2), ID and OOD markers, five-split intervals; caption sentence on gradient steps (WP4.1). Message: lr changes HF-only little (Spearman +0.012 to +0.035, RMSE <= 6%), LF->HF stays ~2x more accurate ID and ranks better in every cell against the best-tuned HF-only; calibration contrasts are split-dependent. Small table of the LF->HF vs best-HF-only contrasts. | `ablations_vs_reference.csv` + aggregate summaries (ledger WP4.2; WP4.3 pending) | G4 |
-| C. Mechanism of the AU collapse | **Forest plot** of paired contrasts vs the LF->HF reference, one row per ablation (variance-head reset, beta-NLL, FT lr 1e-4, [held-out head 3.4]), columns AU ENCE ratio, AU Spearman diff, RMSE ratio, ID/OOD, both splits; text maps each row to predictions (b) reset does not prevent the collapse, (c) slower FT delays it, (d) held-out fit calibrates. MSE LF->HF (EU only) as the "no variance head" row when done. | `ablations_vs_reference.csv` (ledger entries to write) | Q1/Q4, Q2 |
+| C. Mechanism of the AU collapse | **Forest plot** of paired contrasts vs the LF->HF reference, one row per ablation (variance-head reset, beta-NLL, FT lr 1e-4), columns AU ENCE ratio, AU Spearman diff, RMSE ratio, ID/OOD, both splits; text maps each row to predictions (b) reset does not prevent the collapse, (c) slower FT delays it, (d) held-out fit calibrates. MSE LF->HF (EU only) as the "no variance head" row when done. | `ablations_vs_reference.csv` (ledger entries to write) | Q1/Q4, Q2 |
 | D. Estimators | existing: single MVE model, ensemble size M = 1..10, MSE ensembles | ledger 2026-11-02/03/04 (+ MSE LF->HF) | Q2/Q5 |
 | E. Design choices and scope | rewritten limitations: MACE, ANI-1x, energies only, sequential FT; other MF strategies as future work | text | G2, G3, J1, J2, J3, Q2 |
 
@@ -94,15 +94,17 @@ fix (G6); related work (Bilbrey 2025, Tompa 2026, Gardner 2025, Messerly 2025). 
       automatic evaluation at 50/50), system on Leonardo (training, then evaluation ~10 h per split).
 
 ### Open, needs a user decision (after looking at the energy results)
-- [-] **Paused by the user (2026-11-07), remind at the end:** WP3.4 held-out-fitted variance head (prediction (d); also a practical fix). Design in Git
-      history (PLAN.md of 2026-11-07 10:00): fit only the 32 variance weights on half of `cc_val`,
-      select on the other half; decisions: data files, frozen parameters. FT-scale cost.
 - [!] WP3.1 AU vs training MSE per epoch (prediction (a)): the stored per-epoch means are inconclusive;
       a fair test needs robust per-configuration statistics (GPU re-run of `epoch_quality`). Do not cite.
 - [ ] WP5.2 forces in pretraining (D3) and WP7.2 second dataset (D4): budget allows (~70k local h
       left), time does not if decided after ~Nov 9 (LF-scale ~19 h per chain + evaluation).
 
 ### Dropped or paused by the user
+- [-] WP3.4 held-out-fitted variance head (dropped, user 2026-11-07): it is a learned post-hoc recalibration on
+      frozen features (a linear model of the log-variance), close to the isotonic held-out recalibration already in
+      the appendix (repairs in-domain scale, not energy extrapolation); the mechanism is already supported by the
+      reset dynamics, beta-NLL and FT lr. In Q1, do not claim (d) as tested; cite the recalibration appendix.
+      The MSE ensembles (WP3.6) cover the "no variance head" objective. Design in Git history.
 - [-] WP6 fidelity-aware / multi-head training (2026-11-07): written answer only (Section 2, J2/Q2).
 - [-] Further learning-rate sweeps and WP4.4 model size (2026-11-07: "enough ablations on the LR").
 
@@ -123,7 +125,7 @@ Leonardo from `iclr_rebuttal`; D9 prune epoch checkpoints after evaluation; D11/
 
 Open: **D3** forces (WP5.2); **D4** second dataset/architecture (WP7.2); **D5** rename AU/EU;
 **D6** revised PDF (assumed yes, Section 3.1); **D10** use of the remaining Leonardo budget;
-**WP3.4** go/no-go and design.
+WP3.4 dropped (user, 2026-11-07).
 
 ## 6. Log (newest last; earlier entries in Git history)
 

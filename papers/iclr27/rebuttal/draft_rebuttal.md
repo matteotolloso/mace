@@ -285,12 +285,12 @@ We thank the reviewer for the detailed summary and for the concrete suggestions,
 
 ### 4.1 Q1 / Q4: validating the mechanism of AU overconfidence
 
-Our explanation predicts four things, and we test each:
+Our explanation predicts four things; we test (a)-(c) directly and relate (d) to an existing result:
 (a) on held-out data, AU should track the *training* error rather than the held-out error;
 (b) re-initializing the variance head at the start of fine-tuning should *not* prevent the collapse,
     because the new head is fitted to the same shrinking training residuals;
 (c) slower fine-tuning should delay the collapse in proportion to the decrease of the training error;
-(d) a variance head fitted to *held-out* residuals should not collapse.
+(d) a variance scale fitted to *held-out* residuals should repair calibration where held-out data resemble the test data.
 
 [Caution (mace-leo, 2026-11-07): a first per-epoch look with the stored *mean* AU and *mean* squared
 errors did not show held-out AU tracking the training MSE in D (means are dominated by heavy tails);
@@ -308,7 +308,10 @@ moves (App. "Training dynamics", training-curve figure). New experiments:
   MSE-trained ensembles (no variance head), already done for HF-only `[ledger 2026-11-03, 2026-11-04]`,
   LF->HF `[PENDING: WP3.6]`;
 - (c) fine-tuning at lr 1e-4 `[PENDING: WP3.5]`;
-- (d) head fitted on held-out CC data with frozen backbone `[PENDING: WP3.4]`.
+- (d) not a new run: the isotonic recalibration of the appendix is exactly a held-out fit of the uncertainty
+  scale; it repairs in-domain calibration but not energy extrapolation (App. recalibration), as expected if the
+  head inherits the training-error scale and held-out data of known energies do not inform the higher-energy
+  regime. [User 2026-11-07: WP3.4 dropped. Check the exact wording of the recalibration appendix before posting.]
 
 [Result (ledger 2026-11-07: "Fine-tuning ablations of the AU collapse", its correction, and "Head reset: AU
 calibration along fine-tuning"): (b) holds in the dynamics: a reset head starts underconfident, is best calibrated
@@ -317,8 +320,7 @@ near epoch 10, then loses AU calibration steadily like the inherited head, only 
 reset ensembles look better calibrated but rank worse. Story: the mechanism holds; the inherited head makes the
 collapse start at once (paper finding (iii), "faster after pretraining") and carries part of the ranking benefit
 (finding (i)). beta-NLL does not remove the overconfidence. FT lr 1e-4 moves the selected epoch 2 -> 30.]
-[Write the conclusion after results. If (b) shows the collapse re-emerges and (d) removes it, the
-mechanism is confirmed; if the reset fixes it, the cause is the inherited head state, and we will say so.]
+[Conclusion to write from the Result note above: mechanism supported by (b) dynamics, (c) time scale, beta-NLL; (d) via recalibration.]
 
 ### 4.2 Q2 / Q5: generality across estimators and multi-fidelity strategies
 
