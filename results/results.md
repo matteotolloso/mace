@@ -871,3 +871,70 @@ How to use it:
   less calibrated in distribution (ENCE x1.35); on Energy-OOD the calibration gap of the paper (D worse) is no
   longer significant (x1.30, interval contains 1). So the accuracy and ranking conclusions survive this LR;
   the Energy-OOD calibration contrast weakens. Pending: lr 3e-3 and the system split.
+
+### 2026-11-07 HF-only learning-rate sweep complete: lr 1e-3 and 3e-3, energy and system splits (rebuttal WP4.2; G4)
+
+- **Status:** verified (4 experiments x 5 splits x 10 members, evaluated on Leonardo and aggregated here). The
+  energy lr 1e-3 numbers repeat the entry "HF-only at lr 1e-3, energy split" above (same files, same values).
+- **Purpose:** ge6X G4 ("optimal learning rates"): does HF-only improve at a lower lr than the paper's 1e-2, and do
+  the LF->HF vs HF-only conclusions hold against the best-tuned HF-only baseline on both splits?
+- **Code commit:** `51341ed617f56cbbc1f34b1c6095c6cdef289575` (sync-back, aggregate, tables); training on
+  Leonardo at `b4d07ac` (energy) and `016dbb6` (system), evaluation at `016dbb6`; the training command is the
+  same at both; dirty tree: only the new outputs listed below.
+- **Command(s):** on Leonardo (`UQ_RUNS=/leonardo_scratch/fast/IscrC_UQ-MF/uq-mf/runs`): `uq train-slurm <exps>
+  --pack 3 --time 08:00:00 --submit` (system: `--after-ok 63720299`), `uq evaluate-slurm <exps> --after <training
+  jobs> --prune --submit` (energy eval 63720281-63720298, prune 63720299; system eval 63722482-63722492, prune
+  63722493; all COMPLETED). On the DGX: `UQ_REMOTE_RUNS=/leonardo_scratch/fast/IscrC_UQ-MF/uq-mf/runs uq
+  sync-back <exp> --host leonardo --checkpoints --apply` (`runs/_jobs/sync_morning_2026-11-07.sh`), `uq aggregate
+  <exp>` for each, `python -m uq.evaluation.compare_ablations` (vs F / E); LF->HF vs each tuned HF-only by
+  `compare_ablations.compare(<lf-to-hf>, <hf-only-lrX>, "", test)` (same functions, inline).
+- **Configuration:** `experiments/ani1x-{energy,system}/mace-mve/hf-only-lr{1e-3,3e-3}/{experiment.yaml,config.yaml}`:
+  F / E with `lr` 0.001 or 0.003 instead of 0.01; three members packed per A100 64 GB GPU.
+- **Dataset and split:** `data/ani1x-{energy,system}/split_{0..4}/cc_*.xyz`; support filter as for F / E.
+- **Random seeds:** split seeds 0-4; member seeds 0-9 (none missing).
+- **Compute:** retraining (200 members, Leonardo) + GPU inference (Leonardo) + CPU aggregation (DGX).
+- **Metrics:** uncalibrated, per atom; TU for Spearman/AUSE/ENCE, ensemble-mean RMSE (eV/atom); five-split mean
+  [95% t interval, df = 4], paired per split; RMSE and ENCE geometric (ratios), Spearman and AUSE differences.
+  Sources: `experiments/<exp>/evaluation/reliability_*_nocal_summary.csv`,
+  `results/tables/ablations_vs_reference.csv` (vs paper lr), LF->HF contrasts printed by the inline call.
+
+  Tuned HF-only vs the paper's HF-only (lr 1e-2):
+
+  | Split | lr | Test | RMSE | Spearman | AUSE | ENCE | RMSE ratio | Spearman diff | AUSE diff | ENCE ratio |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | energy | 1e-3 | ID | 0.01555 | 0.3341 | 0.3362 | 0.3151 | 0.997 [0.9638, 1.031] | +0.01913 [0.01598, 0.02228] | -0.006515 [-0.012, -0.001025] | 0.7095 [0.5939, 0.8475] |
+  | energy | 1e-3 | OOD | 0.07082 | 0.5867 | 0.165 | 2.289 | 0.9425 [0.8972, 0.9901] | +0.03087 [0.01505, 0.04669] | -0.02075 [-0.03098, -0.01051] | 1.399 [1.08, 1.811] |
+  | energy | 3e-3 | ID | 0.01549 | 0.328 | 0.3355 | 0.4093 | 0.9931 [0.9766, 1.01] | +0.01301 [-0.01357, 0.03958] | -0.007189 [-0.02513, 0.01076] | 0.9215 [0.7735, 1.098] |
+  | energy | 3e-3 | OOD | 0.07177 | 0.572 | 0.1701 | 1.639 | 0.9551 [0.9077, 1.005] | +0.01621 [0.0006983, 0.03172] | -0.01559 [-0.02447, -0.006698] | 1.001 [0.7896, 1.27] |
+  | system | 1e-3 | ID | 0.0302 | 0.4103 | 0.2579 | 0.3524 | 0.8413 [0.501, 1.413] | +0.0333 [0.02653, 0.04007] | -0.0149 [-0.03029, 0.0004951] | 0.8784 [0.6974, 1.106] |
+  | system | 1e-3 | OOD | 0.03423 | 0.4467 | 0.233 | 0.3528 | 1.01 [0.9631, 1.058] | +0.03534 [0.004943, 0.06574] | -0.01374 [-0.02852, 0.001035] | 0.9028 [0.7914, 1.03] |
+  | system | 3e-3 | ID | 0.02917 | 0.3892 | 0.2724 | 0.3991 | 0.8124 [0.471, 1.401] | +0.01217 [0.002254, 0.02208] | -0.000386 [-0.01802, 0.01725] | 0.9947 [0.9113, 1.086] |
+  | system | 3e-3 | OOD | 0.03204 | 0.4265 | 0.2437 | 0.3931 | 0.9452 [0.9009, 0.9916] | +0.01515 [-0.0179, 0.04819] | -0.00304 [-0.02132, 0.01524] | 1.006 [0.8107, 1.248] |
+
+  LF->HF (D energy, B system; paper settings) vs each tuned HF-only, paired (ratio LF->HF / HF-only, difference LF->HF - HF-only):
+
+  | Split | HF-only lr | Test | RMSE ratio | Spearman diff | AUSE diff | ENCE ratio |
+  |---|---|---|---|---|---|---|
+  | energy | 1e-3 | ID | 0.5052 [0.4831, 0.5282] | +0.1225 [0.09017, 0.1548] | -0.08996 [-0.1032, -0.07675] | 1.354 [1.176, 1.559] |
+  | energy | 1e-3 | OOD | 0.8271 [0.7784, 0.8789] | +0.05334 [0.02204, 0.08464] | -0.02151 [-0.0379, -0.005125] | 1.297 [0.8442, 1.993] |
+  | energy | 3e-3 | ID | 0.5071 [0.4902, 0.5247] | +0.1286 [0.1011, 0.1561] | -0.08929 [-0.1011, -0.07746] | 1.042 [0.9038, 1.202] |
+  | energy | 3e-3 | OOD | 0.8162 [0.766, 0.8696] | +0.068 [0.03903, 0.09697] | -0.02667 [-0.03874, -0.0146] | 1.812 [1.061, 3.093] |
+  | system | 1e-3 | ID | 0.5254 [0.4898, 0.5636] | +0.0899 [0.0768, 0.103] | -0.05302 [-0.06339, -0.04266] | 0.9706 [0.7646, 1.232] |
+  | system | 1e-3 | OOD | 0.927 [0.6196, 1.387] | +0.07119 [0.04916, 0.09321] | -0.07042 [-0.07861, -0.06222] | 0.905 [0.6438, 1.272] |
+  | system | 3e-3 | ID | 0.5441 [0.495, 0.598] | +0.111 [0.09372, 0.1283] | -0.06753 [-0.07955, -0.05552] | 0.8571 [0.7791, 0.9431] |
+  | system | 3e-3 | OOD | 0.9903 [0.6964, 1.408] | +0.09138 [0.06498, 0.1178] | -0.08112 [-0.09403, -0.06821] | 0.8123 [0.6488, 1.017] |
+
+- **Output files:** new: `experiments/ani1x-energy/mace-mve/hf-only-lr3e-3/evaluation/`,
+  `experiments/ani1x-system/mace-mve/hf-only-lr{1e-3,3e-3}/evaluation/` (per split + aggregates),
+  `runs/ani1x-{energy,system}/mace-mve/hf-only-lr*/` (pruned checkpoints, models, logs, results); changed:
+  `results/tables/ablations_vs_reference.csv` (now 8 complete (ablation, test) pairs; the others pending sync).
+- **Interpretation:** a lower lr helps HF-only only a little: ranking improves by +0.012-0.035 Spearman (6 of 8
+  intervals exclude 0), RMSE changes by at most ~6% where the interval excludes 1 (the system-ID RMSE
+  intervals are very wide, 0.47-1.41: heavy-tailed split-level errors, read with care), calibration changes are
+  mostly not significant (energy lr 1e-3: better ID, worse OOD). Against every tuned HF-only, LF->HF stays about
+  2x more accurate in distribution, and ranks better on all 8 (split, lr, test) cells (Spearman and AUSE
+  intervals all exclude 0). The calibration contrast depends on the cell (energy: LF->HF ENCE ratio > 1 in all
+  4 cells, significant in 2; system: ratio < 1 in all 4, significant in 1, system-ID vs lr 3e-3). So the accuracy and ranking conclusions of the
+  paper survive the lr sweep; the calibration statements should be phrased per split/test.
+
+---
