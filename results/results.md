@@ -938,3 +938,78 @@ How to use it:
   paper survive the lr sweep; the calibration statements should be phrased per split/test.
 
 ---
+
+### 2026-11-07 Fine-tuning ablations of the AU collapse: variance-head reset, beta-NLL, FT learning rate (rebuttal WP3.2, 3.3, 3.5/4.3; Q1/Q4, G4)
+
+- **Status:** verified for head reset and beta-NLL (both splits) and FT lr 1e-4 / 1e-2 (energy split): each 5
+  splits x 10 members, evaluated on Leonardo and aggregated here. **Draft gap:** FT lr on the system split
+  (`ani1x-system/mace-mve/lf-to-hf-lr1e-{4,2}`) is still being evaluated on Leonardo; not included.
+- **Purpose:** Q2LT Q1/Q4: test the proposed mechanism of AU overconfidence after LF->HF fine-tuning
+  (prediction (b): a re-initialized variance head re-learns the small training residuals, so the collapse
+  re-appears; (c): slower FT; "alternative objectives": beta-NLL); G4: FT learning rate.
+- **Code commit:** `baa2d5ec013b72ba56b58c1f93d5b8f009a9918d` (sync-back, aggregate, table); training on
+  Leonardo at `ac60247` (reset-var, fork flag `mve_reset_variance_head`), `b4d07ac` (FT lr), `c7710ef` (beta-NLL,
+  fork flag `mve_beta_nll`, beta = 0.5); both flags default off, existing commands unchanged (tests); evaluation
+  there from the same clone; dirty tree: only the new outputs.
+- **Command(s):** on Leonardo `uq train-slurm <exps> --pack 3 --submit` and `uq evaluate-slurm <exps> --after <training
+  jobs> --prune --submit` (eval 63720971-63720980 + prune 63720981 reset-var; 63720982-63720991 + 63720992 FT lr energy;
+  63720993-63721009 + 63721011 beta-NLL; all COMPLETED); on the DGX `uq sync-back <exp> --host leonardo --checkpoints
+  --apply` (`runs/_jobs/sync_morning_2026-11-07.sh`, retry `sync_morning_retry.sh`), `uq aggregate <exp>`,
+  `python -m uq.evaluation.compare_ablations`. Direction table below: ratio of the five-split means of `mse` and
+  `mean_variance` per AU bin of `reliability_<test>_nocal_bins.csv` (computed inline in this task).
+- **Configuration:** `experiments/ani1x-{system,energy}/mace-mve/lf-to-hf-{reset-var,beta-nll,lr1e-4,lr1e-2}/`:
+  each is B (system) / D (energy) with one change: variance-specific readout weights (32 per member) re-drawn
+  N(0,1) at FT start (seeded by member seed) / beta-NLL loss with beta = 0.5 (selection still by Gaussian NLL) /
+  FT lr 1e-4 or 1e-2 instead of 1e-3. Same LF parents (A, C) and member seeds.
+- **Dataset and split:** `data/ani1x-{system,energy}/split_{0..4}/cc_*.xyz`; support filter as for B/D.
+- **Random seeds:** split seeds 0-4; member seeds 0-9 (none missing).
+- **Compute:** FT retraining (300 members, Leonardo) + GPU inference (Leonardo) + CPU aggregation (DGX).
+- **Metrics:** uncalibrated, per atom; five-split mean of the ablation, then in parentheses the paired contrast
+  vs its reference (B/D) with 95% t interval (df = 4): ratio (x) for RMSE (eV/atom, ensemble mean) and ENCE,
+  difference for Spearman. AL = AU, TO = TU. Source: `results/tables/ablations_vs_reference.csv` (also has AUSE and EU).
+
+| Ablation | Split | Test | RMSE | Spearman AL | Spearman TO | ENCE AL | ENCE TO |
+|---|---|---|---|---|---|---|---|
+| head reset | system | ID | 0.01584 (x0.9984 [0.9234, 1.079]) | 0.351 (-0.1117 [-0.1349, -0.0884]) | 0.4122 (-0.08799 [-0.114, -0.06194]) | 0.4714 (x1.087 [0.7197, 1.643]) | 0.7108 (x2.078 [1.849, 2.335]) |
+| head reset | system | OOD | 0.03413 (x1.076 [0.9571, 1.209]) | 0.3992 (-0.09061 [-0.1171, -0.06409]) | 0.4526 (-0.06531 [-0.09319, -0.03742]) | 0.5398 (x0.8733 [0.6108, 1.248]) | 0.7172 (x2.246 [2, 2.522]) |
+| head reset | energy | ID | 0.008822 (x1.123 [1.075, 1.174]) | 0.3024 (-0.1177 [-0.1427, -0.09265]) | 0.3837 (-0.07289 [-0.09951, -0.04627]) | 0.4663 (x1.598 [1.431, 1.785]) | 0.7034 (x1.649 [1.576, 1.726]) |
+| head reset | energy | OOD | 0.06199 (x1.058 [1.026, 1.092]) | 0.54 (-0.08607 [-0.1279, -0.04427]) | 0.6009 (-0.03919 [-0.07168, -0.006706]) | 2.676 (x0.3994 [0.2508, 0.6361]) | 1.1 (x0.3704 [0.232, 0.5914]) |
+| beta-NLL | system | ID | 0.01529 (x0.9639 [0.9461, 0.982]) | 0.4706 (+0.007953 [0.00232, 0.01359]) | 0.5049 (+0.004669 [0.0009791, 0.00836]) | 0.5003 (x1.154 [1.032, 1.291]) | 0.2972 (x0.8687 [0.8192, 0.9213]) |
+| beta-NLL | system | OOD | 0.03158 (x0.9952 [0.981, 1.01]) | 0.492 (+0.002162 [-0.003718, 0.008042]) | 0.5181 (+0.0002636 [-0.007424, 0.007951]) | 0.7475 (x1.209 [1.102, 1.327]) | 0.2872 (x0.8994 [0.7991, 1.012]) |
+| beta-NLL | energy | ID | 0.007714 (x0.9822 [0.9578, 1.007]) | 0.4224 (+0.00231 [-0.001422, 0.006041]) | 0.4602 (+0.003633 [-0.0002097, 0.007475]) | 0.3687 (x1.263 [1.118, 1.427]) | 0.3569 (x0.8366 [0.8011, 0.8736]) |
+| beta-NLL | energy | OOD | 0.05852 (x0.9991 [0.9943, 1.004]) | 0.6247 (-0.001391 [-0.004889, 0.002107]) | 0.638 (-0.002038 [-0.004707, 0.0006305]) | 8.099 (x1.209 [1.153, 1.267]) | 3.411 (x1.149 [1.096, 1.205]) |
+| FT lr 1e-4 | energy | ID | 0.00801 (x1.02 [1.008, 1.032]) | 0.4259 (+0.005872 [0.003851, 0.007893]) | 0.4644 (+0.00787 [0.005917, 0.009824]) | 0.3934 (x1.348 [1.278, 1.423]) | 0.3682 (x0.8632 [0.8473, 0.8793]) |
+| FT lr 1e-4 | energy | OOD | 0.05837 (x0.9965 [0.9946, 0.9984]) | 0.6263 (+0.00021 [-0.005402, 0.005822]) | 0.6396 (-0.0004348 [-0.005134, 0.004264]) | 7.726 (x1.153 [1.115, 1.192]) | 3.127 (x1.053 [1.022, 1.085]) |
+| FT lr 1e-2 | energy | ID | 0.007622 (x0.9705 [0.9469, 0.9946]) | 0.391 (-0.02906 [-0.0444, -0.01373]) | 0.415 (-0.04154 [-0.05268, -0.0304]) | 0.299 (x1.025 [0.9277, 1.132]) | 0.5862 (x1.374 [1.302, 1.45]) |
+| FT lr 1e-2 | energy | OOD | 0.06034 (x1.03 [1.026, 1.034]) | 0.6061 (-0.01999 [-0.03066, -0.009313]) | 0.6182 (-0.02186 [-0.03539, -0.008344]) | 7.376 (x1.101 [0.9457, 1.281]) | 3.475 (x1.171 [1.088, 1.259]) |
+
+  Direction of AU miscalibration (MSE / mean variance per AU bin; > 1 = overconfident):
+
+  | Split | Test | LF->HF: bins with MSE > MV (of 15); MSE/MV range | head reset: same |
+  |---|---|---|---|
+  | system | ID | 10; 0.5-1.9 | 0; 0.25-0.79 |
+  | system | OOD | 11; 0.61-2.8 | 1; 0.29-3.1 |
+  | energy | ID | 8; 0.51-1.5 | 0; 0.35-0.68 |
+  | energy | OOD | 15; 1.1-19 | 15; 1.7-8.8 |
+
+- **Output files:** new: `experiments/ani1x-{system,energy}/mace-mve/lf-to-hf-{reset-var,beta-nll}/evaluation/`,
+  `experiments/ani1x-energy/mace-mve/lf-to-hf-lr1e-{4,2}/evaluation/` (per split + aggregates),
+  `runs/<same ids>/` (pruned checkpoints, models, logs, results); changed: `results/tables/ablations_vs_reference.csv`
+  (20 of 24 (ablation, test) pairs complete).
+- **Interpretation:** (1) **Head reset does not reproduce the collapse, contrary to prediction (b).** With a
+  re-initialized head the AU is *under*confident on System-ID, System-OOD and Energy-ID (MSE/MV < 1 in nearly
+  every bin) and much less overconfident on Energy-OOD (AU ENCE x0.399 [0.251, 0.636]); TU calibration is worse
+  except on Energy-OOD, and ranking is clearly worse everywhere (AU Spearman -0.086 to -0.118, TU -0.039 to -0.088).
+  So, under our 100-epoch FT protocol, much of the AU overconfidence of LF->HF comes with the variance head
+  *inherited* from LF pretraining (its scale and its ranking ability), not only from re-fitting CC training
+  residuals. The mechanism text must be revised (inherited head state; the draft already foresaw this case).
+  Caveat: a reset head starts from large variances and FT is short, so underconfidence may partly be
+  incomplete convergence; selection is by validation NLL as for B/D. (2) **beta-NLL** leaves accuracy and
+  ranking unchanged (Spearman differences within +-0.008) and makes AU calibration slightly worse everywhere
+  (AU ENCE x1.15-1.26, all intervals > 1): the overconfidence is not an NLL-optimization artefact that
+  beta-NLL removes. (3) **FT lr 1e-4** (energy) changes RMSE by <= 2% and Spearman by <= 0.008 and worsens AU ENCE
+  (x1.15-1.35); the final checkpoint does not test "delay" (prediction (c) concerns the dynamics; epoch curves
+  in `epoch_quality_*` not analysed here). **FT lr 1e-2** (energy) is worse in ranking (TU Spearman -0.04 / -0.02)
+  and TU calibration (x1.37 / x1.17): the paper's lr 1e-3 is a sound choice (G4).
+
+---

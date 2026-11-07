@@ -86,7 +86,7 @@ fix (G6); related work (Bilbrey 2025, Tompa 2026, Gardner 2025, Messerly 2025). 
       `uq evaluate-slurm`, `uq sync-back`).
 
 ### In progress (no new launches; finish, evaluate, record)
-- [~] (agent: mace-leo) WP3.2 variance-head reset, WP3.3 beta-NLL, WP3.5/4.3 FT lr 1e-4 / 1e-2:
+- [~] (agent: mace-leo) **Recorded 2026-11-07** (ledger "Fine-tuning ablations of the AU collapse") except FT lr system. Finding: the head reset does NOT reproduce the collapse (AU becomes underconfident ID / System-OOD, less overconfident Energy-OOD, ranking worse): revise the mechanism text (inherited head state). WP3.2 variance-head reset, WP3.3 beta-NLL, WP3.5/4.3 FT lr 1e-4 / 1e-2:
       energy split synced and aggregated 2026-11-07; system: reset-var re-sync and beta-NLL syncing,
       FT lr evaluating (~18:00). Then `compare_ablations`, one ledger entry per WP. Note: reset-var
       and beta-NLL on the system split need the FT-lr system twins only for item B, not for C.
@@ -94,7 +94,7 @@ fix (G6); related work (Bilbrey 2025, Tompa 2026, Gardner 2025, Messerly 2025). 
       automatic evaluation at 50/50), system on Leonardo (training, then evaluation ~10 h per split).
 
 ### Open, needs a user decision (after looking at the energy results)
-- [ ] WP3.4 held-out-fitted variance head (prediction (d); also a practical fix). Design in Git
+- [-] **Paused by the user (2026-11-07), remind at the end:** WP3.4 held-out-fitted variance head (prediction (d); also a practical fix). Design in Git
       history (PLAN.md of 2026-11-07 10:00): fit only the 32 variance weights on half of `cc_val`,
       select on the other half; decisions: data files, frozen parameters. FT-scale cost.
 - [!] WP3.1 AU vs training MSE per epoch (prediction (a)): the stored per-epoch means are inconclusive;
