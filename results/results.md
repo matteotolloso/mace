@@ -1013,3 +1013,32 @@ How to use it:
   and TU calibration (x1.37 / x1.17): the paper's lr 1e-3 is a sound choice (G4).
 
 ---
+
+### 2026-11-07 Correction to "Fine-tuning ablations of the AU collapse": selected epochs (rebuttal WP3.2-3.5)
+
+- **Status:** verified; corrects one caveat of the entry above (its numbers are unchanged).
+- **Purpose:** state at which epoch the evaluated checkpoints were selected (lowest validation loss per member,
+  `reliability.select_best_checkpoints`, as for every experiment), since the interpretation depends on it.
+- **Code commit:** `a6d50d2` (clean tree). **Command:** `uq.evaluation.training_steps.member_rows(exp)` for each
+  experiment (inline; same function as `python -m uq.evaluation.training_steps`), logs and checkpoint names only (CPU).
+- **Data / seeds:** as the entry above; 5 splits x 10 members each.
+- **Metrics:** selected epoch (0-based) of 100 FT epochs, median [min-max] over the 50 members:
+
+  | Experiment | System | Energy |
+  |---|---|---|
+  | LF->HF reference (B / D) | 2 [1-3] | 2 [1-3] |
+  | head reset | 6 [2-19] | 7 [4-15] |
+  | beta-NLL | 2 [1-3] | 3 [2-4] |
+  | FT lr 1e-4 | (pending) | 30 [21-37] |
+  | FT lr 1e-2 | (pending) | 0 [0-22] |
+
+  All members ran 100 epochs.
+- **Output files:** none (printed in the task).
+- **Interpretation:** the evaluated ensembles are early-stopped, not converged: validation NLL is lowest after 2-3
+  FT epochs for LF->HF. The caveat above ("FT is short, so underconfidence may partly be incomplete convergence")
+  is wrong: the reset members select epochs 2-19 of 100, so at their own validation-NLL optimum the re-initialized
+  head still predicts large variances; later epochs shrink AU but raise validation NLL. FT lr 1e-4 moves the
+  selected epoch ~10x later (2 -> 30), consistent with prediction (c) on the time scale, while the final metrics
+  barely change.
+
+---
