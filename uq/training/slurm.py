@@ -68,7 +68,7 @@ def chains(names, splits=None, members=None, by_experiment=False, parents_in_fli
 
 
 def script(chain_group, *, account, partition, qos, walltime, pack, python, resume, out_dir, tag,
-           after=None) -> str:
+           after=None, after_ok=None) -> str:
     """The sbatch script of one 1-GPU job running the given chains in parallel."""
     threads = max(1, 8 // pack)
     lines = [
@@ -85,8 +85,15 @@ def script(chain_group, *, account, partition, qos, walltime, pack, python, resu
         f"#SBATCH --time={walltime}",
         f"#SBATCH --output={out_dir}/%x_%j.out",
     ]
+    deps = []
     if after:   # afterany: every member skips itself if complete and fails if its inputs are missing
-        lines.append(f"#SBATCH --dependency=afterany:{':'.join(map(str, after))}")
+        deps.append(f"afterany:{':'.join(map(str, after))}")
+    if after_ok:   # e.g. wait for a prune job that frees the space these members need
+        deps.append(f"afterok:{':'.join(map(str, after_ok))}")
+    if deps:
+        lines.append(f"#SBATCH --dependency={','.join(deps)}")
+    if after_ok:
+        lines.append("#SBATCH --kill-on-invalid-dep=yes")
     lines += [
         "set -u",
         f"cd {shlex.quote(str(paths.ROOT))}",
@@ -121,7 +128,7 @@ def script(chain_group, *, account, partition, qos, walltime, pack, python, resu
 
 def run(names, splits=None, members=None, pack=1, by_experiment=False, resume=False, qos="normal",
         walltime="24:00:00", account=None, partition=None, python=None, out=None, submit=False,
-        dry_run=False, after=None) -> int:
+        dry_run=False, after=None, after_ok=None) -> int:
     account = account or os.environ.get("UQ_SLURM_ACCOUNT")
     partition = partition or os.environ.get("UQ_SLURM_PARTITION", "boost_usr_prod")
     python = python or os.environ.get("PYTHON_BIN", sys.executable)
@@ -142,7 +149,8 @@ def run(names, splits=None, members=None, pack=1, by_experiment=False, resume=Fa
     for index, group in enumerate(jobs):
         tag = f"uq_{stamp}_{index:03d}"
         text = script(group, account=account, partition=partition, qos=qos, walltime=walltime, pack=pack,
-                      python=python, resume=resume, out_dir=out_dir, tag=tag, after=after)
+                      python=python, resume=resume, out_dir=out_dir, tag=tag, after=after,
+                      after_ok=after_ok)
         names_in_job = " ".join(scheduler.job_name(*job) for chain in group for job in chain)
         if dry_run:
             print(f"--- {tag}: {names_in_job}")

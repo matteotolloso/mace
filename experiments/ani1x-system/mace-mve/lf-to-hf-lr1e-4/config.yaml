@@ -1,0 +1,33 @@
+# MACE hyperparameters: identical to B (ani1x-system/mace-mve/lf-to-hf) except lr (Rebuttal WP3.5/WP4.3 (G4, Q2LT): slower fine-tuning).
+# Data files, output directories, --wandb_dir and --foundation_model are passed by
+# `uq train-member` (uq/training/launch.py); see docs/experiments.md.
+model: "MACE"
+
+multiheads_finetuning: False
+
+name: "mace"
+
+energy_key: "ccsd(t)_cbs.energy"
+
+lr: 0.0001
+num_channels: 128
+max_L: 1
+r_max: 6.0
+forces_weight: 0.0
+device: cuda
+batch_size: 64
+max_num_epochs: 100
+swa: False
+compute_forces: False
+E0s: "average"
+predict_mve: True
+loss: "gaussian_nll"
+eval_interval: 1
+save_all_checkpoints: True
+log_epoch_outputs: False
+default_dtype: "float32"
+enable_cueq: False
+
+wandb: True
+wandb_entity: "uq-mf"
+wandb_project: "ani1x-system_mace-mve_lf-to-hf-lr1e-4"

@@ -45,6 +45,10 @@ class SlurmTests(unittest.TestCase):
         text = slurm.script([[(CHILD, 0, 0)]], account="A", partition="p", qos="normal", walltime="1:00:00",
                             pack=1, python="py", resume=False, out_dir=Path("/o"), tag="t", after=["5", "6"])
         self.assertIn("#SBATCH --dependency=afterany:5:6", text)
+        text = slurm.script([[(PARENT, 0, 0)]], account="A", partition="p", qos="normal", walltime="1:00:00",
+                            pack=1, python="py", resume=False, out_dir=Path("/o"), tag="t", after_ok=["7"])
+        self.assertIn("#SBATCH --dependency=afterok:7", text)
+        self.assertIn("#SBATCH --kill-on-invalid-dep=yes", text)
 
     def test_dry_run_needs_an_account(self):
         with mock.patch.dict("os.environ", {}, clear=False) as env:
