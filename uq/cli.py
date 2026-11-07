@@ -126,6 +126,21 @@ def cmd_evaluate(args) -> int:
                              aggregate=not args.no_aggregate, dry_run=args.dry_run)
 
 
+def cmd_evaluate_slurm(args) -> int:
+    from uq.evaluation import slurm
+
+    return slurm.run(args.experiments, splits=args.splits, after=args.after, prune=args.prune, qos=args.qos,
+                     walltime=args.time, account=args.account, partition=args.partition, out=args.out,
+                     submit=args.submit, dry_run=args.dry_run)
+
+
+def cmd_sync_back(args) -> int:
+    from uq.training import sync
+
+    return sync.run(args.experiments, args.host, splits=args.splits, remote_root=args.remote_root,
+                    remote_runs=args.remote_runs, checkpoints=args.checkpoints, apply=args.apply)
+
+
 def cmd_aggregate(args) -> int:
     from uq.evaluation import pipeline
 
@@ -251,6 +266,32 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-aggregate", action="store_true")
     p.add_argument("--dry-run", action="store_true", help="print the commands, run nothing")
     p.set_defaults(func=cmd_evaluate)
+
+    p = sub.add_parser("evaluate-slurm", help="write (and submit) one 1-GPU SLURM evaluation job per split")
+    p.add_argument("experiments", nargs="+")
+    p.add_argument("--splits", type=_ints, help="default: all splits of each spec")
+    p.add_argument("--after", type=lambda t: [x for x in t.split(",") if x],
+                   help="comma-separated SLURM job ids to wait for (afterok)")
+    p.add_argument("--prune", action="store_true",
+                   help="add a CPU job that prunes the epoch checkpoints after all evaluations succeeded")
+    p.add_argument("--qos", default="normal")
+    p.add_argument("--time", default="24:00:00", help="walltime per evaluation job")
+    p.add_argument("--account", help="default $UQ_SLURM_ACCOUNT")
+    p.add_argument("--partition", help="default $UQ_SLURM_PARTITION or boost_usr_prod")
+    p.add_argument("--out", help="directory for scripts and SLURM output (default runs/_slurm/eval-<time>)")
+    p.add_argument("--submit", action="store_true", help="sbatch the scripts (otherwise only write them)")
+    p.add_argument("--dry-run", action="store_true", help="print the scripts, write nothing")
+    p.set_defaults(func=cmd_evaluate_slurm)
+
+    p = sub.add_parser("sync-back", help="copy run and evaluation outputs back from a remote cluster (no overwrite)")
+    p.add_argument("experiments", nargs="+")
+    p.add_argument("--host", required=True, help="ssh host, e.g. leonardo")
+    p.add_argument("--splits", type=_ints)
+    p.add_argument("--remote-root", help="repository clone on the remote (default $UQ_REMOTE_ROOT)")
+    p.add_argument("--remote-runs", help="UQ_RUNS on the remote (default $UQ_REMOTE_RUNS)")
+    p.add_argument("--checkpoints", action="store_true", help="also copy pruned checkpoint folders")
+    p.add_argument("--apply", action="store_true", help="really copy (default: dry run)")
+    p.set_defaults(func=cmd_sync_back)
 
     p = sub.add_parser("aggregate", help="rebuild five-split aggregates from per-split outputs (CPU)")
     p.add_argument("experiments", nargs="*", help="default: all")
