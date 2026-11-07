@@ -69,3 +69,16 @@ Last verified **2026-11-07 12:30** (mace-leo), both machines.
   partial files), retried after the loop.
 - 2026-11-07 12:06 — mace-leo: retry completed; all 9 experiments synced and aggregated; `compare_ablations`: 20 complete
   (ablation, test) pairs, 4 missing (system FT lr, still evaluating on Leonardo).
+- 2026-11-07 ~13:30 — mace-leo, **handoff for the next session** (this one ends here):
+  1. Leonardo certificate valid until ~22:40 today; the user renews it (`leonardo-login`; tunnel from the Mac
+     `ssh -N -L 10000:127.0.0.1:10000 m.tolloso@<DGX IP, see memory>`; run the script in the background and give the user
+     the printed URL).
+  2. After ~18:00: `sacct -j 63722656` (prune of the system FT-lr sweep) COMPLETED -> sync back
+     `ani1x-system/mace-mve/lf-to-hf-lr1e-{4,2}` (`$WORK`, Section 2), `uq aggregate`, `python -m
+     uq.evaluation.compare_ablations` (then 24/24 pairs), and a ledger entry completing "Fine-tuning ablations of the
+     AU collapse" (system FT lr; also the selected epochs, `uq.evaluation.training_steps.member_rows`).
+  3. Tomorrow morning: system MSE prune 63718311 COMPLETED -> sync back `ani1x-system/mace-mse/{lf-only,lf-to-hf}`,
+     aggregate, `compare_uq`-style contrast vs B and a ledger entry (WP3.6). Energy MSE on the DGX: check
+     `runs/_jobs/mse_postprocess.log` (evaluates automatically at 50/50).
+  4. Then the CPU work of `PLAN.md` Section 3.3 (appendix figures/tables) and the Q1 rewrite (draft note in 4.1).
+  No reminders or scheduled wake-ups (user rule).
