@@ -248,13 +248,13 @@ proportion to the decrease of training error; (d) a head fitted on held-out resi
       commands unchanged) continues at epoch N+1 with the checkpoint's learning rate and scheduler
       state; `uq train --resume` backs up and cuts the results log to epoch N; `uq/tests/test_resume.py`;
       scratch test passed; used for the 9 partial MSE members. Not bit-exact (data-loader RNG restarts).
-- [ ] 11.7 Evaluation on Leonardo: one job per split (`uq evaluate <id> --splits s --no-aggregate`),
+- [x] (mace-leo, 2026-11-07 01:36; `uq evaluate-slurm`, tested with job 63717684; system MSE jobs queued) 11.7 Evaluation on Leonardo: one job per split (`uq evaluate <id> --splits s --no-aggregate`),
       outputs synced back, `uq aggregate` locally (RUNS.md protocol item 8).
 - [x] (mace-leo, 2026-11-07 01:10; jobs 63715545, 63715577, `RUNS.md`) 11.8 Smoke test on `boost_qos_dbg` (30 min): one HF-only member for a few epochs and one FT
       member; compare per-epoch time and first-epoch losses with the DGX run of the same seed (close,
       not bit-identical); check internet from the compute node; charge via `saldo -b`; throughput
       single and packed (2-3 members per GPU) into `RUNS.md`.
-- [ ] 11.9 Sync-back script (rsync Leonardo -> local, paths from `RUNS.md` protocol), dry-run first.
+- [x] (mace-leo, 2026-11-07 01:36; `uq sync-back`, dry-run tested; first real use when the system MSE evaluation ends) 11.9 Sync-back script (rsync Leonardo -> local, paths from `RUNS.md` protocol), dry-run first.
 
 ### WP10 Rebuttal assembly
 
@@ -366,3 +366,6 @@ Open:
   with 3 packed per GPU, ~18 h per chain). System-split MSE (WP3.6, D1b) launched: 50 LF->HF chains in 17 1-GPU
   jobs, QOS normal 24 h, all running. Next on Leonardo: per-split evaluation script (11.7) and sync-back (11.9)
   before the jobs end (~2026-11-07 evening); other Leonardo experiments wait for D2-D4/D10 or code (WP3.2-3.5).
+- 2026-11-07 01:36 — mace-leo (sole session, owner of all jobs): WP11.7 `uq evaluate-slurm` (per-split GPU jobs after
+  training, `afterany` + completeness check, optional prune job) and WP11.9 `uq sync-back` (no overwrite) done; Leonardo
+  inference matches the DGX. Queued after the system MSE training: 17 back-up chains (`--resume`), 10 evaluations, prune.

@@ -69,6 +69,16 @@ Nothing is backed up except `$HOME`: anything citable must also come back to the
 | `$FAST/uq-mf/runs` | overflow `UQ_RUNS` for LF-scale experiments if `$WORK` runs short |
 | `$CINECA_SCRATCH/uq-mf` | W&B offline directories and other throwaway files |
 
+**Commands (from `$UQ/mace`, with `PATH=$UQ/miniconda3/envs/mace/bin:$PATH UQ_RUNS=$UQ/runs
+UQ_SLURM_ACCOUNT=IscrC_UQ-MF`):** `uq train-slurm <exps> --pack 3 --submit` (training; `--resume --after <ids>` for
+back-up chains), `uq evaluate-slurm <exps> --after <ids> --prune --submit` (one 1-GPU evaluation job per split,
+then pruning, D9). Code arrives as a `git bundle` when `git push` from the DGX is not possible:
+`git fetch $UQ/rebuttal.bundle HEAD:refs/remotes/bundle/iclr_rebuttal && git merge --ff-only bundle/iclr_rebuttal`.
+**Back on the DGX:** `UQ_REMOTE_ROOT=/leonardo_work/IscrC_UQ-MF/uq-mf/mace UQ_REMOTE_RUNS=/leonardo_work/IscrC_UQ-MF/uq-mf/runs
+uq sync-back <exp> --host leonardo [--checkpoints] [--apply]` (dry run by default; never overwrites a local file;
+`--checkpoints` only for pruned splits), then `uq aggregate <exp>` and the ledger entry.
+W&B offline files: `$UQ/runs/wandb` is a symlink to `$CINECA_SCRATCH/uq-mf/wandb-runs`.
+
 Storage arithmetic: an LF-scale experiment keeps ~255 GB of epoch checkpoints (17 MB x 300 x 50)
 until it is evaluated and pruned (approved: every 5th epoch + best + `.model`, ~50 GB after).
 Never more than ~3 unpruned LF-scale experiments on `$WORK` at once.

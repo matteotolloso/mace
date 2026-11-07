@@ -12,9 +12,9 @@ either machine, and updated when it ends. `PLAN.md` says *what* to run and why; 
 | **DGX** (shared, 8x A100 40 GB) | GPUs 0, 2, 6 (3 jobs per GPU normally) | **max 3 GPUs for this project at any time** (`uq train` enforces it) | shell; jobs as systemd user units `uq-*` |
 | **Leonardo** (Booster, 4x A100 64 GB per node) | account `IscrC_UQ-MF`, ~10,000 GPU-h | SLURM QOS (`LEONARDO.md` Section 3); `$WORK` and `$FAST` 1 TB each | `ssh leonardo` while the user's 12 h certificate is valid |
 
-**Ownership of DGX GPU jobs:** session **`mace-80`** (since 2026-11-06 15:00). Other sessions report
-anomalies to the user and never start, stop or restart jobs. The `uq-*` units use
-`KillMode=control-group`: `systemctl --user stop <unit>` also kills its training members, so a
+**Ownership of all jobs (DGX and Leonardo):** session **`mace-leo`** since 2026-11-07 01:30 (the user: it is the
+only session operating; earlier owner `mace-80` has ended). A later session takes over by writing its name here.
+The `uq-*` units use `KillMode=control-group`: `systemctl --user stop <unit>` also kills its training members, so a
 stop is announced here first and done only by the owner.
 
 ## 2. Sync protocol
@@ -59,6 +59,8 @@ Status: `planned` -> `queued` -> `running` -> `trained` -> `evaluated` -> `synce
 | Leonardo smoke test (a) | 11.8 | Leonardo, `boost_qos_dbg` | F s0 m0 + D s0 m0 packed on 1 GPU (`--pack 2`), `UQ_RUNS=$CINECA_SCRATCH/uq-mf/smoke/runs` | 7e1b998 | 63715545 | **done** (cancelled after 12 min, enough data) | 2026-11-07 00:57 | | first val losses F 0.01341 0.01001 0.00868, D -0.00356 -0.00560 -0.00616 (DGX: 0.0134 0.0100 0.0098; -0.0036 -0.0056 -0.0062); ~11 s/epoch with 2 packed; checkpoints + results written; W&B offline works |
 | Leonardo smoke test (b) | 11.8 | Leonardo, `boost_qos_dbg` | `ani1x-system/mace-mse/lf-only` s0 m0-m2 packed 3 on 1 GPU, scratch `UQ_RUNS` | 7e1b998 | 63715577 | **done** (cancelled after 12 min) | 2026-11-07 00:57 | | LF epoch ~3.5 min per member with 3 packed (epoch 0 incl. warm-up 4.3 min) -> ~17.5 h per 300-epoch member; no OOM; scratch outputs, discard |
 | system MSE `ani1x-system/mace-mse/lf-only` + `lf-to-hf` | 3.6 | **Leonardo**, `boost_usr_prod`, QOS `normal`, 24 h | 50 chains (LF member, then its LF->HF child in the same job), `--pack 3` -> 17 1-GPU jobs; `UQ_RUNS=$WORK/uq-mf/runs` (W&B offline: `runs/wandb` -> `$CINECA_SCRATCH/uq-mf/wandb-runs`) | 7e1b998 | 63716417-63716422, 63716431-63716441 (list: `$WORK/uq-mf/runs/_slurm/system-mse/jobs.tsv`) | **running** (all 17 started by 01:18; epoch 0 OK, no errors) | 2026-11-07 01:12 | ~2026-11-07 20:00 (18-19 h per job) | estimate ~17 x 19 h x 8 = ~2,600 local h; if a job hits 24 h: `uq train-slurm ... --resume` |
+| system MSE back-up chains | 3.6 | Leonardo, QOS normal, 24 h | same 50 chains with `--resume`, `--after` the 17 jobs (`afterany`): complete members skip in seconds; a child that its chain did not start (parent exited non-zero after saving, as s0 m6 on the DGX) or a member stopped by the walltime continues | 0323ada | 63718283-63718300 (`runs/_slurm/system-mse-backup/jobs.tsv`) | queued (dependency) | 2026-11-07 01:36 | after the 17 jobs (+ minutes if all complete) | `uq train-slurm ... --pack 3 --resume --after <17 ids> --submit` |
+| system MSE evaluation + prune | 3.6, 11.7 | Leonardo, 10 x 1 GPU (QOS normal, 24 h) + 1 CPU job (`lrd_all_serial`) | `uq evaluate <exp> --splits s --no-aggregate` per experiment and split, after the 34 jobs above (`afterany` + completeness check of the split and of the parent's split); then `uq prune-checkpoints lf-only lf-to-hf --apply` (D9) only if all 10 succeeded (`afterok`) | 0323ada | eval 63718301-63718310, prune 63718311 (`runs/_slurm/system-mse-eval/jobs.tsv`) | queued (dependency) | 2026-11-07 01:36 | eval ~2026-11-08 morning | `uq evaluate-slurm ani1x-system/mace-mse/lf-only ani1x-system/mace-mse/lf-to-hf --after <34 ids> --prune --submit`; inference checked first (job 63717684: `members_id.npz` of energy MSE HF-only s0 equal to the DGX within float32, max 0.0098 eV on ~28,000 eV); then sync back with `uq sync-back <exp> --host leonardo --checkpoints --apply` and `uq aggregate` + ledger on the DGX |
 
 ## 4. Leonardo budget (local h; 1 GPU-h = 8 local h)
 
@@ -95,3 +97,10 @@ Status: `planned` -> `queued` -> `running` -> `trained` -> `evaluated` -> `synce
   ani1x-system/mace-mse/lf-to-hf --pack 3 --qos normal --time 24:00:00 --out $UQ_RUNS/_slurm/system-mse --submit`,
   `UQ_RUNS=$WORK/uq-mf/runs`); all 17 jobs running at 01:18. `saldo -b`: 0 consumed so far (accounting lags).
   DGX not checked by mace-leo (owner mace-80).
+- 2026-11-07 01:25 — mace-leo (now owner of all jobs): DGX units healthy (energy MSE 60/100); `FAILED
+  ani1x-energy__mace-mse__lf-only_s0_m6` at 01:05 is harmless (300 epochs done and model saved; MACE's closing
+  metrics on the training set hit CUDA OOM with 6-7 jobs on GPU 2; the scheduler started its child). Markers
+  `runs/_jobs/ani1x-system__mace-mse__{lf-only,lf-to-hf}.eval_failed` make `uq-mse-postprocess` skip the system
+  split for good (it is evaluated on Leonardo; without them the DGX loop would re-evaluate and prune it after sync).
+- 2026-11-07 01:36 — mace-leo: Leonardo clone at 0323ada (via bundle; children started after this run it; the
+  training command is unchanged, pinned by the tests). Back-up chains, evaluation and prune jobs queued (Section 3).
