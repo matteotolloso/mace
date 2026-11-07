@@ -147,18 +147,18 @@ proportion to the decrease of training error; (d) a head fitted on held-out resi
       variance share the readout's hidden layer, so the variance-specific parameters are the `linear_2` weights
       into the variance output (32 per member); re-drawn N(0,1) as at initialization, seeded by the member seed.
       Ids `ani1x-{system,energy}/mace-mve/lf-to-hf-reset-var`; test `uq/tests/test_reset_variance.py`.
-- [ ] 3.3 (E, P1) **beta-NLL fine-tuning** (beta = 0.5, Seitzer et al. 2022), same parents. Tests
+- [~] (agent: mace-leo, since 2026-11-07 02:08; Leonardo, `RUNS.md`; fork flag `mve_beta_nll`, value = Gaussian NLL so selection is unchanged) 3.3 (E, P1) **beta-NLL fine-tuning** (beta = 0.5, Seitzer et al. 2022), same parents. Tests
       "alternative training objective" (Q1).
 - [ ] 3.4 (E, P1) **Held-out-fitted variance head**: after the B/D fine-tuning, freeze the backbone and
       mean readout, fit only the variance head on half of the CC validation set, select on the other
       half. Prediction (d); also a practical fix to report.
-- [ ] 3.5 (E, P1) **Slower fine-tuning** (lr 1e-4 instead of 1e-3; shared with WP4.3). Prediction (c).
+- [~] (agent: mace-leo, since 2026-11-07 02:00; energy split on Leonardo, system after pruning) 3.5 (E, P1) **Slower fine-tuning** (lr 1e-4 instead of 1e-3; shared with WP4.3). Prediction (c).
 - [~] 3.6 (agent: mace-80) (E/A, P0) **MSE ensembles** (objective without variance head; EU-only
       estimator). HF-only pairs done (ledger 2026-11-03/04). Energy LF-only / LF->HF training on the
       DGX (9 partial members resumed 2026-11-06 20:01); automatic evaluation + pruning at 50/50; then
       `compare_uq` vs D and a ledger entry. System split: on Leonardo since 2026-11-07 01:12
       (mace-leo, 17 jobs, `RUNS.md`); then evaluation there by split (11.7) and sync back (11.9).
-- [ ] 3.7 Evaluate 3.2-3.5 (`uq evaluate`, ~10 h per experiment on 1 GPU incl. per-epoch metrics;
+- [~] (agent: mace-leo; evaluation + prune jobs queued on Leonardo after training) 3.7 Evaluate 3.2-3.5 (`uq evaluate`, ~10 h per experiment on 1 GPU incl. per-epoch metrics;
       consider restricting to final + epoch quality), `compare_uq`-style paired contrasts vs B/D,
       ledger entries, one appendix figure "ablations of the AU collapse".
 
@@ -168,9 +168,9 @@ proportion to the decrease of training error; (d) a head fitted on held-out resi
       hours); write the compute-matching argument: HF-only is validation-selected at epoch 30-111 of
       300 (App. "Training details"), so giving it more steps only increases validation NLL; the extra compute of
       LF->HF buys cheap LF labels, which is the point of MF training.
-- [ ] 4.2 (E, P1) HF-only learning-rate sweep (lr 3e-3, 1e-3 vs 1e-2), energy split first, then system.
+- [~] (agent: mace-leo, since 2026-11-07 02:00; energy split on Leonardo `$FAST`, system after pruning) 4.2 (E, P1) HF-only learning-rate sweep (lr 3e-3, 1e-3 vs 1e-2), energy split first, then system.
       ~50 members x ~1.4 h per config = ~8 h wall on 9 slots.
-- [ ] 4.3 (E, P1) FT learning-rate sweep (1e-4 = WP3.5, and 1e-2), ~3 h wall per config.
+- [~] (agent: mace-leo, since 2026-11-07 02:00; energy split on Leonardo) 4.3 (E, P1) FT learning-rate sweep (1e-4 = WP3.5, and 1e-2), ~3 h wall per config.
 - [ ] 4.4 (E, P2) Model size (64 / 256 channels) for HF-only only (LF->HF would need new LF parents).
 - [ ] 4.5 Report in the rebuttal: does the ranking/calibration conclusion survive the best LR of each
       protocol? (paired over splits).
