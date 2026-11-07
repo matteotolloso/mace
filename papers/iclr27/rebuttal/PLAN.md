@@ -135,9 +135,15 @@ held-out data tracks the training MSE, not the held-out MSE; (b) re-initializing
 prevent the collapse (it re-learns the same small residuals); (c) slower fine-tuning delays it in
 proportion to the decrease of training error; (d) a head fitted on held-out residuals is calibrated.
 
-- [ ] 3.1 (CPU, P0) From existing `epoch_quality_{train,id,ood}.csv` of B, D, E, F: per epoch, mean AU
+- [!] (mace-leo, 2026-11-07 02:35: needs a better statistic, see note) 3.1 (CPU, P0) From existing `epoch_quality_{train,id,ood}.csv` of B, D, E, F: per epoch, mean AU
       on held-out vs training MSE vs held-out MSE; plot AU-ENCE against the train/held-out MSE gap
       across epochs and protocols. Ledger entry. Checks prediction (a) with zero new compute.
+      Note (mace-leo, exploratory, not recorded): with the stored per-epoch *means* (`magnitude_aleatoric`,
+      `rmse_e_atom`) the test is inconclusive: means of variances and of squared errors are dominated by the
+      heavy tails, and in D the held-out AU falls much less than the training MSE (so prediction (a) is not
+      supported in this form). A fair test needs per-epoch robust statistics (median AU vs median squared
+      error, support-filtered) from per-configuration rows, i.e. a GPU re-run of `epoch_quality` that also
+      saves those rows (new output files), or an `epoch_raw` variant. Do not cite anything from this note.
 - [~] (agent: mace-leo, since 2026-11-07 01:30; training on Leonardo, `RUNS.md`) 3.2 (E, P0) **Variance-head reset at FT start** (Q1 literal ask): new experiments
       `ani1x-{system,energy}/mace-mve/lf-to-hf-reset-var` (names to confirm with `new-experiment`);
       re-initialize the variance branch of the readout, keep everything else as B/D; 5 x 10 members
@@ -149,9 +155,19 @@ proportion to the decrease of training error; (d) a head fitted on held-out resi
       Ids `ani1x-{system,energy}/mace-mve/lf-to-hf-reset-var`; test `uq/tests/test_reset_variance.py`.
 - [~] (agent: mace-leo, since 2026-11-07 02:08; Leonardo, `RUNS.md`; fork flag `mve_beta_nll`, value = Gaussian NLL so selection is unchanged) 3.3 (E, P1) **beta-NLL fine-tuning** (beta = 0.5, Seitzer et al. 2022), same parents. Tests
       "alternative training objective" (Q1).
-- [ ] 3.4 (E, P1) **Held-out-fitted variance head**: after the B/D fine-tuning, freeze the backbone and
+- [ ] (design by mace-leo below; needs user decisions before launch) 3.4 (E, P1) **Held-out-fitted variance head**: after the B/D fine-tuning, freeze the backbone and
       mean readout, fit only the variance head on half of the CC validation set, select on the other
       half. Prediction (d); also a practical fix to report.
+      Design (mace-leo, 2026-11-07), decisions for the user: (i) data: split each `cc_val.xyz` into two
+      fixed halves (seeded), written as new files (e.g. `cc_val_fit.xyz`, `cc_val_sel.xyz`) in the existing
+      split folders, or a new dataset folder (`add-dataset` rules: existing splits are never regenerated);
+      (ii) parameters: mean and variance share `linear_2` of the last readout, so "only the variance head"
+      means the 32 weights into the variance output: implement as a fork flag that masks the gradient of
+      every other parameter and sets weight decay to 0 for this run (decoupled weight decay would otherwise
+      move frozen weights); (iii) start from each B/D member's final model (`--foundation_model` = the
+      LF->HF member), keep the E0s (no refit: `E0s` from the foundation model), select by NLL on the other
+      half; (iv) evaluation unchanged (the test sets are not touched). Cost: FT-scale or less.
+
 - [~] (agent: mace-leo, since 2026-11-07 02:00; energy split on Leonardo, system after pruning) 3.5 (E, P1) **Slower fine-tuning** (lr 1e-4 instead of 1e-3; shared with WP4.3). Prediction (c).
 - [~] 3.6 (agent: mace-80) (E/A, P0) **MSE ensembles** (objective without variance head; EU-only
       estimator). HF-only pairs done (ledger 2026-11-03/04). Energy LF-only / LF->HF training on the
