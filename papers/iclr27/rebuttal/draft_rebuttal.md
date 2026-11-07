@@ -170,10 +170,24 @@ incorrectly. It is fixed in the revised PDF.
 
 LF-only models predict DFT energies, whose absolute scale differs from CC/CBS energies by large
 per-element offsets, so a direct comparison on CC labels would be dominated by that offset. We added
-the fair comparison: the converged LF-only ensembles evaluated on the CC test sets after refitting
-the atomic reference energies on the CC training set (the same refit that LF->HF fine-tuning
-performs), with the variance heads unchanged `[PENDING: WP2]`. [Write the answer to "is LF-only
-significantly worse?" from the paired comparison over splits.]
+the fair comparison (new appendix table): the converged LF-only ensembles, unchanged except for a
+per-member least-squares refit of the per-element reference energies to their residuals on the CC
+training set (the analogue of the reference-energy refit with which fine-tuning starts; the most
+favourable zero-shot use of the LF model), scored on the CC test sets, with the variance heads
+unchanged. Paired over the five splits `[ledger 2026-11-07, results/tables/lf_only_vs_hf.csv]`:
+
+- **LF->HF fine-tuning is better on every uncertainty metric on all four tests**: TU Spearman
+  +0.06 to +0.17 and AUSE -0.06 to -0.09 (all intervals exclude 0), TU ENCE x0.20-0.23 except on
+  Energy-OOD (interval contains 1). In distribution it also halves the error (RMSE x0.50 Energy-ID,
+  x0.67 System-ID); out of distribution accuracy is unchanged or marginally worse (Energy-OOD x1.03,
+  System-OOD interval contains 1).
+- **Against HF-only**, LF-only is more accurate on Energy-OOD (HF-only RMSE x1.32) and ranks
+  in-distribution errors better, but its variances, learned on DFT residuals, are badly calibrated for
+  CC errors (TU ENCE 1.5-3.2; HF-only x0.24-0.50 of that), and it ranks Energy-OOD errors worse.
+
+So the pretrained model alone is not a usable CC-level predictor with uncertainty: fine-tuning on the
+scarce CC labels is what makes both its errors and its variances fit the target, which is the
+transition our paper studies.
 
 ---
 
