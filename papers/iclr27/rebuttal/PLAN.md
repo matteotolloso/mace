@@ -209,6 +209,11 @@ proportion to the decrease of training error; (d) a head fitted on held-out resi
 
 ### WP6 Fidelity-aware / multi-head training (J2, Q2/Q5)
 
+**PAUSED by the user (2026-11-07): no experiment; not a task to claim.** Answer in writing only (6.1):
+fidelity-aware / multi-head training is one of several interesting MF strategies (also Delta-learning,
+fidelity as input, joint training); the paper deliberately studies sequential fine-tuning, the most used
+one. 6.2 and 6.3 stay listed for reference, not to be launched.
+
 - [ ] 6.1 (W, P0) Argument: Gardner et al. 2025 find PT/FT marginally more accurate than multi-head with
       two label sources; Tompa et al. 2026 find naive FT best for single-target deployment and
       multihead replay best for preserving OOD robustness; fidelity-specific E0s already absorb the
@@ -351,8 +356,8 @@ Decided (user, 2026-11-06):
 
 Open:
 
-- **D2** Fidelity-aware training: multi-head replay FT from existing parents (WP6.2, cheap) and/or
-  joint training from scratch (WP6.3, ~900 GPU-h).
+- **D2** Fidelity-aware training: **paused (user, 2026-11-07)**: no WP6 experiment; written answer only
+  (other MF strategies such as multi-head and Delta-learning exist; we study fine-tuning, the most used).
 - **D3** Forces in pretraining (WP5.2): energy split only, or both splits.
 - **D4** Second dataset/architecture (WP7.2): argue only, or water with aligned splits on Leonardo.
 - **D5** Rename AU/EU in the revision (WP8.2).

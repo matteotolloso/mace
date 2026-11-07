@@ -25,7 +25,7 @@ Conventions for every agent editing this file:
    decomposition (EU becomes a competitive ranking signal) and acquisition (Section 1 table).
 2. **Turn the ablation requests into evidence.** Q2LT and ge6X ask for ablations we can run cheaply
    because fine-tuning costs ~0.5 h per member: variance-head reset, beta-NLL, held-out-fitted head,
-   learning rates, LF-only baseline, MSE ensembles (HF-only already done), multi-head fine-tuning.
+   learning rates, LF-only baseline, MSE ensembles (HF-only already done). [Multi-head fine-tuning paused by the user 2026-11-07: written answer only.]
 3. **Concede the scope limits honestly** (one architecture, energies) but show they are the realistic
    regime: CC data are energy-only, and ANI-1x is *the* public DFT/CC dataset.
 4. **Rename, do not abandon, the aleatoric term** (G5): defend it with the representation-relative
@@ -84,16 +84,42 @@ uncertainty-guided acquisition. See the novelty table (Section 1).
 
 ### 2.2 G2: one model (MACE), one dataset
 
-We agree this is a limitation and state it (App. limitations). Our reasons:
+We agree this is a limitation and state it (App. limitations). Our reasons (user directions 2026-11-07):
+
+*Architecture.*
+- MACE is among the most accurate and most widely used MLIP architectures, and the backbone of the
+  current foundation models (MACE-MP-0, studied by bilbrey2025uncertainty; MACE-OFF) (batatia2022mace).
+- MACE is not one point among unrelated models: batatia2025design show that it spans a design space
+  that contains, as special cases, the descriptor-based potentials (ACE, and through it the
+  fixed-descriptor models built on atom-centred symmetry functions or SOAP) and the equivariant
+  message-passing networks (NequIP). So our study covers the representation shared by most current MLIPs.
+  [Agent caveat: this unifies the *representations*; it does not prove that the UQ behaviour transfers. Keep
+  "in a sense contains", not "implies the same results". Check the exact wording of batatia2025design for
+  which models are recovered, before posting.]
+- A controlled study multiplies by the number of architectures: per architecture, 2 splits x 3 protocols
+  x 5 splits x 10 members = 300 trained models (LF->HF members need their own LF parents). Adding
+  architectures with different training recipes would also confound the effect of the fidelity
+  transition with architecture-specific tuning. We chose depth on one strong, representative model
+  (estimator, objective, learning-rate and protocol ablations) over breadth.
+
+*Dataset.*
 - ANI-1x/ANI-1ccx is, to our knowledge, the only large public dataset with CC labels computed on a
   subset of the DFT geometries over many molecular systems, which is what makes the two controlled
   shifts (unseen systems, higher energies) possible [check alternatives: WP7.1].
-- MACE is a widely used equivariant MLIP architecture (batatia2022mace, batatia2025design), and it is
-  the backbone of MACE-MP-0, the model studied by bilbrey2025uncertainty.
+- ANI-1x is not a single system: it contains ~5M DFT calculations on organic molecules (C, H, N, O)
+  drawn from GDB-11, ChEMBL and generated amino acids and dipeptides, sampled by active learning with
+  molecular dynamics, normal-mode, dimer and torsion sampling (smith2020ani); ANI-1ccx is ~500k of
+  them recomputed at CCSD(T)*/CBS, mostly molecules with fewer than 20 atoms. Our system split
+  uses 3114 molecular systems (chemical formulas), of which 1246 are held out entirely as System-OOD
+  in each split (`data/ani1x-system/split_<s>/split_summary.json`). So "one dataset" already spans
+  thousands of chemically different systems, and the System-OOD test is a generalization test across them.
+- Much of the multi-fidelity and UQ literature for MLIPs evaluates on a single system: one molecule
+  (rMD17, christensen2020role; 3BPA, kovacs2021linear) or one liquid (water at CC accuracy,
+  chen2023data). Our setting is broader than that. [Citations to verify and add to the bib; pick 2-3.]
 - Within this setting we vary what reviewers asked about: the estimator (ten-member MVE ensemble,
   single MVE model, MSE ensemble without a variance head `[ledger 2026-11-02, 2026-11-03, 2026-11-04]`),
-  the objective (beta-NLL, `[PENDING: WP3.3]`), the multi-fidelity strategy (multi-head replay
-  fine-tuning `[PENDING: WP6.2]`) and the optimization (`[PENDING: WP4]`).
+  the objective (beta-NLL, `[PENDING: WP3.3]`) and the optimization (learning-rate sweeps,
+  `[ledger 2026-11-07 WP4.2]`, FT lr `[PENDING: WP4.3]`).
 - [Optional, decision D4: second dataset (liquid water, chen2023data) `[PENDING: WP7.2]`.]
 
 ### 2.3 G3: energies only, no forces
@@ -175,6 +201,14 @@ incorrectly. It is fixed in the revised PDF.
 
 ### 2.7 G7: LF-only results
 
+[Agent note: why CC labels. G7 asks whether LF-only is worse *than LF+HF or HF-only*, which predict CC energies:
+only scoring on the same CC test sets compares the protocols on the same task. LF-only against its own DFT
+test labels is a different task (a model scored on the fidelity it was trained on); those results are already
+in the paper (App. reliability diagrams, rows "LF-only (DFT labels)"; training-dynamics figures, epochs
+0-299) and can be pointed to in one sentence.]
+
+On its own DFT test labels the LF-only ensemble is already shown in the paper (App. reliability diagrams and
+training dynamics). To answer the question as asked, against the CC targets of LF->HF and HF-only: 
 LF-only models predict DFT energies, whose absolute scale differs from CC/CBS energies by large
 per-element offsets, so a direct comparison on CC labels would be dominated by that offset. We added
 the fair comparison (new appendix table): the converged LF-only ensembles, unchanged except for a
@@ -209,7 +243,7 @@ one dataset: the CC/CBS energies of ANI-1x are computed on a subset of its DFT g
 (smith2019approaching), which is what makes a controlled LF->HF study possible (same configurations,
 different labels) and the two distribution shifts (unseen molecular systems; higher-energy
 configurations) well defined. Why this dataset and this architecture: see our answer to ge6X G2
-(Section 2.2), including the estimator and strategy variants we added. [Note (mace-leo): "computed on
+(Section 2.2): ANI-1x spans thousands of molecular systems, and we added estimator, objective and learning-rate variants. [Note (mace-leo): "computed on
 a subset of the DFT geometries" is in Section 2.2 and the paper; keep the citation that the authors
 use for it.]
 
@@ -229,10 +263,11 @@ use for it.]
 - *Fidelity as input.* We agree this is a promising alternative: fidelity encodings are used in
   multi-fidelity graph networks (chen2021learning) and MLIPs (kim2024data, one-hot fidelity), and
   multi-head models with fidelity-specific readouts are their MLIP counterpart
-  (gardner2025understanding; MACE multihead replay fine-tuning, tompa2026fine). We added a
-  multi-head variant (shared backbone, DFT and CC heads, both mean-variance) fine-tuned from the same
-  LF parents, and compare its AU/EU/TU `[PENDING: WP6.2, decision D2]`. [Whether it is "better
-  calibrated overall" is the reviewer's hypothesis: report it either way.]
+  (gardner2025understanding; MACE multihead replay fine-tuning, tompa2026fine). These, like
+  Delta-learning of the HF-LF difference (ramakrishnan2015big) and joint training, are interesting
+  multi-fidelity strategies with possibly different uncertainty dynamics; we deliberately focused on
+  sequential fine-tuning, the most widely used one, and state the others as future work in the revised
+  limitations. [User 2026-11-07: WP6 paused, no multi-head experiment.]
 
 ### 3.3 J3: better arguments for model, data and training choices
 
@@ -286,9 +321,11 @@ mechanism is confirmed; if the reset fixes it, the cause is the inherited head s
   MSE ensemble on OOD (system: Spearman difference +0.02553 [0.01709, 0.03398]; energy: -0.01237
   [-0.02983, 0.005095], interval contains 0) and is better calibrated (ENCE ratio x0.5149 and
   x0.5312) `[ledger 2026-11-03, 2026-11-04]`; [LF->HF comparison PENDING].
-- *Multi-fidelity strategies.* Multi-head replay fine-tuning `[PENDING: WP6.2]`; expected differences
-  discussed with gardner2025understanding and tompa2026fine (Section 3.2). Joint training from
-  scratch and alternating optimization are discussed but not run [unless decided otherwise].
+- *Multi-fidelity strategies.* We agree that joint, multi-head, alternating and Delta-learning strategies
+  (ramakrishnan2015big) are interesting and may show different uncertainty dynamics; we focused on
+  sequential fine-tuning because it is the most used route to CC-accurate MLIPs (Section 2.1), and the
+  evidence on the alternatives (gardner2025understanding, tompa2026fine; Section 3.2) is discussed in the
+  revised limitations. Not run (user decision 2026-11-07).
 - *Architecture.* See ge6X G2.
 
 ### 4.3 Q3: novelty and Bilbrey et al. (2025)
@@ -317,7 +354,7 @@ localizes the calibration loss to the HF stage. We added this paragraph to the r
 1. Thanks; all reviewers find the paper clear; j1p7 finds no soundness concerns.
 2. Motivation: LF->HF fine-tuning is the standard route to CC accuracy (Section 2.1, 6 citations).
 3. New experiments (list only those completed): LF-only on CC; variance-head reset; beta-NLL;
-   held-out head; LR sweeps; MSE ensembles; single model / ensemble size; multi-head FT; [forces].
+   held-out head; LR sweeps; MSE ensembles; single model / ensemble size; [forces].
 4. Revisions: novelty table, renamed AU, design-choices section, Fig. 1 fix, related work.
 
 ---
@@ -387,3 +424,7 @@ quoted phrases copied from the abstract). `memory` = not yet checked: verify bef
 | batatia2022mace, batatia2025design | MACE | bib |
 | chmiela2018towards | Chmiela, Sauceda, Müller, Tkatchenko, Towards exact molecular dynamics simulations with machine-learned force fields, Nat. Commun. 9, 3887 (2018) | web 2026-11-06 (CCSD(T)-level sGDML; candidate 2nd dataset with CC forces, WP7) |
 | kennedy2000predicting | Kennedy, O'Hagan, Predicting the output from a complex computer code when fast approximations are available, Biometrika 87(1), 1-13 (2000) | memory: verify before use |
+| ramakrishnan2015big | Ramakrishnan, Dral, Rupp, von Lilienfeld, Big data meets quantum chemistry approximations: the Delta-machine learning approach, J. Chem. Theory Comput. 11, 2087 (2015) | memory: verify before use (added 2026-11-07, G2/J2/Q2) |
+| christensen2020role | Christensen, von Lilienfeld, On the role of gradients for machine learning of molecular energies and forces (rMD17), Mach. Learn.: Sci. Technol. 1, 045018 (2020) | memory: verify before use (G2 single-system benchmarks) |
+| kovacs2021linear | Kovács et al., Linear atomic cluster expansion force fields for organic molecules: beyond RMSE (3BPA), J. Chem. Theory Comput. 17, 7696 (2021) | memory: verify before use (G2 single-system benchmarks) |
+| smith2020ani (content) | ANI-1x: ~5M DFT calculations, C/H/N/O, GDB-11 + ChEMBL + generated amino acids and dipeptides, MD/normal-mode/dimer/torsion active-learning sampling; ANI-1ccx ~500k CCSD(T)*/CBS, mostly <20 atoms | web 2026-11-07 (PMC7195467) |
