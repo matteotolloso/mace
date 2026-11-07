@@ -630,6 +630,7 @@ def weighted_gaussian_nll_energy(
     ref: Batch,
     pred_dict: TensorDict,
     ddp: Optional[bool] = None,
+    beta: float = 0.0,
 ) -> torch.Tensor:
     num_atoms = ref.ptr[1:] - ref.ptr[:-1]  # [B]
     eps = 1e-16
@@ -653,6 +654,12 @@ def weighted_gaussian_nll_energy(
         * (err2 / var + torch.log(var) + log_2pi)
         / num_atoms
     )
+    if beta > 0.0:
+        # beta-NLL (Seitzer et al., ICLR 2022): per-configuration gradient weight stop_grad(var)^beta.
+        # Written so that the *value* stays the Gaussian NLL (validation loss and checkpoint selection
+        # unchanged) while the gradient is that of beta-NLL: w*L - sg(w*L) + sg(L).
+        weighted = var.detach() ** beta * raw_loss
+        raw_loss = weighted - weighted.detach() + raw_loss.detach()
     return reduce_loss(raw_loss, ddp)
 
 
@@ -663,8 +670,10 @@ class WeightedGaussianNLLLoss(torch.nn.Module):
         forces_weight=1.0,
         virials_weight=0.0,  
         stress_weight=0.0,  
+        beta=0.0,
     ):
         super().__init__()
+        self.beta = float(beta)  # beta-NLL gradient weighting; 0 = plain Gaussian NLL
         self.register_buffer(
             "energy_weight",
             torch.tensor(energy_weight, dtype=torch.get_default_dtype()),
@@ -690,7 +699,7 @@ class WeightedGaussianNLLLoss(torch.nn.Module):
     ) -> torch.Tensor:
 
         # --- Energy (always on) ---
-        loss_energy = weighted_gaussian_nll_energy(ref, pred, ddp)
+        loss_energy = weighted_gaussian_nll_energy(ref, pred, ddp, beta=self.beta)
 
         # --- Forces (optional but usually on) ---
         if self.forces_weight > 0.0 and pred.get("forces") is not None:

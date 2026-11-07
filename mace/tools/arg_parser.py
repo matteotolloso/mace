@@ -40,6 +40,11 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         help="Fine-tuning ablation: after loading the foundation model, re-draw the weights of the "
         "variance outputs of the last readout as at initialization (mean outputs and backbone kept).",
     )
+    parser.add_argument(
+        "--mve_beta_nll", type=float, default=0.0,
+        help="beta-NLL (Seitzer et al. 2022): weight each configuration's Gaussian NLL gradient by "
+        "stop_grad(variance)**beta; the loss value (validation, checkpoint selection) stays the NLL. 0 = off.",
+    )
     ### /MVE ###
 
     # Name and seed
