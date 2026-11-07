@@ -1074,3 +1074,62 @@ How to use it:
   0.37-0.49), i.e. part of pretraining's ranking benefit (finding (i)) is carried by the variance head.
 
 ---
+
+### 2026-11-07 Fine-tuning learning rate on the system split; completes "Fine-tuning ablations of the AU collapse" (rebuttal WP3.5, WP4.3; Q1 (c), G4)
+
+- **Status:** verified; closes the draft gap of the entry "Fine-tuning ablations of the AU collapse" (FT lr, system
+  split) and the two "(pending)" cells of its correction. Earlier entries unchanged.
+- **Purpose:** as in that entry: prediction (c) (slower FT delays the collapse) and G4 (is the paper's FT lr 1e-3 a
+  sound choice?), now on both splits.
+- **Code commit:** `03e6b946e6f053d730a49bf792a3b403e7ea5525` (sync-back, aggregate, table; clean tree apart from
+  `PLAN.md`/`RUNS.md`); training and evaluation on Leonardo from a clean clone at `016dbb6`.
+- **Command(s):** on Leonardo `uq train-slurm ... --pack 3 --submit` and `uq evaluate-slurm ... --prune --submit`
+  (eval 63722646-63722655, prune 63722656; all COMPLETED); on the DGX `runs/_jobs/sync_ftlr_system_2026-11-07.sh`
+  (log next to it): `uq sync-back <exp> --host leonardo --checkpoints --apply`, `uq aggregate <exp>`,
+  `python -m uq.evaluation.compare_ablations` (24 complete pairs, 0 missing; the 20 earlier pairs byte-identical in
+  `git diff`). Selected epochs: `uq.evaluation.training_steps.member_rows(registry.experiment(exp))` (inline).
+  Direction: ratio of five-split means of `mse` and `mean_variance` per AU / TU bin of
+  `reliability_<test>_nocal_bins.csv` (inline; reproduces the B row of the entry above).
+- **Configuration:** `experiments/ani1x-system/mace-mve/lf-to-hf-lr1e-{4,2}/`: B with FT lr 1e-4 / 1e-2 instead of
+  1e-3; same LF parents (A) and member seeds.
+- **Dataset and split:** `data/ani1x-system/split_{0..4}/cc_*.xyz`; support filter as for B.
+- **Random seeds:** split seeds 0-4; member seeds 0-9 (50/50 members per experiment, 5/5 splits evaluated).
+- **Compute:** FT retraining (100 members, Leonardo) + GPU inference (Leonardo) + CPU aggregation (DGX).
+- **Metrics:** as in the entry above (uncalibrated, per atom; ablation five-split mean, then paired contrast vs B with
+  95% t interval, df = 4). Source: `results/tables/ablations_vs_reference.csv`.
+
+| Ablation | Split | Test | RMSE | Spearman AL | Spearman TO | ENCE AL | ENCE TO |
+|---|---|---|---|---|---|---|---|
+| FT lr 1e-4 | system | ID | 0.016 (x1.008 [0.9903, 1.027]) | 0.4646 (+0.001904 [-1.203e-05, 0.003821]) | 0.5043 (+0.004067 [0.001235, 0.006898]) | 0.5984 (x1.38 [1.262, 1.51]) | 0.2808 (x0.821 [0.7526, 0.8957]) |
+| FT lr 1e-4 | system | OOD | 0.03199 (x1.008 [1.001, 1.015]) | 0.492 (+0.002214 [-0.003282, 0.007711]) | 0.5218 (+0.003926 [-0.0004411, 0.008293]) | 0.8424 (x1.363 [1.315, 1.412]) | 0.2692 (x0.8431 [0.795, 0.8941]) |
+| FT lr 1e-2 | system | ID | 0.0153 (x0.9645 [0.9179, 1.013]) | 0.436 (-0.0267 [-0.05513, 0.001735]) | 0.4558 (-0.04442 [-0.07299, -0.01586]) | 0.2603 (x0.6004 [0.5285, 0.682]) | 0.5333 (x1.559 [1.522, 1.596]) |
+| FT lr 1e-2 | system | OOD | 0.02982 (x0.9398 [0.8872, 0.9955]) | 0.4645 (-0.02535 [-0.03809, -0.0126]) | 0.4821 (-0.03578 [-0.05416, -0.0174]) | 0.3386 (x0.5477 [0.4742, 0.6326]) | 0.4831 (x1.513 [1.283, 1.785]) |
+
+  (values printed with 4 significant digits from the CSV columns `ablation_mean`, `contrast_mean`, `contrast_ci95_*`)
+
+  Selected FT epoch (0-based, of 100; all members ran 100), median [min-max] over 50 members: system lr 1e-4
+  25 [18-40], lr 1e-2 1 [0-24] (B: 2 [1-3]); energy lr 1e-4 29.5 [21-37], lr 1e-2 0 [0-22] (the correction above
+  printed the energy lr 1e-4 median as 30).
+
+  Direction (bins with MSE > MV, of 15; MSE/MV range): AU, system: B ID 10, 0.5-1.9 / OOD 11, 0.61-2.8; lr 1e-4
+  ID 11, 0.59-2.2 / OOD 13, 0.76-3.2; lr 1e-2 ID 5, 0.26-1.2 / OOD 7, 0.4-1.9. TU, lr 1e-2 vs reference: system ID
+  0, 0.21-0.62 (B 0, 0.36-0.89), OOD 0, 0.27-0.96 (B 1, 0.42-1.3); energy ID 0, 0.13-0.56 (D 0, 0.35-0.78), OOD 13,
+  0.49-9.2 (D 12, 0.66-9.9).
+- **Output files:** new: `experiments/ani1x-system/mace-mve/lf-to-hf-lr1e-{4,2}/evaluation/` (per split +
+  aggregates), `runs/<same ids>/` (pruned checkpoints, models, logs, results); changed:
+  `results/tables/ablations_vs_reference.csv` (24 of 24 pairs). Figures reading it (not new numbers):
+  `papers/iclr27/figures/out/figA_{ablations,lr_sensitivity}.*`.
+- **Interpretation:** the system split reproduces the energy-split pattern. (1) **FT lr 1e-4** changes RMSE by
+  <= 0.8% and Spearman by <= 0.004, makes AU more overconfident (AU ENCE x1.38 / x1.36, MSE > MV in 11 / 13 of 15
+  bins) and TU slightly better calibrated (x0.82 / x0.84), and moves the selected epoch from 2 to 25: slower FT
+  shifts the time scale (prediction (c)) without removing the AU overconfidence at the selected checkpoint.
+  (2) **FT lr 1e-2** lowers AU ENCE (x0.60 / x0.55; AU no longer mostly overconfident) but ranks worse (TU Spearman
+  -0.044 / -0.036, AU -0.027 with an interval touching 0 on ID) and makes TU *under*confident in-distribution (TU
+  ENCE x1.56 / x1.51; MSE/MV of TU <= 0.96 in every bin), with members selected at epoch 0-1 (median), i.e.
+  essentially the first FT epoch. RMSE x0.96 ID (interval contains 1), x0.94 OOD. On both splits lr 1e-4 and the
+  paper's 1e-3 give nearly the same accuracy and ranking (1e-4: AU more overconfident, TU slightly better calibrated
+  on three of four tests), while 1e-2 costs ranking and TU calibration: the paper's conclusions do not depend on
+  the FT lr in 1e-4 to 1e-3, and 1e-2 is worse (G4). With the energy entry, the FT-lr rows are now complete for the
+  appendix (items B and C).
+
+---

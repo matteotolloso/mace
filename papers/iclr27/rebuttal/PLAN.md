@@ -34,7 +34,7 @@ Type: W writing, A analysis of existing outputs, E new training.
 | G7 | LF-only not reported | WP2: LF-only on CC labels after E0 refit; DFT-label results already in the paper's appendix | A | **recorded** |
 | J2 / Q2 (strategies) | fidelity as input, multi-head, joint | written only: interesting alternatives (multi-head, Delta-learning, joint); we study FT, the most used | W | draft; experiments paused (user) |
 | J3 | better arguments for choices | "Design choices and scope" appendix | W | open (9.2) |
-| Q1 / Q4 | validate mechanism; reset head; other objectives | WP3.2 reset, 3.3 beta-NLL, 3.5 slow FT, 3.6 MSE; (d) via existing held-out recalibration (App.) | E | **recorded** (reset, beta-NLL; FT lr energy); FT lr system evaluating; MSE LF->HF training |
+| Q1 / Q4 | validate mechanism; reset head; other objectives | WP3.2 reset, 3.3 beta-NLL, 3.5 slow FT, 3.6 MSE; (d) via existing held-out recalibration (App.) | E | **recorded** (reset, beta-NLL, FT lr both splits); MSE LF->HF training |
 | Q2 / Q5 (estimators) | one estimator | single MVE, ensemble size, MSE ensembles | A + E | HF-only recorded; MSE LF->HF training |
 | Q3 | novelty; Bilbrey 2025 | novelty table; Bilbrey read in full | W | draft |
 
@@ -71,9 +71,9 @@ fix (G6); related work (Bilbrey 2025, Tompa 2026, Gardner 2025, Messerly 2025). 
 
 ### 3.3 Figure / table work (CPU only, `paper-figures` skill)
 
-- [ ] 3.3a `papers/iclr27/figures/figA_lr_sensitivity.py` (item B) from aggregate summaries + `ablations_vs_reference.csv`.
-- [ ] 3.3b `papers/iclr27/figures/figA_ablations.py` (item C, forest plot) from `ablations_vs_reference.csv`.
-- [ ] 3.3c Table generator for item A from `lf_only_vs_hf.csv` (LaTeX, appendix).
+- [x] 3.3a `papers/iclr27/figures/figA_lr_sensitivity.py` (item B): RMSE / TU Spearman / TU ENCE vs lr, both protocols and splits, from the aggregate summaries (mace-leo-2, `03e6b94`).
+- [x] 3.3b `papers/iclr27/figures/figA_ablations.py` (item C, forest plot: reset, beta-NLL, FT lr 1e-4/1e-2 x 4 tests; RMSE, AU Spearman, AU/TU ENCE) (mace-leo-2, `03e6b94`). Add an MSE LF->HF row when WP3.6 is recorded.
+- [x] 3.3c `papers/iclr27/figures/tabA_lf_only.py` -> `out/tabA_lf_only.tex` (item A, booktabs; LF-only / HF-only / LF->HF x 4 tests) (mace-leo-2, `03e6b94`).
 - [ ] 3.3d General-response table (Markdown, in `draft_rebuttal.md` Section 5).
 
 ## 4. Work packages: status and what is left
@@ -86,11 +86,11 @@ fix (G6); related work (Bilbrey 2025, Tompa 2026, Gardner 2025, Messerly 2025). 
       `uq evaluate-slurm`, `uq sync-back`).
 
 ### In progress (no new launches; finish, evaluate, record)
-- [~] (agent: mace-leo) **Recorded 2026-11-07** (ledger "Fine-tuning ablations of the AU collapse") except FT lr system. Finding: with a reset head the collapse re-emerges along FT, ~5-8x slower; the selected checkpoint (epochs 2-19) precedes it, so final AU looks better calibrated but ranks worse; consistent with the paper's (i) and (iii). WP3.2 variance-head reset, WP3.3 beta-NLL, WP3.5/4.3 FT lr 1e-4 / 1e-2:
+- [x] **Recorded 2026-11-07** (ledger "Fine-tuning ablations of the AU collapse" + "Fine-tuning learning rate on the system split", mace-leo-2: all 24 pairs). System FT lr: same pattern as energy (1e-4: selected epoch 2 -> 25, AU more overconfident, TU slightly better; 1e-2: worse ranking, TU underconfident). Finding: with a reset head the collapse re-emerges along FT, ~5-8x slower; the selected checkpoint (epochs 2-19) precedes it, so final AU looks better calibrated but ranks worse; consistent with the paper's (i) and (iii). WP3.2 variance-head reset, WP3.3 beta-NLL, WP3.5/4.3 FT lr 1e-4 / 1e-2:
       energy split synced and aggregated 2026-11-07; system: reset-var re-sync and beta-NLL syncing,
       FT lr evaluating (~18:00). Then `compare_ablations`, one ledger entry per WP. Note: reset-var
       and beta-NLL on the system split need the FT-lr system twins only for item B, not for C.
-- [~] (agent: mace-80 -> mace-leo) WP3.6 MSE ensembles LF-only / LF->HF: energy on the DGX (70/100,
+- [~] (agent: mace-80 -> mace-leo -> mace-leo-2) WP3.6 MSE ensembles LF-only / LF->HF: energy on the DGX (84/100 at 18:15,
       automatic evaluation at 50/50), system on Leonardo (training, then evaluation ~10 h per split).
 
 ### Open, needs a user decision (after looking at the energy results)
@@ -135,3 +135,4 @@ WP3.4 dropped (user, 2026-11-07).
 - 2026-11-07 10:30-12:30 — mace-leo: certificate renewed (user); Leonardo healthy (no unexpected failures);
   sync-back of 9 finished experiments (one interrupted, retried); WP4.2 complete and recorded (`5c16649`);
   draft G2/J1/J2/Q2/G7 rewritten per user directions; WP6 paused; PLAN condensed with the presentation plan.
+- 2026-11-07 18:15-18:40 — mace-leo-2: took over; system FT lr synced and recorded (24/24 pairs); 3.3a-c done (`03e6b94`).

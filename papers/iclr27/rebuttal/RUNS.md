@@ -12,7 +12,7 @@ provenance of recorded numbers: the ledger entries. Condensed 2026-11-07; the fu
 | **DGX** (shared, 8x A100 40 GB) | GPUs 0, 2, 6 | **max 3 GPUs for this project at any time**; no extra inference next to packed training (OOM) | shell; jobs as systemd user units `uq-*` (`KillMode=control-group`: stopping a unit kills its members) |
 | **Leonardo** (Booster, 4x A100 64 GB per node) | `IscrC_UQ-MF`, 80,000 local h | SLURM QOS; `$WORK` and `$FAST` 1 TB each | `ssh leonardo` while the user's 12 h certificate (`leonardo-login`) is valid |
 
-**Owner of all jobs:** session `mace-leo` (since 2026-11-07 01:30). A later session takes over by writing its name here.
+**Owner of all jobs:** session `mace-leo-2` (since 2026-11-07 18:15; took over from `mace-leo`). A later session takes over by writing its name here.
 
 ## 2. Sync protocol (short)
 
@@ -38,19 +38,19 @@ A training job at walltime: `uq train-slurm <exps> --resume --pack 3 --submit`.
 ## 3. Runs
 
 Status: `queued` -> `running` -> `evaluated` (on Leonardo) -> `synced` -> `aggregated` -> `recorded` (ledger), or `failed`.
-Last verified **2026-11-07 12:30** (mace-leo), both machines.
+Last verified **2026-11-07 18:15** (mace-leo-2), both machines.
 
 | Experiment | WP | Machine | Commit | Job ids / unit | Status | Notes |
 |---|---|---|---|---|---|---|
-| `ani1x-energy/mace-mse/{lf-only,lf-to-hf}` | 3.6 | DGX GPUs 0 2 6 | 30afae8 / c7fa140 | `uq-mse-energy-x/y`, `uq-resume-mse-a/b`, `uq-mse-postprocess` | running, 70/100 | 9 LF members running; at 50/50 `uq-mse-postprocess` evaluates (GPU 0) and prunes; markers in `runs/_jobs/` keep it off the system split |
+| `ani1x-energy/mace-mse/{lf-only,lf-to-hf}` | 3.6 | DGX GPUs 0 2 6 | 30afae8 / c7fa140 | `uq-mse-energy-x/y`, `uq-resume-mse-a/b`, `uq-mse-postprocess` | running, 84/100 (18:15) | 9 LF members running; at 50/50 `uq-mse-postprocess` evaluates (GPU 0) and prunes; markers in `runs/_jobs/` keep it off the system split |
 | `ani1x-system/mace-mse/{lf-only,lf-to-hf}` | 3.6 | Leonardo `$WORK` | 7e1b998 / 0323ada | train 63716417-441 (17), back-up 63718283-300, eval 63718301-310, prune 63718311 | running | LF parents ~18:30-19:00, children in the same jobs, then evaluation ~10 h per split |
 | `ani1x-{energy,system}/mace-mve/hf-only-lr{1e-3,3e-3}` | 4.2 | Leonardo `$FAST` | b4d07ac / 016dbb6 | prune 63720299, 63722493 | **recorded** (ledger 2026-11-07, `5c16649`) | |
-| `ani1x-energy/mace-mve/lf-to-hf-reset-var` | 3.2 | Leonardo `$WORK` | ac60247 | `runs/_slurm/reset-var*/`; prune 63720981 | aggregated | ledger entry pending |
-| `ani1x-system/mace-mve/lf-to-hf-reset-var` | 3.2 | Leonardo `$WORK` | ac60247 | same | aggregated | sync interrupted 11:36, completed by the retry 12:06; ledger entry pending |
-| `ani1x-energy/mace-mve/lf-to-hf-lr1e-{4,2}` | 3.5, 4.3 | Leonardo `$WORK` | b4d07ac | `runs/_slurm/ft-lr*/`; prune 63720992 | aggregated | ledger entry pending |
-| `ani1x-system/mace-mve/lf-to-hf-lr1e-{4,2}` | 3.5, 4.3 | Leonardo `$WORK` | 016dbb6 | eval 63722646-655, prune 63722656 | evaluating (~7 h per split, from 10:30) | |
-| `ani1x-energy/mace-mve/lf-to-hf-beta-nll` | 3.3 | Leonardo `$FAST` | c7710ef | `$FAST/.../_slurm/beta-nll*/`; prune 63721011 | aggregated | ledger entry pending |
-| `ani1x-system/mace-mve/lf-to-hf-beta-nll` | 3.3 | Leonardo `$FAST` | c7710ef | same | aggregated | ledger entry pending |
+| `ani1x-energy/mace-mve/lf-to-hf-reset-var` | 3.2 | Leonardo `$WORK` | ac60247 | `runs/_slurm/reset-var*/`; prune 63720981 | **recorded** (ledger 2026-11-07 "Fine-tuning ablations of the AU collapse") | |
+| `ani1x-system/mace-mve/lf-to-hf-reset-var` | 3.2 | Leonardo `$WORK` | ac60247 | same | **recorded** (ledger 2026-11-07 "Fine-tuning ablations of the AU collapse") | sync interrupted 11:36, completed by the retry 12:06 |
+| `ani1x-energy/mace-mve/lf-to-hf-lr1e-{4,2}` | 3.5, 4.3 | Leonardo `$WORK` | b4d07ac | `runs/_slurm/ft-lr*/`; prune 63720992 | **recorded** (ledger 2026-11-07 "Fine-tuning ablations of the AU collapse") | |
+| `ani1x-system/mace-mve/lf-to-hf-lr1e-{4,2}` | 3.5, 4.3 | Leonardo `$WORK` | 016dbb6 | eval 63722646-655, prune 63722656 | **recorded** (ledger 2026-11-07 "Fine-tuning learning rate on the system split") | synced 18:17-18:31 (`runs/_jobs/sync_ftlr_system_2026-11-07.sh`) |
+| `ani1x-energy/mace-mve/lf-to-hf-beta-nll` | 3.3 | Leonardo `$FAST` | c7710ef | `$FAST/.../_slurm/beta-nll*/`; prune 63721011 | **recorded** (ledger 2026-11-07 "Fine-tuning ablations of the AU collapse") | |
+| `ani1x-system/mace-mve/lf-to-hf-beta-nll` | 3.3 | Leonardo `$FAST` | c7710ef | same | **recorded** (ledger 2026-11-07 "Fine-tuning ablations of the AU collapse") | |
 | WP2 LF-only on CC (B, D; step `lfonly_baseline`) | 2 | DGX GPU 0 + Leonardo 63721292 | 9f8da8b / c7710ef | | **recorded** | caused one MSE OOM on the DGX (retried, complete) |
 | Leonardo setup and smoke tests | 11 | Leonardo | adc12bd-c7710ef | 63701795; 63715545, 63715577, 63718842, 63720530 | done | smoke tests cancelled on purpose; 63698806, 63699144 = failed env attempts (fixed) |
 
@@ -82,3 +82,8 @@ Last verified **2026-11-07 12:30** (mace-leo), both machines.
      `runs/_jobs/mse_postprocess.log` (evaluates automatically at 50/50).
   4. Then the CPU work of `PLAN.md` Section 3.3 (appendix figures/tables) and the Q1 rewrite (draft note in 4.1).
   No reminders or scheduled wake-ups (user rule).
+- 2026-11-07 18:15 — mace-leo-2 takes over (certificate valid, until ~22:40). Leonardo: system FT-lr evaluations COMPLETED
+  (s1 of lr 1e-2 last, 18:14), prune 63722656 COMPLETED (125.7 GiB); system MSE: 15 LF/FT training jobs running ~17 h,
+  back-up/eval/prune pending on dependencies. DGX: energy MSE 42/50 + 42/50 members, `uq-mse-*` units active.
+- 2026-11-07 18:17-18:31 — mace-leo-2: system FT lr synced back, aggregated, `compare_ablations` 24/24; recorded (ledger
+  "Fine-tuning learning rate on the system split"); appendix figures B, C and table A (`03e6b94`).
