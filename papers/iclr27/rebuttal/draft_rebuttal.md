@@ -200,8 +200,14 @@ We thank the reviewer for calling the study timely and the validation thorough.
 
 ### 3.1 J1: one model, two datasets
 
-See our answer to ge6X G2 (Section 2.2). [Clarify which "two datasets" the reviewer means: the two
-fidelities, or the system and energy splits; answer both.]
+We read the "two datasets" as the DFT and the CC label sets (as in J2). They are two fidelities of
+one dataset: the CC/CBS energies of ANI-1x are computed on a subset of its DFT geometries
+(smith2019approaching), which is what makes a controlled LF->HF study possible (same configurations,
+different labels) and the two distribution shifts (unseen molecular systems; higher-energy
+configurations) well defined. Why this dataset and this architecture: see our answer to ge6X G2
+(Section 2.2), including the estimator and strategy variants we added. [Note (mace-leo): "computed on
+a subset of the DFT geometries" is in Section 2.2 and the paper; keep the citation that the authors
+use for it.]
 
 ### 3.2 J2: is LF pretraining + HF fine-tuning the right approach? fidelity as input
 
@@ -247,6 +253,10 @@ Our explanation predicts four things, and we test each:
 (c) slower fine-tuning should delay the collapse in proportion to the decrease of the training error;
 (d) a variance head fitted to *held-out* residuals should not collapse.
 
+[Caution (mace-leo, 2026-11-07): a first per-epoch look with the stored *mean* AU and *mean* squared
+errors did not show held-out AU tracking the training MSE in D (means are dominated by heavy tails);
+until WP3.1 is redone with robust per-configuration statistics, say "is consistent with (a)" rather
+than "supports (a)", or drop the sentence. See PLAN.md WP3.1 note.]
 Existing evidence already supports (a): on the training set AU is never overconfident (train ENCE stays
 below one and the mean AU exceeds the mean squared training error `[ledger 2026-09-23, interpretation checks]`),
 while on held-out data it rises by orders of magnitude during
