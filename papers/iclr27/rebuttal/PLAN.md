@@ -34,6 +34,9 @@ ledger entry), `[!]` blocked (with reason). Keep IDs stable; record who did what
 - **Compute:** local DGX (3 GPUs) + **CINECA Leonardo, ~10,000 GPU-h** (account `IscrC_UQ-MF`).
   LF-scale experiments (~16-19 h per member, ~800 GPU-h per 50-member experiment) go to Leonardo;
   its setup (WP11) is the critical path. Access works since 2026-11-06 (`LEONARDO.md`).
+- Recorded 2026-11-07 (ledger): LF-only ensembles on CC labels after E0 refit (WP2, G7) and gradient steps
+  per protocol (WP4.1, G4); running on Leonardo with queued evaluations: WP3.2, 3.3, 3.5, 4.2, 4.3 and the
+  system-split MSE (RUNS.md).
 - Already available and citable (ledger): single MVE model vs ensemble size (2026-11-02);
   MSE-ensemble baseline, HF-only, energy (2026-11-03) and system (2026-11-04) splits.
   In training (DGX): MSE-ensemble energy LF-only / LF->HF (complete ~2026-11-08, `RUNS.md`).

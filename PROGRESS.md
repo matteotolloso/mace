@@ -116,3 +116,11 @@ at ~30-111. Possible extra arm: compare both methods after the same recalibratio
 - 2026-11-07 01:12 — (mace-leo) System-split MSE (`ani1x-system/mace-mse/lf-only` + `lf-to-hf`, 100 members as 50
   parent->child chains) running on Leonardo after a passed smoke test; 17 1-GPU jobs, 3 chains each; jobs in
   `papers/iclr27/rebuttal/RUNS.md`. Evaluation on Leonardo by split, then sync back and aggregate on the DGX.
+- 2026-11-07 01:00-02:45 — (mace-leo, sole session; owner of all jobs) Leonardo: smoke tests passed; queued there, each
+  with automatic per-split evaluation and pruning: system-split MSE (this study, D1b), and the rebuttal ablations
+  WP3.2 (variance-head reset), WP3.3 (beta-NLL), WP3.5/4.3 (FT lr 1e-4, 1e-2), WP4.2 (HF-only lr 1e-3, 3e-3).
+  New tools: `uq evaluate-slurm`, `uq sync-back`, `uq train-slurm --after/--after-ok`. DGX: energy MSE continues;
+  the child `lf-to-hf` s2 m6 died of OOM next to an inference run of mine and was retried (unit
+  `uq-mse-retry-s2m6`); markers keep `uq-mse-postprocess` off the system split. Next: sync back and aggregate
+  (`papers/iclr27/rebuttal/RUNS.md` Section 3b) once the user renews the Leonardo certificate.
+
