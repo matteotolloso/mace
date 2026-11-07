@@ -787,6 +787,14 @@ def run(args) -> None:
 
     # Model
     model, output_args = configure_model(args, train_loader, atomic_energies, model_foundation, heads, z_table, head_configs)
+    ### MVE ###
+    if args.mve_reset_variance_head:
+        if model_foundation is None:
+            raise ValueError("--mve_reset_variance_head is a fine-tuning option: it needs --foundation_model")
+        from mace.tools.finetuning_utils import reset_mve_variance_head
+        n_reset = reset_mve_variance_head(model, seed=args.seed)
+        logging.info(f"Variance head reset: {n_reset} weights of the variance outputs re-drawn (seed {args.seed})")
+    ### /MVE ###
     model.to(device)
 
     logging.debug(model)

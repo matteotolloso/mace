@@ -35,6 +35,11 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         "--predict_mve", action="store_true",
         help="If set, the model predicts mean and variance (logvar) per head."
     )
+    parser.add_argument(
+        "--mve_reset_variance_head", type=str2bool, default=False,
+        help="Fine-tuning ablation: after loading the foundation model, re-draw the weights of the "
+        "variance outputs of the last readout as at initialization (mean outputs and backbone kept).",
+    )
     ### /MVE ###
 
     # Name and seed

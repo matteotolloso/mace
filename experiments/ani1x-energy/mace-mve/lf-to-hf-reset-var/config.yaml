@@ -1,0 +1,37 @@
+# MACE hyperparameters: identical to D (ani1x-energy/mace-mve/lf-to-hf) except mve_reset_variance_head.
+# Data files, output directories, --wandb_dir and --foundation_model are passed by
+# `uq train-member` (uq/training/launch.py); see docs/experiments.md.
+model: "MACE"
+
+multiheads_finetuning: False
+
+name: "mace"
+
+energy_key: "ccsd(t)_cbs.energy"
+
+lr: 0.001 # 1/10 of the learning rate used in experiment C, since we are fine-tuning
+num_channels: 128
+max_L: 1
+r_max: 6.0
+forces_weight: 0.0
+device: cuda
+batch_size: 64
+max_num_epochs: 100
+swa: False
+compute_forces: False
+E0s: "average"
+predict_mve: True
+loss: "gaussian_nll"
+# WP3.2 ablation: after loading the parent (LF-only) member, re-draw the weights of the variance output of
+# the last readout as at initialization; backbone, hidden readout layer and mean output keep the parent's
+# weights (mace/tools/finetuning_utils.py, reset_mve_variance_head).
+mve_reset_variance_head: True
+eval_interval: 1
+save_all_checkpoints: True
+log_epoch_outputs: False
+default_dtype: "float32"
+enable_cueq: False
+
+wandb: True
+wandb_entity: "uq-mf"
+wandb_project: "ani1x-energy_mace-mve_lf-to-hf-reset-var"

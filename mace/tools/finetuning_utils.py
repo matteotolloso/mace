@@ -328,3 +328,29 @@ def load_foundations(
             if "readouts" not in name:
                 model.state_dict()[name].copy_(param)
     return model
+
+
+### MVE ###
+def reset_mve_variance_head(model: torch.nn.Module, seed: int) -> int:
+    """Re-draw the weights of the variance outputs of the last (MVE) readout, as at initialization.
+
+    The last readout maps the scalar node features through ``linear_1`` -> gate -> ``linear_2`` to
+    ``2 x n_heads`` scalars per atom, ordered (mean, raw variance) per head; mean and variance share
+    the hidden layer, so the only variance-specific parameters are the ``linear_2`` weights into the
+    variance outputs. They are re-drawn from N(0, 1) (the e3nn initialization of the weights; the path
+    normalization is applied in the forward pass) with a generator seeded by ``seed``; the mean outputs,
+    the hidden layer and the backbone keep the foundation weights. Returns the number of reset weights.
+    """
+    if not getattr(model, "predict_mve", False):
+        raise ValueError("--mve_reset_variance_head needs an MVE model (predict_mve)")
+    linear = model.readouts[-1].linear_2
+    n_in, n_out = linear.irreps_in.dim, linear.irreps_out.dim
+    if linear.irreps_in.lmax != 0 or linear.irreps_out.lmax != 0 or linear.weight.numel() != n_in * n_out:
+        raise ValueError(f"unexpected MVE readout {linear.irreps_in} -> {linear.irreps_out}")
+    generator = torch.Generator().manual_seed(int(seed))
+    with torch.no_grad():
+        weight = linear.weight.view(n_in, n_out)
+        fresh = torch.randn(n_in, n_out // 2, generator=generator, dtype=weight.dtype)
+        weight[:, 1::2] = fresh.to(weight.device)
+    return fresh.numel()
+### /MVE ###
