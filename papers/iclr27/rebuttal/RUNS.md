@@ -59,6 +59,7 @@ Last verified **2026-11-07 18:15** (mace-leo-2), both machines.
 | Date | Consumed | Remaining of 80,000 | Note |
 |---|---|---|---|
 | 2026-11-07 12:00 | `saldo -b`: 0 (daily update lag); **sacct: ~594 GPU-h = ~4,750** (287 GPU jobs) | ~75,250 | ~2,500 more committed by running/queued jobs (system MSE, system FT-lr evaluation) |
+| 2026-11-07 18:55 | `saldo -b`: 0 (still lagging; monthTotal 8,759); **sacct since 11-06: ~773 GPU-h = ~6,180** (297 jobs, running ones counted to now) | **~73,800** | still committed: the rest of the system MSE chain (training ~7 h to walltime, then evaluation ~10 h per split), roughly 1,500-2,500 more |
 
 ## 5. Log (newest last; earlier entries in Git history)
 
@@ -116,6 +117,19 @@ Last verified **2026-11-07 18:15** (mace-leo-2), both machines.
      `papers/iclr27/figures/figA_ablations.py` (read `mse_vs_mve.csv`, not `ablations_vs_reference.csv`, which has no
      MSE pairs) and to the general-response table in `draft_rebuttal.md` Section 5; replace `[PENDING: WP3.6]` in 4.1/4.2.
      Update PLAN WP3.6, Sections 3-4 here, commit and push to `iclr_rebuttal`.
-  7. **Waiting on the user:** review of the Q1 rewrite (`draft_rebuttal.md` 4.1, including the proposed mechanism
+  7. **Revised paper (user, 2026-11-07): start writing the new appendix** "Additional baselines and ablations"
+     (PLAN Section 3.1, items A-E; WP9.4) in `ICLR27-UQ-MF/iclr2027_conference.tex` after the existing appendix
+     sections (it has `\appendix` at l. ~347; macros `\revise{}` (blue) and `\LFHF` exist). Content: A table from
+     `papers/iclr27/figures/out/tabA_lf_only.tex`, B `figA_lr_sensitivity.pdf` + one sentence on gradient steps, C
+     `figA_ablations.pdf` + the mechanism text (from draft 4.1), D existing estimator results (ledger 2026-11-02/03/04,
+     + MSE LF->HF if recorded), E design choices and scope (rewritten limitations). Copy PDFs into
+     `ICLR27-UQ-MF/figures/` (copy, never move; note script + commit in a LaTeX comment), mark everything new with
+     `\revise{}`, one pointer sentence in Results. Rules: `.claude/rules/paper-writing.md`, memory "paper prose, few
+     numbers" (numbers in figures/appendix only, keep the authors' prose). That repo is synced with Overleaf: compile
+     locally, show the user, and commit/push there only when the user says so.
+  8. **Refine the rebuttal** (WP10.2-10.5): per-reviewer replies in `draft_rebuttal.md` (G4 learning-rate paragraph
+     in 2.4 still says "[PENDING: WP4.2, WP4.3]": now both recorded), replace or drop every `[PENDING]`, trim to the
+     OpenReview word limits, check numbers -> ledger and prior work -> Section 7, no author names.
+  9. **Waiting on the user:** review of the Q1 rewrite (`draft_rebuttal.md` 4.1, including the proposed mechanism
      sentence for the revision); open decisions D3/D4/D5/D10 in PLAN Section 5. Wave A is planned for Nov 10-11.
   No reminders or scheduled wake-ups (user rule); never message other sessions.
