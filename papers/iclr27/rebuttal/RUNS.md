@@ -149,4 +149,16 @@ markers in `runs/_jobs/` keep it away from the system split.
   **Evaluation time on Leonardo:** an LF->HF experiment takes ~7.2 h per split, of which ~6.7 h are the three
   `epoch_quality_finetune_mixed_*` steps (~2.2 h each: they re-score the parent's 60 sampled epochs on the DFT
   sets); HF-only ~1 h per split. Storage (`cindata`, ~100 min old): `$WORK` 542 GB, `$FAST` 354 GB of 1 TB each.
+- 2026-11-07 09:58 — mace-leo, end of the night. **Leonardo unreachable since ~09:50** (the shared ssh connection
+  closed; certificate expired 08:14): the user must run `leonardo-login` before anything else there.
+  Copied back so far: `ani1x-energy/mace-mve/hf-only-lr1e-3` complete (aggregated, ledger entry);
+  `ani1x-energy/mace-mve/hf-only-lr3e-3` **partial** (split 0 only, 2.6 GB; files are complete, none half-written):
+  re-run `uq sync-back ... --checkpoints --apply` (Section 3b, `UQ_REMOTE_RUNS=$FAST/uq-mf/runs`) for it and for
+  `ani1x-system/mace-mve/hf-only-lr{1e-3,3e-3}` (done on Leonardo). Do not evaluate the partial copy locally.
+  Still running/queued on Leonardo at 09:45 (all automatic): reset-var and FT-lr energy evaluations (~7.2 h per
+  split, then prune), beta-NLL evaluations, system FT-lr sweep (starts after those prunes), system MSE (parents
+  ~18:30, children, back-up chains, evaluation ~10 h per split, prune). DGX: `uq-mse-retry-s2m6` finished (member
+  complete); no FAILED member since 01:55; energy MSE 70/100 (+ s2 m6). The retry watchdog
+  (`runs/_jobs/retry_watchdog.sh`) was written but **not started**: the permission check refused to start an
+  unattended retry service; the user decides.
 

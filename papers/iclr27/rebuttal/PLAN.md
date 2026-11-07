@@ -397,3 +397,10 @@ Open:
   inference matches the DGX. Queued after the system MSE training: 17 back-up chains (`--resume`), 10 evaluations, prune.
 - 2026-11-07 02:40 — mace-leo: WP2 done and recorded (ledger entry; paired table `results/tables/lf_only_vs_hf.csv`,
   `python -m uq.evaluation.compare_lf_only`). Side effect logged in `RUNS.md` (one DGX MSE child OOM, retried).
+- 2026-11-07 10:00 — mace-leo, night summary. Recorded: WP2 (LF-only on CC, E0 refit), WP4.1 (gradient steps),
+  WP4.2 first experiment (HF-only lr 1e-3, energy). Done: WP1.3 (Bilbrey read in full), WP10.1 (ICLR rules), J1 text,
+  WP11.7-11.9 (`uq evaluate-slurm`, `uq sync-back`, robust `sbatch`). Trained on Leonardo, evaluations running or
+  done there: WP3.2, 3.3, 3.5, 4.2, 4.3 (energy and system) and the system MSE. Open for the user: renew the
+  Leonardo certificate and sync back (RUNS.md 3b); decide WP3.4 design, D2-D4, D10; whether to start the DGX retry
+  watchdog; WP3.1 needs robust per-epoch statistics (note under 3.1). Draft caveat added to Q1(a).
+
