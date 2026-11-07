@@ -1042,3 +1042,35 @@ How to use it:
   barely change.
 
 ---
+
+### 2026-11-07 Head reset: AU calibration along fine-tuning (rebuttal WP3.2; Q1 prediction (b))
+
+- **Status:** verified (five-split aggregates already on disk; read in this task). Complements the two entries above.
+- **Purpose:** does a re-initialized variance head also lose AU calibration during FT (prediction (b)), only later?
+- **Code commit:** `196bc36` (clean). **Command:** pandas read of `experiments/<id>/evaluation/epoch_quality_<test>.csv`
+  (columns `ence_aleatoric_geometric_mean`, `spearman_aleatoric_mean`) for B, D and their `-reset-var` twins.
+  Energy-split OOD curves not used (not support-filtered; `.claude/rules/paper-writing.md`).
+- **Data / seeds:** as above; epochs available: those kept by pruning (every 5th + best), here 0, 5, 10, 20, 40, 60.
+- **Metrics:** AU ENCE (five-split geometric mean) / AU Spearman (mean) per FT epoch:
+
+  | Test | Experiment | ep 0 | ep 5 | ep 10 | ep 20 | ep 40 | ep 60 |
+  |---|---|---|---|---|---|---|---|
+  | System-ID | B (LF->HF) | 0.21 / 0.42 | 1.2 / 0.45 | 3.8 / 0.43 | 11 / 0.42 | 24 / 0.41 | 45 / 0.41 |
+  | System-ID | head reset | 0.95 / 0.17 | 0.49 / 0.34 | 0.24 / 0.37 | 1 / 0.39 | 3.6 / 0.35 | 7.4 / 0.33 |
+  | System-OOD | B (LF->HF) | 0.37 / 0.43 | 1.6 / 0.49 | 4.8 / 0.48 | 13 / 0.47 | 30 / 0.46 | 54 / 0.45 |
+  | System-OOD | head reset | 0.91 / 0.23 | 0.57 / 0.39 | 0.49 / 0.41 | 1.6 / 0.43 | 4.7 / 0.39 | 9.1 / 0.38 |
+  | Energy-ID | D (LF->HF) | 0.12 / 0.37 | 0.7 / 0.42 | 2.4 / 0.41 | 7.8 / 0.40 | 20 / 0.39 | 40 / 0.38 |
+  | Energy-ID | head reset | 0.97 / 0.10 | 0.55 / 0.29 | 0.28 / 0.31 | 0.56 / 0.31 | 2.5 / 0.27 | 4.9 / 0.25 |
+
+  (values printed with 2 significant digits from the CSV columns named above)
+- **Output files:** none new.
+- **Interpretation:** the re-initialized head starts miscalibrated (ENCE ~0.9-1.0, large variances), becomes best
+  calibrated around epoch 10, and then loses calibration steadily (ENCE 1 -> 7.4 on System-ID by epoch 60), the
+  same monotone degradation as the inherited head, only ~5-8x slower at each epoch. So prediction (b) holds for
+  the dynamics: the collapse re-emerges after a reset; the inherited head makes it start from the first epoch,
+  which matches the paper's finding (iii) that calibration is lost faster after pretraining. The reset ensembles'
+  better final AU calibration (entry above) arises because their validation-NLL optimum (epochs 2-19) falls
+  before the collapse has developed. The reset also costs ranking at every epoch (AU Spearman 0.10-0.43 vs
+  0.37-0.49), i.e. part of pretraining's ranking benefit (finding (i)) is carried by the variance head.
+
+---
