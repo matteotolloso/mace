@@ -20,8 +20,11 @@ ledger entry), `[!]` blocked (with reason). Keep IDs stable; record who did what
   (informativeness 1); answer every point precisely for the AC, especially G1 (the setting is
   standard: ANI-1ccx itself was built by DFT-pretraining + CC transfer learning), G3 (CC data
   have no forces), G5 and G7 (LF-only).
-- **Deadline: author responses by 2026-11-18** (user). Revised-PDF deadline and per-comment
-  character limit: [FILL IN from OpenReview, WP10.1]. **Post results as early as possible** to start the
+- **Deadline: author responses by 2026-11-18** (user). Revised PDF: allowed until the end of the
+  public discussion, **Nov 18**, main text up to **10 pages** (references/appendix unlimited); OpenReview applies a
+  pdfdiff against the submission. Comments: a **word limit per comment** (exact number: see the OpenReview form),
+  no limit on the number of comments (ICLR 2027 Author Guidelines, read 2026-11-07, WP10.1). ACs and reviewers
+  "reserve the right to ignore changes that are significantly different from the original paper". **Post results as early as possible** to start the
   discussion (user, 2026-11-06): answer in waves, not in one block on the last day.
   - Wave A (target **2026-11-10/11**): text-only answers (G1, G3, G5, G6, J2/J3 arguments, Q3) +
     results that already exist (MSE vs MVE HF-only, single model, ledger) + first cheap results
@@ -281,7 +284,7 @@ proportion to the decrease of training error; (d) a head fitted on held-out resi
 
 ### WP10 Rebuttal assembly
 
-- [ ] 10.1 Fill revised-PDF deadline and character limits in Section 1 (response deadline: 2026-11-18).
+- [x] (mace-leo, 2026-11-07, from the ICLR 2027 Author Guidelines; exact word limit to read from the OpenReview comment form) 10.1 Fill revised-PDF deadline and character limits in Section 1 (response deadline: 2026-11-18).
 - [ ] 10.2 General response (to all reviewers + AC) summarizing new experiments.
 - [ ] 10.3 Per-reviewer responses from `draft_rebuttal.md`; replace every `[PENDING]` or drop the claim.
 - [ ] 10.4 Final check: each number -> ledger entry; each prior-work statement -> reference; no author

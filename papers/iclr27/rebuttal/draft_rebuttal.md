@@ -11,7 +11,7 @@ Conventions for every agent editing this file:
 - Tone: polite, concrete, no "the reviewer is wrong". Concede what is true, then show evidence.
 - Sentences such as "we added", "we rewrote", "fixed in the revised PDF" describe *planned*
   revisions; before posting, keep each one only if the change exists (WP9/WP10.4 check).
-- OpenReview comments have a character limit (fill in from `PLAN.md` Section 1); the per-reviewer
+- OpenReview comments have a per-comment *word* limit and no limit on their number (`PLAN.md` Section 1); the per-reviewer
   texts below are deliberately long: trim at assembly time (WP10).
 
 ---
