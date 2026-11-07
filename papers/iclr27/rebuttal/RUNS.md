@@ -46,11 +46,11 @@ Last verified **2026-11-07 12:30** (mace-leo), both machines.
 | `ani1x-system/mace-mse/{lf-only,lf-to-hf}` | 3.6 | Leonardo `$WORK` | 7e1b998 / 0323ada | train 63716417-441 (17), back-up 63718283-300, eval 63718301-310, prune 63718311 | running | LF parents ~18:30-19:00, children in the same jobs, then evaluation ~10 h per split |
 | `ani1x-{energy,system}/mace-mve/hf-only-lr{1e-3,3e-3}` | 4.2 | Leonardo `$FAST` | b4d07ac / 016dbb6 | prune 63720299, 63722493 | **recorded** (ledger 2026-11-07, `5c16649`) | |
 | `ani1x-energy/mace-mve/lf-to-hf-reset-var` | 3.2 | Leonardo `$WORK` | ac60247 | `runs/_slurm/reset-var*/`; prune 63720981 | aggregated | ledger entry pending |
-| `ani1x-system/mace-mve/lf-to-hf-reset-var` | 3.2 | Leonardo `$WORK` | ac60247 | same | evaluated; sync interrupted 11:36, retry queued (`runs/_jobs/sync_morning_retry.sh`) | |
+| `ani1x-system/mace-mve/lf-to-hf-reset-var` | 3.2 | Leonardo `$WORK` | ac60247 | same | aggregated | sync interrupted 11:36, completed by the retry 12:06; ledger entry pending |
 | `ani1x-energy/mace-mve/lf-to-hf-lr1e-{4,2}` | 3.5, 4.3 | Leonardo `$WORK` | b4d07ac | `runs/_slurm/ft-lr*/`; prune 63720992 | aggregated | ledger entry pending |
 | `ani1x-system/mace-mve/lf-to-hf-lr1e-{4,2}` | 3.5, 4.3 | Leonardo `$WORK` | 016dbb6 | eval 63722646-655, prune 63722656 | evaluating (~7 h per split, from 10:30) | |
 | `ani1x-energy/mace-mve/lf-to-hf-beta-nll` | 3.3 | Leonardo `$FAST` | c7710ef | `$FAST/.../_slurm/beta-nll*/`; prune 63721011 | aggregated | ledger entry pending |
-| `ani1x-system/mace-mve/lf-to-hf-beta-nll` | 3.3 | Leonardo `$FAST` | c7710ef | same | evaluated; syncing | |
+| `ani1x-system/mace-mve/lf-to-hf-beta-nll` | 3.3 | Leonardo `$FAST` | c7710ef | same | aggregated | ledger entry pending |
 | WP2 LF-only on CC (B, D; step `lfonly_baseline`) | 2 | DGX GPU 0 + Leonardo 63721292 | 9f8da8b / c7710ef | | **recorded** | caused one MSE OOM on the DGX (retried, complete) |
 | Leonardo setup and smoke tests | 11 | Leonardo | adc12bd-c7710ef | 63701795; 63715545, 63715577, 63718842, 63720530 | done | smoke tests cancelled on purpose; 63698806, 63699144 = failed env attempts (fixed) |
 
@@ -67,3 +67,5 @@ Last verified **2026-11-07 12:30** (mace-leo), both machines.
 - 2026-11-07 10:48-12:00 — mace-leo: `runs/_jobs/sync_morning_2026-11-07.sh` copied back 8 of 9 finished experiments
   (log `runs/_jobs/sync_morning_2026-11-07.log`); system reset-var interrupted by a closed connection (rsync leaves no
   partial files), retried after the loop.
+- 2026-11-07 12:06 — mace-leo: retry completed; all 9 experiments synced and aggregated; `compare_ablations`: 20 complete
+  (ablation, test) pairs, 4 missing (system FT lr, still evaluating on Leonardo).
