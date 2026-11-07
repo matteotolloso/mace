@@ -7,7 +7,8 @@ One 1-GPU job per (experiment, split) runs exactly ``uq evaluate <exp> --splits 
 (the five-split aggregate and the ledger entry are made on the DGX after the outputs are synced back,
 ``papers/iclr27/rebuttal/RUNS.md``). A job first checks that every member of its split, and of the
 parent's split for an LF->HF experiment, is complete, and fails otherwise. ``--after`` makes the jobs
-wait for the given training jobs (``afterok``; they are cancelled if one of those fails). ``--prune``
+wait for the given training jobs (``afterany``: a training job can exit non-zero although its members
+are complete, so each evaluation job decides by the completeness check). ``--prune``
 adds one CPU job, after all evaluation jobs succeeded, that runs ``uq prune-checkpoints <exps> --apply``
 (approved for Leonardo, decision D9; the parent's epoch checkpoints are read by the child's
 evaluation, so pruning waits for every evaluation of the invocation).
@@ -25,7 +26,7 @@ from pathlib import Path
 from uq import paths, registry
 
 
-def _header(tag, *, account, partition, qos, walltime, out_dir, after, gpu=True):
+def _header(tag, *, account, partition, qos, walltime, out_dir, after, gpu=True, kind="afterok"):
     lines = ["#!/bin/bash", f"#SBATCH --job-name={tag}", f"#SBATCH --account={account}",
              f"#SBATCH --partition={partition}"]
     if qos:
@@ -37,7 +38,9 @@ def _header(tag, *, account, partition, qos, walltime, out_dir, after, gpu=True)
         lines += ["#SBATCH --cpus-per-task=4", "#SBATCH --mem=30G"]
     lines += [f"#SBATCH --time={walltime}", f"#SBATCH --output={out_dir}/%x_%j.out"]
     if after:
-        lines += [f"#SBATCH --dependency=afterok:{':'.join(after)}", "#SBATCH --kill-on-invalid-dep=yes"]
+        lines.append(f"#SBATCH --dependency={kind}:{':'.join(after)}")
+        if kind == "afterok":
+            lines.append("#SBATCH --kill-on-invalid-dep=yes")
     return lines
 
 
@@ -65,7 +68,7 @@ def complete_check(exp_id: str, split: int) -> str:
 
 def evaluation_script(exp_id, split, *, account, partition, qos, walltime, python, out_dir, after, tag):
     lines = _header(tag, account=account, partition=partition, qos=qos, walltime=walltime,
-                    out_dir=out_dir, after=after)
+                    out_dir=out_dir, after=after, kind="afterany")
     lines += _env(python, 8)
     q = shlex.quote
     lines += [

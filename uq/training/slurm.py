@@ -13,7 +13,9 @@ already complete form chains of their own.
 Every member runs ``uq train-member <experiment> <split> <member>``, i.e. exactly
 ``launch.command`` (the commands pinned by the tests), with the GPU given by SLURM; complete members
 are skipped and, with ``--resume``, interrupted ones continue after their latest epoch checkpoint
-(e.g. after a 24 h walltime). Member logs go to ``runs/_logs/<job name>.log`` as with ``uq train``;
+(e.g. after a 24 h walltime). ``--after <job ids>`` makes the jobs wait for those jobs (``afterany``) and
+keeps children whose parent those jobs are still training (a back-up for children that a chain did not
+start, e.g. because the parent's MACE run exited non-zero after saving its model). Member logs go to ``runs/_logs/<job name>.log`` as with ``uq train``;
 the scripts and SLURM's own output go to ``--out``. Account, partition and interpreter come from the
 options or from ``$UQ_SLURM_ACCOUNT``, ``$UQ_SLURM_PARTITION`` and ``$PYTHON_BIN``.
 """
@@ -31,8 +33,11 @@ from uq import paths, registry
 from uq.training import scheduler
 
 
-def chains(names, splits=None, members=None, by_experiment=False):
-    """Pending members grouped into chains [parent, child] / [member], in scheduler order."""
+def chains(names, splits=None, members=None, by_experiment=False, parents_in_flight=False):
+    """Pending members grouped into chains [parent, child] / [member], in scheduler order.
+
+    ``parents_in_flight``: a child whose parent is neither complete nor in this invocation is kept as a
+    chain of its own (its parent is being trained by the jobs given to ``--after``)."""
     pending = scheduler.plan(names, splits, members, by_experiment)
     pending_set = set(pending)
     result, used = [], set()
@@ -44,7 +49,7 @@ def chains(names, splits=None, members=None, by_experiment=False):
             parent = (exp.parent.id, job[1], job[2])
             if parent in pending_set:
                 continue    # added together with its parent below
-            if not exp.parent.member_complete(job[1], job[2]):
+            if not exp.parent.member_complete(job[1], job[2]) and not parents_in_flight:
                 print(f"warning: {exp.label} s{job[1]} m{job[2]} skipped: parent member neither complete "
                       f"nor in this invocation", file=sys.stderr)
                 continue
@@ -62,7 +67,8 @@ def chains(names, splits=None, members=None, by_experiment=False):
     return result
 
 
-def script(chain_group, *, account, partition, qos, walltime, pack, python, resume, out_dir, tag) -> str:
+def script(chain_group, *, account, partition, qos, walltime, pack, python, resume, out_dir, tag,
+           after=None) -> str:
     """The sbatch script of one 1-GPU job running the given chains in parallel."""
     threads = max(1, 8 // pack)
     lines = [
@@ -78,6 +84,10 @@ def script(chain_group, *, account, partition, qos, walltime, pack, python, resu
         "#SBATCH --mem=120G",
         f"#SBATCH --time={walltime}",
         f"#SBATCH --output={out_dir}/%x_%j.out",
+    ]
+    if after:   # afterany: every member skips itself if complete and fails if its inputs are missing
+        lines.append(f"#SBATCH --dependency=afterany:{':'.join(map(str, after))}")
+    lines += [
         "set -u",
         f"cd {shlex.quote(str(paths.ROOT))}",
         f"export UQ_RUNS={shlex.quote(str(paths.RUNS))}",
@@ -111,7 +121,7 @@ def script(chain_group, *, account, partition, qos, walltime, pack, python, resu
 
 def run(names, splits=None, members=None, pack=1, by_experiment=False, resume=False, qos="normal",
         walltime="24:00:00", account=None, partition=None, python=None, out=None, submit=False,
-        dry_run=False) -> int:
+        dry_run=False, after=None) -> int:
     account = account or os.environ.get("UQ_SLURM_ACCOUNT")
     partition = partition or os.environ.get("UQ_SLURM_PARTITION", "boost_usr_prod")
     python = python or os.environ.get("PYTHON_BIN", sys.executable)
@@ -119,7 +129,7 @@ def run(names, splits=None, members=None, pack=1, by_experiment=False, resume=Fa
         raise SystemExit("no SLURM account: pass --account or set UQ_SLURM_ACCOUNT")
     if pack < 1:
         raise SystemExit("--pack must be >= 1")
-    groups = chains(names, splits, members, by_experiment)
+    groups = chains(names, splits, members, by_experiment, parents_in_flight=bool(after))
     jobs = [groups[i:i + pack] for i in range(0, len(groups), pack)]
     stamp = time.strftime("%Y%m%d-%H%M%S")
     out_dir = Path(out) if out else paths.RUNS / "_slurm" / stamp
@@ -132,7 +142,7 @@ def run(names, splits=None, members=None, pack=1, by_experiment=False, resume=Fa
     for index, group in enumerate(jobs):
         tag = f"uq_{stamp}_{index:03d}"
         text = script(group, account=account, partition=partition, qos=qos, walltime=walltime, pack=pack,
-                      python=python, resume=resume, out_dir=out_dir, tag=tag)
+                      python=python, resume=resume, out_dir=out_dir, tag=tag, after=after)
         names_in_job = " ".join(scheduler.job_name(*job) for chain in group for job in chain)
         if dry_run:
             print(f"--- {tag}: {names_in_job}")

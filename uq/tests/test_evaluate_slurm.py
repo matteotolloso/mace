@@ -19,7 +19,7 @@ class EvaluateSlurmTests(unittest.TestCase):
                                        walltime="24:00:00", python="py", out_dir=Path("/o"),
                                        after=["11", "12"], tag="t")
         for line in ("#SBATCH --account=ACC", "#SBATCH --gres=gpu:1", "#SBATCH --mem=120G",
-                     "#SBATCH --dependency=afterok:11:12", "#SBATCH --kill-on-invalid-dep=yes"):
+                     "#SBATCH --dependency=afterany:11:12"):
             self.assertIn(line, text)
         self.assertIn(f'py -m uq evaluate {CHILD} --gpu "$gpu" --splits 3 --no-aggregate', text)
         self.assertLess(text.index("|| exit 1"), text.index("-m uq evaluate"))

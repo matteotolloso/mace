@@ -103,7 +103,7 @@ def cmd_train_slurm(args) -> int:
     return slurm.run(args.experiments, splits=args.splits, members=args.members, pack=args.pack,
                      by_experiment=args.by_experiment, resume=args.resume, qos=args.qos, walltime=args.time,
                      account=args.account, partition=args.partition, out=args.out, submit=args.submit,
-                     dry_run=args.dry_run)
+                     dry_run=args.dry_run, after=args.after)
 
 
 def cmd_prune(args) -> int:
@@ -240,6 +240,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out", help="directory for scripts and SLURM output (default runs/_slurm/<time>)")
     p.add_argument("--submit", action="store_true", help="sbatch the scripts (otherwise only write them)")
     p.add_argument("--dry-run", action="store_true", help="print the scripts, write nothing")
+    p.add_argument("--after", type=lambda t: [x for x in t.split(",") if x],
+                   help="comma-separated job ids to wait for (afterany); keeps children whose parent they train")
     p.set_defaults(func=cmd_train_slurm)
 
     p = sub.add_parser("train-member", help="train one ensemble member (split, member seed)")

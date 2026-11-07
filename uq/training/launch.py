@@ -165,4 +165,10 @@ def train_member(experiment, split: int, member: int, gpu=None, dry_run: bool = 
     env = dict(os.environ)
     if gpu is not None:
         env["CUDA_VISIBLE_DEVICES"] = str(gpu)
-    return subprocess.call(cmd, cwd=paths.ROOT, env=env)
+    code = subprocess.call(cmd, cwd=paths.ROOT, env=env)
+    if code and exp.member_complete(split, member):
+        # e.g. MACE's closing metrics on the whole training set ran out of GPU memory after the final
+        # model was saved: the member is complete (final model + result log), so its children may start
+        print(f"warning: training exited with status {code} after the member was complete; treated as done")
+        return 0
+    return code

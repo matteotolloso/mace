@@ -40,6 +40,12 @@ class SlurmTests(unittest.TestCase):
         self.assertIn(f"train-member {CHILD} 0 0 --resume", first)
         self.assertEqual(text.count(") &"), 2)
 
+    def test_children_of_parents_in_flight_form_their_own_chains(self):
+        self.assertEqual(slurm.chains([CHILD], splits=[0], members=[0], parents_in_flight=True), [[(CHILD, 0, 0)]])
+        text = slurm.script([[(CHILD, 0, 0)]], account="A", partition="p", qos="normal", walltime="1:00:00",
+                            pack=1, python="py", resume=False, out_dir=Path("/o"), tag="t", after=["5", "6"])
+        self.assertIn("#SBATCH --dependency=afterany:5:6", text)
+
     def test_dry_run_needs_an_account(self):
         with mock.patch.dict("os.environ", {}, clear=False) as env:
             env.pop("UQ_SLURM_ACCOUNT", None)
