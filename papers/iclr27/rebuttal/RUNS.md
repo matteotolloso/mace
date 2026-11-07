@@ -71,6 +71,28 @@ Status: `planned` -> `queued` -> `running` -> `trained` -> `evaluated` -> `synce
 | Evaluation + prune of the FT/HF ablations (reset-var, FT lr, HF lr, beta-NLL) | 3.7, 4.2, 4.3 | Leonardo, 1 GPU per (experiment, split), QOS normal; prune on `lrd_all_serial` | `uq evaluate-slurm <2 exps> --after <their training jobs> --prune` per group: 4 groups x 10 evaluation jobs + 4 prune jobs | b4d07ac / c7710ef | outs `runs/_slurm/{reset-var,ft-lr}-eval/`, `$FAST/uq-mf/runs/_slurm/{hf-lr,beta-nll}-eval/` (each `jobs.tsv`); prune ids 63720299 (hf-lr), 63720981 (reset-var), 63720992 (ft-lr), 63721011 (beta-nll) | queued (dependency) | 2026-11-07 02:08 | ~2-3 h after each training group | parent checkpoints A/C copied to `$WORK` first (pruned, 620/619/618 files per split, summed file bytes identical to the DGX); then `uq sync-back ... --checkpoints --apply` and `uq aggregate` + ledger on the DGX |
 | System-split LR sweeps: `ani1x-system/mace-mve/lf-to-hf-lr1e-{4,2}` (`$WORK`), `hf-only-lr{1e-3,3e-3}` (`$FAST`) | 3.5, 4.2, 4.3 | Leonardo, QOS normal (4 h FT, 8 h HF) | 2 x 100 members, `--pack 3` -> 2 x 34 jobs; **start only after the energy-split prune jobs succeed** (`--after-ok`: FT after 63720981 + 63720992, HF after 63720299), so the storage peaks do not overlap | 016dbb6 | `runs/_slurm/ft-lr-system/jobs.tsv`, `$FAST/uq-mf/runs/_slurm/hf-lr-system/jobs.tsv`; eval + prune `runs/_slurm/ft-lr-system-eval/` (prune 63722656), `$FAST/.../hf-lr-system-eval/` (prune 63722493) | queued (dependency) | 2026-11-07 02:25 | Nov 7 morning/afternoon | one `sbatch` of the FT set failed transiently (job 028; resubmitted as 63722527) and stopped the loop: the 13 missing members (jobs 029-033) were written with the same `slurm.script` and submitted by hand; `jobs.tsv` rebuilt from `squeue` (34 jobs, 100 distinct members) |
 
+## 3b. Next steps once the outputs are in (needs `leonardo-login`; written 2026-11-07 02:40 by mace-leo)
+
+For each experiment whose evaluation and prune jobs are done (`sacct -j <prune id>` COMPLETED; the eval
+`.out` files end with `finished with status 0`):
+
+```bash
+export UQ_REMOTE_ROOT=/leonardo_work/IscrC_UQ-MF/uq-mf/mace
+export UQ_REMOTE_RUNS=/leonardo_work/IscrC_UQ-MF/uq-mf/runs          # $FAST experiments: /leonardo_scratch/fast/IscrC_UQ-MF/uq-mf/runs
+uq sync-back <exp> --host leonardo --checkpoints                      # dry run: what would come, what differs
+uq sync-back <exp> --host leonardo --checkpoints --apply              # never overwrites a local file
+uq aggregate <exp>                                                    # five-split aggregate (CPU), then a ledger entry
+```
+
+`$WORK` experiments: system MSE (`ani1x-system/mace-mse/{lf-only,lf-to-hf}`), `*/lf-to-hf-reset-var`,
+`*/lf-to-hf-lr1e-{4,2}`. `$FAST` experiments: `*/hf-only-lr{1e-3,3e-3}`, `*/lf-to-hf-beta-nll`.
+Comparisons for the rebuttal: paired against B/D (FT ablations) or E/F (HF-only LR) per split, like
+`uq.evaluation.compare_lf_only`. If an evaluation job failed, its prune job is cancelled automatically
+(`afterok`): read the `.out`, fix, and re-run `uq evaluate-slurm <exp> --splits <s> --submit` (then prune).
+If a training job hit its walltime, `uq train-slurm <exps> --resume --pack 3 --submit` continues it.
+The DGX side: `uq-mse-postprocess` evaluates and prunes the energy MSE experiments when they reach 50/50;
+markers in `runs/_jobs/` keep it away from the system split.
+
 ## 4. Leonardo budget (local h; 1 GPU-h = 8 local h)
 
 | Date | Item | Consumed (`saldo -b`) | Remaining of 80,000 | Month quota used |
