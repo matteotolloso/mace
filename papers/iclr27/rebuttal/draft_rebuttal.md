@@ -310,11 +310,13 @@ moves (App. "Training dynamics", training-curve figure). New experiments:
 - (c) fine-tuning at lr 1e-4 `[PENDING: WP3.5]`;
 - (d) head fitted on held-out CC data with frozen backbone `[PENDING: WP3.4]`.
 
-[Result (ledger 2026-11-07, "Fine-tuning ablations of the AU collapse"): the reset does NOT reproduce the
-collapse: AU becomes underconfident on System-ID/OOD and Energy-ID and is much less overconfident on Energy-OOD
-(AU ENCE x0.399), at a clear cost in ranking; beta-NLL and FT lr 1e-4 do not remove the overconfidence. So this is
-the second case below: rewrite (b) and the mechanism around the inherited head state, with the caveat on
-convergence of a reset head in 100 epochs. To discuss with the user before writing.]
+[Result (ledger 2026-11-07: "Fine-tuning ablations of the AU collapse", its correction, and "Head reset: AU
+calibration along fine-tuning"): (b) holds in the dynamics: a reset head starts underconfident, is best calibrated
+near epoch 10, then loses AU calibration steadily like the inherited head, only ~5-8x slower (System-ID AU ENCE
+7.4 vs 45 at epoch 60). Its validation-selected checkpoint (epochs 2-19) precedes the collapse, so the final
+reset ensembles look better calibrated but rank worse. Story: the mechanism holds; the inherited head makes the
+collapse start at once (paper finding (iii), "faster after pretraining") and carries part of the ranking benefit
+(finding (i)). beta-NLL does not remove the overconfidence. FT lr 1e-4 moves the selected epoch 2 -> 30.]
 [Write the conclusion after results. If (b) shows the collapse re-emerges and (d) removes it, the
 mechanism is confirmed; if the reset fixes it, the cause is the inherited head state, and we will say so.]
 
