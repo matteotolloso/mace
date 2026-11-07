@@ -10,12 +10,11 @@ manuscript is `ICLR27-UQ-MF/` (own Git repo, synced with Overleaf).
 | File | What | Edited by |
 |---|---|---|
 | `README.md` (this) | entry point and standing rules | update only when a rule changes |
-| [`PLAN.md`](PLAN.md) | reviewer asks, merged work packages, **TODO with claims**, compute plan, decisions, log | every agent |
+| [`PLAN.md`](PLAN.md) | reviewer asks -> status, **presentation plan** (appendix items, posts, figures), TODO with claims, decisions, short log | every agent |
 | [`RUNS.md`](RUNS.md) | **every job on every machine** (local DGX, CINECA Leonardo), sync protocol, Leonardo budget | every agent that launches or checks jobs |
 | [`LEONARDO.md`](LEONARDO.md) | Leonardo login (2FA) and cluster rules: filesystems, SLURM, accounting, our layout there | when a fact about Leonardo changes |
 | [`draft_rebuttal.md`](draft_rebuttal.md) | draft OpenReview responses + verified reference table | writing agents |
 | [`reviews.md`](reviews.md) | reviews verbatim with point IDs `G*` `J*` `Q*` | frozen (append follow-ups only) |
-| `LOCAL_AUDIT_2026-11-06.md` | one-off audit snapshot of 2026-11-06 15:31; historical, superseded by `RUNS.md` | nobody |
 
 Elsewhere: `results/results.md` (the only source of citable numbers), `PROGRESS.md` at the repo
 root (short machine-state notes and the history of the MSE-ensemble study).

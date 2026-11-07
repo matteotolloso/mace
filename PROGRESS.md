@@ -122,8 +122,11 @@ at ~30-111. Possible extra arm: compare both methods after the same recalibratio
   New tools: `uq evaluate-slurm`, `uq sync-back`, `uq train-slurm --after/--after-ok`. DGX: energy MSE continues;
   the child `lf-to-hf` s2 m6 died of OOM next to an inference run of mine and was retried (unit
   `uq-mse-retry-s2m6`); markers keep `uq-mse-postprocess` off the system split. Next: sync back and aggregate
-  (`papers/iclr27/rebuttal/RUNS.md` Section 3b) once the user renews the Leonardo certificate.
+  (`papers/iclr27/rebuttal/RUNS.md` Section 2) once the user renews the Leonardo certificate.
 - 2026-11-07 10:00 — (mace-leo) System MSE on Leonardo: LF parents at epoch ~145/300 at 09:40 (~3.5 min/epoch), so
   parents ~18:30, children ~+30 min, then evaluation (~10 h per split) and pruning, all queued. Leonardo is not
   reachable until the user renews the certificate. Energy MSE on the DGX: 70/100, no failures since 01:55.
 
+- 2026-11-07 12:30 — (mace-leo) Certificate renewed; Leonardo and DGX healthy. Rebuttal ablations synced back and
+  aggregated (HF-only lr sweep recorded; energy reset-var / FT lr / beta-NLL aggregated, entries pending). User:
+  no further LR ablations, multi-head paused; `PLAN.md` condensed with a presentation plan (Section 3).

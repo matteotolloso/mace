@@ -1,411 +1,135 @@
 # ICLR 2027 rebuttal: plan (Submission 18667)
 
-Entry point and standing rules: [`README.md`](README.md). This file holds *what* we do: reviewer
-asks (Section 2), merged work packages (3), the TODO with claims (4), the compute plan (5),
-decisions (6) and the log (7). *Where* jobs run: [`RUNS.md`](RUNS.md).
+Entry point and standing rules: [`README.md`](README.md). This file holds *what* we do and *how we
+present it*; *where* jobs run: [`RUNS.md`](RUNS.md); numbers: `results/results.md` only.
+Condensed 2026-11-07 (user: stop adding ablations, evaluate, plan the presentation); the long
+versions of earlier designs and logs are in Git history (`git log -p papers/iclr27/rebuttal/PLAN.md`).
 
-TODO markers: `[ ]` open, `[~] (agent: <name>, since <time>)` claimed, `[x]` done (with output or
-ledger entry), `[!]` blocked (with reason). Keep IDs stable; record who did what in the Log.
+Markers: `[ ]` open, `[~] (agent: <name>, since <time>)` claimed, `[x]` done (with ledger entry or
+output), `[!]` blocked, `[-]` dropped/paused by the user. Keep IDs stable.
 
-## 1. Situation (2026-11-06)
+## 1. Situation and deadlines
 
-- Ratings 1 / 2 / 2 (ge6X clear reject; j1p7 and Q2LT weak reject). All three rate presentation
-  "clear". Soundness is not the problem (j1p7: "no substantive concerns"); the attack is on
-  **motivation/novelty (G1, Q3)**, **generality (G2, J1, Q2)**, **missing baselines/ablations
-  (G4, G7, Q1, J2)** and **framing of "aleatoric" (G5)**.
-- Winnable: **Q2LT** asks for concrete ablations (variance-head reset, other objectives,
-  other MF strategies) that are cheap for us (fine-tuning runs are ~0.5 h per member).
-  **j1p7** (confidence 4, soundness 3) mainly wants justification plus a fidelity-aware
-  variant; a multi-head experiment plus arguments could move them. **ge6X** is the hardest
-  (informativeness 1); answer every point precisely for the AC, especially G1 (the setting is
-  standard: ANI-1ccx itself was built by DFT-pretraining + CC transfer learning), G3 (CC data
-  have no forces), G5 and G7 (LF-only).
-- **Deadline: author responses by 2026-11-18** (user). Revised PDF: allowed until the end of the
-  public discussion, **Nov 18**, main text up to **10 pages** (references/appendix unlimited); OpenReview applies a
-  pdfdiff against the submission. Comments: a **word limit per comment** (exact number: see the OpenReview form),
-  no limit on the number of comments (ICLR 2027 Author Guidelines, read 2026-11-07, WP10.1). ACs and reviewers
-  "reserve the right to ignore changes that are significantly different from the original paper". **Post results as early as possible** to start the
-  discussion (user, 2026-11-06): answer in waves, not in one block on the last day.
-  - Wave A (target **2026-11-10/11**): text-only answers (G1, G3, G5, G6, J2/J3 arguments, Q3) +
-    results that already exist (MSE vs MVE HF-only, single model, ledger) + first cheap results
-    (WP2 LF-only, WP3.1 gap analysis, WP3.2 head reset, WP4.1 compute accounting).
-  - Wave B (target **2026-11-13/14**): remaining FT ablations (WP3.3-3.5), LR sweeps (WP4.2-4.3),
-    multi-head FT (WP6.2), MSE LF->HF (WP3.6).
-  - Wave C (target **2026-11-16/17**): LF-scale experiments from Leonardo (forces WP5.2, joint
-    fidelity-aware training WP6.3, model size WP4.4, optional 2nd dataset WP7.2) + revised PDF.
-  - Keep **2026-11-18** as buffer for replies only; never post a result without a ledger entry.
-- **Compute:** local DGX (3 GPUs) + **CINECA Leonardo, ~10,000 GPU-h** (account `IscrC_UQ-MF`).
-  LF-scale experiments (~16-19 h per member, ~800 GPU-h per 50-member experiment) go to Leonardo;
-  its setup (WP11) is the critical path. Access works since 2026-11-06 (`LEONARDO.md`).
-- Recorded 2026-11-07 (ledger): LF-only ensembles on CC labels after E0 refit (WP2, G7) and gradient steps
-  per protocol (WP4.1, G4); running on Leonardo with queued evaluations: WP3.2, 3.3, 3.5, 4.2, 4.3 and the
-  system-split MSE (RUNS.md).
-- Already available and citable (ledger): single MVE model vs ensemble size (2026-11-02);
-  MSE-ensemble baseline, HF-only, energy (2026-11-03) and system (2026-11-04) splits.
-  In training (DGX): MSE-ensemble energy LF-only / LF->HF (complete ~2026-11-08, `RUNS.md`).
+- Ratings 1 / 2 / 2 (ge6X clear reject; j1p7, Q2LT weak reject); presentation rated clear by all.
+  Attacks: motivation/novelty (G1, Q3), generality (G2, J1, Q2), missing baselines/ablations
+  (G4, G7, Q1, J2), "aleatoric" framing (G5). Most winnable: **Q2LT** (concrete ablations), then j1p7.
+- **Responses and revised PDF due 2026-11-18** (main text <= 10 pages, appendix unlimited, pdfdiff
+  against the submission; word limit per comment, any number of comments). Post in waves, early:
+  Wave A **Nov 10-11**, Wave B **Nov 13-14**, revised PDF + Wave C **Nov 16-17**, Nov 18 replies only.
+- Budget: Leonardo `IscrC_UQ-MF` 80,000 local h (1 GPU-h = 8 local h); used ~4,750 by 2026-11-07
+  noon (sacct), ~2,500 more committed by queued jobs; DGX: 3 GPUs max.
 
-## 2. Tasks asked by each reviewer (annotated)
+## 2. Reviewer asks -> answer -> status
 
-Type: **W** = writing/argument only, **A** = analysis of existing outputs (CPU or GPU
-inference, no training), **E** = new training. WP = work package in Section 3.
+Type: W writing, A analysis of existing outputs, E new training.
 
-### ge6X (1, conf 3)
-
-| ID | Ask | Our position | Type | WP |
+| ID | Ask (short) | Answer | Type | Status |
 |---|---|---|---|---|
-| G1 | Motivation weak: "HF fine-tuning is not common"; findings expected | Factually wrong: DFT->CC transfer learning is the standard route to CC-accurate MLIPs (ANI-1ccx, Käser & Meuwly, Zaverkin, Chen 2023 water, Kim 2024, Messerly 2025, Cui 2025, Gardner 2025), and fine-tuning foundation models is "an increasingly important practice" (Tompa 2026). Clarify which findings are MF-specific (shared with Q3) | W | WP1 |
-| G2 | Only MACE, only ANI-1x | MACE + ANI-1x is the most standard pairing; ANI-1x is the only public dataset with ~0.5M CC labels on the DFT geometries; partially addressed by estimator/strategy ablations; optional 2nd dataset/architecture | W (+E opt.) | WP7 |
-| G3 | Energies only, no forces | CC/CBS labels in ANI-1x have no forces (checked: only `ccsd(t)_cbs.energy`); energy-only HF is the realistic setting (Smith 2019, Messerly 2025). DFT forces exist (`wb97x_tz.forces`): optional LF-with-forces pretraining | W (+E opt.) | WP5 |
-| G4 | Arbitrary protocol: match compute, model sizes, optimal LRs, pretrain-only | Compute is not the bottleneck (HF-only val-selected at epoch 30-111 of 300); LR sweep for HF-only and FT is cheap; pretrain-only = LF-only (G7); model size optional | W + A + E | WP4, WP2 |
-| G5 | "Aleatoric" meaningless for deterministic labels | Agree on semantics, already operational in the paper; defend usefulness (representation-relative noise, standard usage) and **rename in the revision** (e.g. "learned variance (AU)") | W | WP8 |
-| G6 | White band in Fig. 1 | Known Safari/soft-mask PDF bug, fixed in the arXiv version | W (fix) | WP9 |
-| G7 | LF-only not reported: is it worse? | Evaluate the existing LF-only ensembles (A, C) on CC test labels after refitting atomic reference energies on the CC training set | A | WP2 |
+| G1 | "HF fine-tuning is not common" | DFT->CC transfer is the standard route to CC MLIPs (ANI-1ccx and others, draft 2.1) | W | draft |
+| G2 / J1 / Q2 (data, model) | only MACE, only ANI-1x | MACE design space spans descriptor and equivariant MP models; ANI-1x = thousands of systems (3114 formulas; 1246 System-OOD); single-system benchmarks are common; cost of a controlled multi-architecture study | W | draft (2026-11-07); citations to verify |
+| G3 | energies only | CC labels in ANI-1x have no forces | W (+E opt., D3) | draft |
+| G4 | compute, LRs, model size, pretrain-only | WP4.1 steps; WP4.2/4.3 LR sweeps; WP2 pretrain-only | A + E | **4.1, 4.2 recorded**; 4.3 energy in, system evaluating |
+| G5 | "aleatoric" with deterministic labels | operational definition; rename (D5) | W | draft |
+| G6 | white band Fig. 1 | Safari soft-mask bug, fixed file exists | W | to apply (9.1) |
+| G7 | LF-only not reported | WP2: LF-only on CC labels after E0 refit; DFT-label results already in the paper's appendix | A | **recorded** |
+| J2 / Q2 (strategies) | fidelity as input, multi-head, joint | written only: interesting alternatives (multi-head, Delta-learning, joint); we study FT, the most used | W | draft; experiments paused (user) |
+| J3 | better arguments for choices | "Design choices and scope" appendix | W | open (9.2) |
+| Q1 / Q4 | validate mechanism; reset head; other objectives | WP3.2 reset, 3.3 beta-NLL, 3.5 slow FT, 3.6 MSE, (3.4 held-out head) | E | energy in (not recorded); system partly syncing / running |
+| Q2 / Q5 (estimators) | one estimator | single MVE, ensemble size, MSE ensembles | A + E | HF-only recorded; MSE LF->HF training |
+| Q3 | novelty; Bilbrey 2025 | novelty table; Bilbrey read in full | W | draft |
 
-### j1p7 (2, conf 4)
+## 3. Presentation plan (how results go into the rebuttal and the revision)
 
-| ID | Ask | Our position | Type | WP |
-|---|---|---|---|---|
-| J1 | One model, "two datasets" | as G2 (the two "datasets" are probably the two fidelities or the two splits; answer both) | W | WP7 |
-| J2 | PT->FT may not be the right approach; systematic DFT/CC bias; fidelity not an input -> missed opportunity, maybe better calibration | PT->FT is the most accurate strategy with two label sources (Gardner 2025; Tompa 2026 for single-target deployment); systematic bias is absorbed by the refit E0s + backbone adaptation; run a **fidelity-aware multi-head variant** and compare UQ | W + E | WP6 |
-| J3 | Better arguments for limitations of model/data/training choices | Rewrite limitations as an explicit "design choices and scope" paragraph | W | WP9, WP1 |
+Principles: (1) main text stays qualitative, numbers in appendix figures/tables (authors' prose kept);
+(2) each reply quotes at most 2-3 numbers, from the ledger, and points to the appendix; (3) all
+contrasts paired over the five splits, 95% t-intervals, TU unless the claim is about AU or EU;
+(4) robustness checks are grouped into one "does not change the conclusions" appendix instead of one
+section per sweep; (5) each appendix item names the reviewer question it answers.
 
-### Q2LT (2, conf 2)
+### 3.1 New appendix "Additional baselines and ablations" (revised PDF)
 
-| ID | Ask | Our position | Type | WP |
-|---|---|---|---|---|
-| Q1 / Q4 | Mechanism (variance head follows training residuals) not validated: reset variance head at FT start; alternative objectives | Run the ablations: head reset, beta-NLL, held-out-fitted variance head, slower FT lr; CPU analysis of train/held-out gap vs AU; MSE ensembles = objective without variance head | A + E | WP3 |
-| Q2 / Q5 | Generality: one architecture, one dataset, one estimator, sequential strategy only; joint / multi-head / alternating | Estimator: MSE ensembles (done for HF-only) + single MVE model (done); strategy: multi-head replay FT (WP6); architecture/dataset: discuss + optional | W + E | WP3, WP6, WP7 |
-| Q3 | Novelty vs known results (ranking != calibration, AU unreliable under shift, NLL pitfalls); Bilbrey et al. 2025 | Table "known in general / what is new in MF" ; Bilbrey 2025 uses readout ensembles + quantile heads of MACE-MP-0, not the MF transition or training dynamics: add to related work | W | WP1 |
-
-## 3. Merged work packages
-
-Similar asks are merged so one piece of work answers several reviewers.
-
-| WP | Theme | Answers | Priority | Cost |
-|---|---|---|---|---|
-| WP1 | Positioning, motivation, novelty table, related work | G1, Q3, J2, J3 | P0 | writing |
-| WP2 | LF-only (pretrain-only) baseline on CC labels | G7, G4 | P0 | GPU inference only |
-| WP3 | Mechanism of AU overconfidence + objective/estimator ablations | Q1/Q4, Q2/Q5, G4 | P0-P1 | FT-scale training (cheap) + CPU |
-| WP4 | Protocol robustness: compute accounting, LR sweep, (model size) | G4 | P1 | CPU + cheap training |
-| WP5 | Forces | G3 | P0 writing, **P1 experiment (Leonardo)** | LF-scale, ~0.9-1.7k GPU-h |
-| WP6 | Fidelity-aware / multi-head training | J2, Q2/Q5 | P1 (6.2 local or Leonardo; 6.3 Leonardo) | FT-scale (6.2), LF-scale (6.3) |
-| WP7 | Generality: 2nd dataset / architecture | G2, J1, Q2 | P0 writing, P2 experiment (Leonardo, D4) | moderate (water) to large (architecture) |
-| WP8 | "Aleatoric" with deterministic labels: theory + renaming | G5 | P0 | writing |
-| WP9 | Manuscript revision (figures, limitations, new appendix) | G6, J3, all | P0-P1 | writing + CPU figures |
-| WP10 | Rebuttal assembly and logistics | all | P0 | writing |
-| WP11 | Leonardo setup and sync (env, data, SLURM launcher, resume, smoke test) | enables WP5, WP6.3, WP7, parts of WP3/4 | **P0, critical path** | engineering + ~10 GPU-h |
-
-LF-scale items (WP3.6 system MSE, WP4.4, WP5.2, WP6.3) need only WP11 and decisions D2-D4, not
-compute. FT-scale items run on whichever machine has free GPUs first (DGX GPUs are full until the
-MSE energy members finish, ~2026-11-08), so Wave A does not wait.
-
-## 4. TODO (by work package)
-
-Status: `[ ]` open, `[~]` claimed, `[x]` done, `[!]` blocked. Keep IDs stable.
-
-### WP1 Positioning and novelty (G1, Q3, J2, J3)
-
-- [ ] 1.1 Literature table of DFT->CC (or LF->HF) pretrain/fine-tune MLIP works, with year and
-      setting; seed list in `draft_rebuttal.md` Section 7 (all verified 2026-11-06). Add 2-3 recent
-      foundation-model fine-tuning examples to a higher level of theory.
-- [ ] 1.2 Novelty table: for each paper finding, the closest known general result and what is new
-      in the MF setting (draft in `draft_rebuttal.md` Section 1). Check that each "known" claim
-      cites the right paper (Valdenegro-Toro 2022, Seitzer 2022, Rasmussen 2023, Kuleshov 2018,
-      Bilbrey 2025).
-- [x] (mace-leo, 2026-11-07; draft Section 4.3, Section 7 row) 1.3 Read Bilbrey et al. 2025 (npj Comput Mater 11, 109) in full; write exactly what they
-      observe (readout ensembles + quantile heads of MACE-MP-0, overconfidence) and how it differs
-      (no LF/HF transition, no training dynamics, no AU/EU of a deep ensemble). Add to related work.
-- [ ] 1.4 Paragraph for the intro making the motivation explicit: CC labels are scarce and
-      energy-only, so MF pretraining is how CC-quality MLIPs are built; UQ is what decides where to
-      spend the next CC calculation (active learning built ANI-1x itself: Smith 2018).
-
-### WP2 LF-only baseline on CC labels (G7, G4 "pretrain-only")
-
-- [x] (mace-leo, 2026-11-07) 2.1 Design (write here before coding): predict the converged LF-only ensembles A (system) and
-      C (energy) on `cc_train`, `cc_test_id`, `cc_test_ood` of every split; refit atomic reference
-      energies by least squares on the CC training residuals (per member, mirroring the E0 refit of
-      LF->HF fine-tuning), keep the variance heads unchanged; report RMSE/Spearman/AUSE/ENCE for AU,
-      EU, TU next to HF-only and LF->HF. Also report the variant without E0 refit only if
-      meaningful (absolute DFT and CC energies differ by large per-element offsets).
-- [x] (mace-leo, 2026-11-07; `uq/evaluation/lf_on_hf.py`, step `lfonly_baseline` via `lf_only_baseline: true` in B/D, aggregate branch `lfonly_reliability_*`, tests `uq/tests/test_lf_on_hf.py`; the shift is a per-member least-squares fit of per-element offsets to the CC-train residuals) 2.2 Implement as a `uq evaluate` step (new step, new output files; do not overwrite A/C outputs);
-      unit test; `--dry-run`.
-- [x] (mace-leo, 2026-11-07 02:40; ledger "2026-11-07 LF-only (pretrain-only) ensembles on the CC labels", `results/tables/lf_only_vs_hf.csv`) 2.3 Run (1 GPU, inference only; ~1.5 min per split/test at batch 256 for M=10, cf. ledger
-      2026-11-02), aggregate, ledger entry.
-- [ ] 2.4 Add an LF-only (E0-refit) row/marker to Fig. 2 or an appendix table (`paper-figures`).
-
-### WP3 Mechanism and objective ablations (Q1/Q4, Q2/Q5)
-
-Hypothesis to test (paper Sec. 4.2, App. "Technical background"): during HF training the variance head fits the
-shrinking *training* residuals and transfers that scale to held-out data. Predictions: (a) AU on
-held-out data tracks the training MSE, not the held-out MSE; (b) re-initializing the head does not
-prevent the collapse (it re-learns the same small residuals); (c) slower fine-tuning delays it in
-proportion to the decrease of training error; (d) a head fitted on held-out residuals is calibrated.
-
-- [!] (mace-leo, 2026-11-07 02:35: needs a better statistic, see note) 3.1 (CPU, P0) From existing `epoch_quality_{train,id,ood}.csv` of B, D, E, F: per epoch, mean AU
-      on held-out vs training MSE vs held-out MSE; plot AU-ENCE against the train/held-out MSE gap
-      across epochs and protocols. Ledger entry. Checks prediction (a) with zero new compute.
-      Note (mace-leo, exploratory, not recorded): with the stored per-epoch *means* (`magnitude_aleatoric`,
-      `rmse_e_atom`) the test is inconclusive: means of variances and of squared errors are dominated by the
-      heavy tails, and in D the held-out AU falls much less than the training MSE (so prediction (a) is not
-      supported in this form). A fair test needs per-epoch robust statistics (median AU vs median squared
-      error, support-filtered) from per-configuration rows, i.e. a GPU re-run of `epoch_quality` that also
-      saves those rows (new output files), or an `epoch_raw` variant. Do not cite anything from this note.
-- [~] (agent: mace-leo, since 2026-11-07 01:30; training on Leonardo, `RUNS.md`) 3.2 (E, P0) **Variance-head reset at FT start** (Q1 literal ask): new experiments
-      `ani1x-{system,energy}/mace-mve/lf-to-hf-reset-var` (names to confirm with `new-experiment`);
-      re-initialize the variance branch of the readout, keep everything else as B/D; 5 x 10 members
-      each from the same LF parents. Needs a small fork change (inside `### MVE ###` fences) or a
-      checkpoint surgery script. Prediction (b).
-      Done as: fork flag `mve_reset_variance_head` (default off; `mace/tools/finetuning_utils.py`): mean and
-      variance share the readout's hidden layer, so the variance-specific parameters are the `linear_2` weights
-      into the variance output (32 per member); re-drawn N(0,1) as at initialization, seeded by the member seed.
-      Ids `ani1x-{system,energy}/mace-mve/lf-to-hf-reset-var`; test `uq/tests/test_reset_variance.py`.
-- [~] (agent: mace-leo, since 2026-11-07 02:08; Leonardo, `RUNS.md`; fork flag `mve_beta_nll`, value = Gaussian NLL so selection is unchanged) 3.3 (E, P1) **beta-NLL fine-tuning** (beta = 0.5, Seitzer et al. 2022), same parents. Tests
-      "alternative training objective" (Q1).
-- [ ] (design by mace-leo below; needs user decisions before launch) 3.4 (E, P1) **Held-out-fitted variance head**: after the B/D fine-tuning, freeze the backbone and
-      mean readout, fit only the variance head on half of the CC validation set, select on the other
-      half. Prediction (d); also a practical fix to report.
-      Design (mace-leo, 2026-11-07), decisions for the user: (i) data: split each `cc_val.xyz` into two
-      fixed halves (seeded), written as new files (e.g. `cc_val_fit.xyz`, `cc_val_sel.xyz`) in the existing
-      split folders, or a new dataset folder (`add-dataset` rules: existing splits are never regenerated);
-      (ii) parameters: mean and variance share `linear_2` of the last readout, so "only the variance head"
-      means the 32 weights into the variance output: implement as a fork flag that masks the gradient of
-      every other parameter and sets weight decay to 0 for this run (decoupled weight decay would otherwise
-      move frozen weights); (iii) start from each B/D member's final model (`--foundation_model` = the
-      LF->HF member), keep the E0s (no refit: `E0s` from the foundation model), select by NLL on the other
-      half; (iv) evaluation unchanged (the test sets are not touched). Cost: FT-scale or less.
-
-- [~] (agent: mace-leo, since 2026-11-07 02:00; energy split on Leonardo, system after pruning) 3.5 (E, P1) **Slower fine-tuning** (lr 1e-4 instead of 1e-3; shared with WP4.3). Prediction (c).
-- [~] 3.6 (agent: mace-80) (E/A, P0) **MSE ensembles** (objective without variance head; EU-only
-      estimator). HF-only pairs done (ledger 2026-11-03/04). Energy LF-only / LF->HF training on the
-      DGX (9 partial members resumed 2026-11-06 20:01); automatic evaluation + pruning at 50/50; then
-      `compare_uq` vs D and a ledger entry. System split: on Leonardo since 2026-11-07 01:12
-      (mace-leo, 17 jobs, `RUNS.md`); then evaluation there by split (11.7) and sync back (11.9).
-- [~] (agent: mace-leo; evaluation + prune jobs queued on Leonardo after training) 3.7 Evaluate 3.2-3.5 (`uq evaluate`, ~10 h per experiment on 1 GPU incl. per-epoch metrics;
-      consider restricting to final + epoch quality), `compare_uq`-style paired contrasts vs B/D,
-      ledger entries, one appendix figure "ablations of the AU collapse".
-
-### WP4 Protocol robustness (G4)
-
-- [x] (mace-leo, 2026-11-07; ledger "Gradient steps per protocol", `python -m uq.evaluation.training_steps`) 4.1 (CPU) Count gradient steps and GPU-hours per protocol from run logs (ledger 2026-09-25 has
-      hours); write the compute-matching argument: HF-only is validation-selected at epoch 30-111 of
-      300 (App. "Training details"), so giving it more steps only increases validation NLL; the extra compute of
-      LF->HF buys cheap LF labels, which is the point of MF training.
-- [~] (agent: mace-leo, since 2026-11-07 02:00; energy split on Leonardo `$FAST`, system after pruning) 4.2 (E, P1) HF-only learning-rate sweep (lr 3e-3, 1e-3 vs 1e-2), energy split first, then system.
-      ~50 members x ~1.4 h per config = ~8 h wall on 9 slots.
-- [~] (agent: mace-leo, since 2026-11-07 02:00; energy split on Leonardo) 4.3 (E, P1) FT learning-rate sweep (1e-4 = WP3.5, and 1e-2), ~3 h wall per config.
-- [ ] 4.4 (E, P2) Model size (64 / 256 channels) for HF-only only (LF->HF would need new LF parents).
-- [ ] 4.5 Report in the rebuttal: does the ranking/calibration conclusion survive the best LR of each
-      protocol? (paired over splits).
-
-### WP5 Forces (G3)
-
-- [ ] 5.1 (W, P0) Argument: ANI-1x CC/CBS labels are energy-only (verified in `data/raw/ani1x-release.h5`:
-      only `ccsd(t)_cbs.energy` at CC level); most HF datasets lack forces (Messerly 2025); ANI-1ccx
-      was trained on CC energies (Smith 2019). Energy uncertainty is what QBC acquisition uses (Smith 2018).
-- [ ] 5.2 (E, P2, decision D3) LF pretraining with DFT energies + `wb97x_tz.forces` (energy NLL +
-      force MSE), then CC energy fine-tuning as B/D. Cost ~ a full LF-only experiment (~16-19 h per
-      member, 50 members per split type -> ~4-5 days on 9 slots for one split type). Needs fork change
-      (MVE loss + forces).
-
-### WP6 Fidelity-aware / multi-head training (J2, Q2/Q5)
-
-**PAUSED by the user (2026-11-07): no experiment; not a task to claim.** Answer in writing only (6.1):
-fidelity-aware / multi-head training is one of several interesting MF strategies (also Delta-learning,
-fidelity as input, joint training); the paper deliberately studies sequential fine-tuning, the most used
-one. 6.2 and 6.3 stay listed for reference, not to be launched.
-
-- [ ] 6.1 (W, P0) Argument: Gardner et al. 2025 find PT/FT marginally more accurate than multi-head with
-      two label sources; Tompa et al. 2026 find naive FT best for single-target deployment and
-      multihead replay best for preserving OOD robustness; fidelity-specific E0s already absorb the
-      per-element systematic offset.
-- [ ] 6.2 (E, P1, decision D2) **Multi-head replay fine-tuning** from the existing LF-only parents:
-      shared backbone, DFT head + CC head (MVE on both), CC fine-tuning with DFT replay. MACE has
-      `multiheads_finetuning` upstream (`mace/cli/run_train.py`); check compatibility with the MVE
-      readout in the fork first (estimate effort before claiming). Cost ~FT + replay (~1-2 h/member).
-- [ ] 6.3 (E, P2) Joint training from scratch with a fidelity input/heads (expensive, LF-scale).
-
-### WP7 Generality: dataset / architecture (G2, J1, Q2)
-
-- [ ] 7.1 (W, P0) Argument: ANI-1x is the only large public dataset with CC labels on DFT geometries
-      and a system/energy structure for controlled shifts; we vary split type, protocol, estimator
-      (MVE ensemble / single MVE / MSE ensemble) and MF strategy (WP6).
-- [ ] 7.2 (E, P2, decision D4) Options, cheapest first: (a) liquid water BLYP->CCSD(T) (Chen 2023) with
-      aligned splits (current water splits are misaligned, see memory/known issues; water was removed
-      from the paper 2026-11-02); (b) a second architecture (needs MVE readout in another code base).
-      Only with explicit user approval.
-
-### WP8 "Aleatoric" with deterministic labels (G5)
-
-- [ ] 8.1 (W, P0) Theory paragraph (draft in `draft_rebuttal.md` Section 2.5): context-dependence of the
-      AU/EU split (Hüllermeier & Waegeman 2021); conditional variance given the model's local
-      representation is not zero (finite cutoff; incompleteness, Pozdnyakov et al. 2020); standard usage
-      on deterministic DFT labels (Busk 2022, 2023; Tan 2023); excess-risk view (Lahlou et al. 2023)
-      agrees with the reviewer that it is reducible: this is what our dynamics show.
-- [ ] 8.2 (W, decision D5) Renaming in the revision: "learned variance (AU)" / "ensemble disagreement (EU)"
-      at first use and in figures, or keep AU/EU with a stronger caveat.
-
-### WP9 Manuscript revision (ICLR27-UQ-MF/)
-
-- [ ] 9.1 Fig. 1: copy the Safari-safe `Workflow.pdf` (arXiv repo commit f342f6b) or run
-      `papers/iclr27/figures/fix_workflow_safari.py` (G6). Check in Safari and pdf.js.
-- [ ] 9.2 Limitations -> "Design choices and scope" (J3), naming each choice and why.
-- [ ] 9.3 Related work: Bilbrey 2025, Messerly 2025, Cui 2025, Tompa 2026, Käser 2021/2023 (bib entries).
-- [ ] 9.4 New appendix sections for WP2, WP3, WP4 (and WP6 if run); keep main-text numbers few
-      (memory: results qualitative in main text, numbers in figures/appendix).
-- [ ] 9.5 Mark all revision changes in `\revise{}` (blue) as ICLR expects; keep a changelog here.
-
-### WP11 Leonardo setup and sync (critical path; target: smoke test passed by 2026-11-08)
-
-- [x] 11.1 Access (2026-11-06 20:16): `ssh leonardo` from the DGX; 12 h certificate renewed by the
-      user with `leonardo-login` (`LEONARDO.md` Section 1).
-- [x] 11.2 (mace-80, 2026-11-06 21:52; job 63701795, aseMolec dropped from environment.yml) Environment (user, 2026-11-06: separate Miniconda): `$WORK/uq-mf/miniconda3`, env `mace`
-      from `environment.yml`; clone `iclr_rebuttal` to `$WORK/uq-mf/mace`;
-      `pip install --no-deps --no-build-isolation -e .`; `uq check` and the 58 unit tests pass; torch
-      sees a GPU on a Booster node (smoke test). Heavy installs in a job if the login node's 10-min
-      CPU limit bites (`LEONARDO.md` Section 3).
-- [x] 11.3 (mace-80, 2026-11-06 20:45; 182 files verified on Leonardo) Data: make `data/MANIFEST.sha256` locally (ANI splits + dataset.yaml), rsync
-      `data/ani1x-{system,energy}/` (2.3 GB), verify the manifest on Leonardo.
-- [ ] 11.4 Run directory and variables: `UQ_RUNS=$WORK/uq-mf/runs` (overflow `$FAST/uq-mf/runs`),
-      `PYTHON_BIN`, `WANDB_MODE=offline` with W&B files in `$CINECA_SCRATCH/uq-mf`; at most ~3 unpruned
-      LF-scale experiments on `$WORK` (1 TB; ~255 GB each before pruning).
-- [x] 11.5 (mace-80, 2026-11-06 21:10; `uq/training/slurm.py`, `uq/tests/test_slurm.py`) `uq train-slurm`
-      writes/submits 1-GPU jobs; `uq train-member` gained `--resume`, skip-if-complete and the
-      SLURM-assigned GPU. Original spec: SLURM launcher in `uq` (new module, e.g. `uq/training/slurm.py`, + `uq train --slurm`):
-      writes sbatch scripts that run exactly `launch.command(job)` per member, optionally k members
-      packed per 1-GPU job (`--cpus-per-task=8`, `--mem<=120G` so one GPU is charged as 1/4 node;
-      `LEONARDO.md` Section 3), job arrays, `--dependency=afterok` for LF->HF children, `--resume` for
-      jobs that hit the 24 h walltime, `--dry-run`; unit tests; local scheduler unchanged.
-- [x] 11.6 (mace-80, 2026-11-06) Resume support: fork flag `--resume_exact` (default off; pinned
-      commands unchanged) continues at epoch N+1 with the checkpoint's learning rate and scheduler
-      state; `uq train --resume` backs up and cuts the results log to epoch N; `uq/tests/test_resume.py`;
-      scratch test passed; used for the 9 partial MSE members. Not bit-exact (data-loader RNG restarts).
-- [x] (mace-leo, 2026-11-07 01:36; `uq evaluate-slurm`, tested with job 63717684; system MSE jobs queued) 11.7 Evaluation on Leonardo: one job per split (`uq evaluate <id> --splits s --no-aggregate`),
-      outputs synced back, `uq aggregate` locally (RUNS.md protocol item 8).
-- [x] (mace-leo, 2026-11-07 01:10; jobs 63715545, 63715577, `RUNS.md`) 11.8 Smoke test on `boost_qos_dbg` (30 min): one HF-only member for a few epochs and one FT
-      member; compare per-epoch time and first-epoch losses with the DGX run of the same seed (close,
-      not bit-identical); check internet from the compute node; charge via `saldo -b`; throughput
-      single and packed (2-3 members per GPU) into `RUNS.md`.
-- [x] (mace-leo, 2026-11-07 01:36; `uq sync-back`, dry-run tested; first real use when the system MSE evaluation ends) 11.9 Sync-back script (rsync Leonardo -> local, paths from `RUNS.md` protocol), dry-run first.
-
-### WP10 Rebuttal assembly
-
-- [x] (mace-leo, 2026-11-07, from the ICLR 2027 Author Guidelines; exact word limit to read from the OpenReview comment form) 10.1 Fill revised-PDF deadline and character limits in Section 1 (response deadline: 2026-11-18).
-- [ ] 10.2 General response (to all reviewers + AC) summarizing new experiments.
-- [ ] 10.3 Per-reviewer responses from `draft_rebuttal.md`; replace every `[PENDING]` or drop the claim.
-- [ ] 10.4 Final check: each number -> ledger entry; each prior-work statement -> reference; no author
-      names; every "we added / revised" sentence matches a change that exists.
-- [ ] 10.5 Post Wave A by 2026-11-10/11, Wave B by 2026-11-13/14, Wave C by 2026-11-16/17 (Section 1).
-
-## 5. Compute plan: local server + Leonardo (timeline to 2026-11-18)
-
-Unit costs (DGX A100 40 GB; ledger 2026-09-25 and MSE runs; Leonardo throughput to be measured in
-WP11.8): HF-only member ~1.4 h; LF->HF fine-tuning member ~0.5 h; LF-only member ~15-16 h alone,
-~19 h packed 3/GPU; full `uq evaluate` of one experiment ~10-11 GPU-h (parallel by split). One
-50-member experiment: FT-scale ~25 GPU-h, HF-scale ~70 GPU-h, LF-scale ~800 GPU-h (+ ~11 GPU-h
-evaluation each). Forces in training add an unknown factor (backward through forces): measure.
-
-**Placement rule.** Local server: anything that uses existing local checkpoints and is cheap (FT
-ablations, inference, evaluations of local experiments), so Wave A does not depend on Leonardo.
-Leonardo: everything LF-scale or from scratch, plus overflow of FT/HF-scale items once WP11 works.
-Every placement goes in `RUNS.md` before launch.
-
-### Leonardo budget proposal (~10,000 GPU-h; to approve, D10)
-
-| Item | WP | Machine | Estimate (GPU-h) | Needs |
-|---|---|---|---|---|
-| Setup, smoke tests, throughput probes | 11 | leonardo | ~20 | - |
-| MSE ensemble, system split LF-only + LF->HF (+ eval) | 3.6 | leonardo | ~850 | D1b |
-| LF pretraining **with DFT forces** + CC FT, energy split (+ eval) | 5.2 | leonardo | ~900-1,700 | D3 |
-| Same, system split | 5.2 | leonardo | ~900-1,700 | D3 |
-| Joint fidelity-aware training from scratch (DFT+CC heads), energy split | 6.3 | leonardo | ~900 | D2 |
-| HF-only model size 64 / 256 channels, both splits | 4.4 | leonardo | ~300 | - |
-| LF->HF model size (new LF parents), energy split, one size | 4.4 | leonardo | ~850 | optional |
-| 2nd dataset (water, aligned splits; small) | 7.2 | leonardo | ~200 | D4 |
-| Overflow of FT/HF-scale ablations (WP3, 4.2-4.3, 6.2) | 3, 4, 6 | either | ~500 | - |
-| **Reserve (reruns, failures, reviewer follow-ups)** | | | **>= 2,000** | |
-
-The full list exceeds the budget only if both forces runs are expensive; start with the energy split
-(strongest effects in the paper) and add the system split if throughput allows.
-
-### Timeline (revised 2026-11-06 evening)
-
-| Dates | DGX (3 GPUs) | Leonardo | Writing |
+| Item | Content (one figure or table each) | Source | Answers |
 |---|---|---|---|
-| Nov 6-7 | GPUs full: MSE energy members (main scheduler 9 + 9 resumed); CPU: WP3.1 gap analysis, code for WP2 / WP3.2-3.4 | WP11.2-11.5 (env, data, layout, SLURM launcher) | WP1, WP8, G6 text; fill deadlines |
-| Nov 7-8 | resumed members finish; WP2 inference when a slot frees | WP11.8 smoke test, then FT-scale ablations (WP3.2-3.5) and LF-scale jobs (WP5.2, WP6.3, WP3.6 system if D1b) | Wave A drafts per reviewer |
-| Nov 8-10 | MSE energy complete -> automatic evaluation; WP4.2-4.3 sweeps | evaluations by split, sync back | **Post Wave A (Nov 10-11)** |
-| Nov 11-13 | remaining evaluations, `compare_uq`, ledger entries | LF->HF children of LF-scale runs, evaluations | **Post Wave B (Nov 13-14)** |
-| Nov 14-16 | aggregates and figures for the revision (CPU) | reruns / gaps from the reserve | revised PDF; **Wave C (Nov 16-17)** |
-| Nov 17-18 | - | - | replies only; buffer |
+| A. Pretrain-only baseline | Table: 4 tests x RMSE and TU Spearman/AUSE/ENCE for LF-only (E0 refit), HF-only, LF->HF; one sentence that the DFT-label LF-only results are App. reliability/dynamics | `results/tables/lf_only_vs_hf.csv` (ledger WP2) | G7, G4 |
+| B. Learning rate and compute | **One compact figure**: rows = split (system, energy), columns = RMSE, TU Spearman, TU ENCE; x = lr per protocol (HF-only 1e-2 / 3e-3 / 1e-3; LF->HF 1e-4 / 1e-3 / 1e-2), ID and OOD markers, five-split intervals; caption sentence on gradient steps (WP4.1). Message: lr changes HF-only little (Spearman +0.012 to +0.035, RMSE <= 6%), LF->HF stays ~2x more accurate ID and ranks better in every cell against the best-tuned HF-only; calibration contrasts are split-dependent. Small table of the LF->HF vs best-HF-only contrasts. | `ablations_vs_reference.csv` + aggregate summaries (ledger WP4.2; WP4.3 pending) | G4 |
+| C. Mechanism of the AU collapse | **Forest plot** of paired contrasts vs the LF->HF reference, one row per ablation (variance-head reset, beta-NLL, FT lr 1e-4, [held-out head 3.4]), columns AU ENCE ratio, AU Spearman diff, RMSE ratio, ID/OOD, both splits; text maps each row to predictions (b) reset does not prevent the collapse, (c) slower FT delays it, (d) held-out fit calibrates. MSE LF->HF (EU only) as the "no variance head" row when done. | `ablations_vs_reference.csv` (ledger entries to write) | Q1/Q4, Q2 |
+| D. Estimators | existing: single MVE model, ensemble size M = 1..10, MSE ensembles | ledger 2026-11-02/03/04 (+ MSE LF->HF) | Q2/Q5 |
+| E. Design choices and scope | rewritten limitations: MACE, ANI-1x, energies only, sequential FT; other MF strategies as future work | text | G2, G3, J1, J2, J3, Q2 |
 
-What is running now: `RUNS.md` Section 3 (single source).
+Main text: one sentence in Results pointing to App. A-C; terminology change for G5 (D5); Fig. 1
+fix (G6); related work (Bilbrey 2025, Tompa 2026, Gardner 2025, Messerly 2025). Mark changes with
+`\revise{}`.
 
-## 6. Decisions
+### 3.2 Rebuttal posts
 
-Decided (user, 2026-11-06):
-- **D1** MSE ensembles: resume on the DGX first (done 20:01), cheap experiments on the DGX, heavy ones
-  on Leonardo.
-- **D7** The 3-GPU cap applies only to the DGX; Leonardo uses its queues and our budget.
-- **D8** Code reaches Leonardo by pushing `iclr_rebuttal` to `origin` (pull there, clean checkouts).
-- **D9** Leonardo epoch checkpoints: prune after evaluation (every 5th epoch + each member's best +
-  `.model`), as for `mace-mse` on the DGX.
-- **D11** Leonardo environment: a separate Miniconda in `$WORK/uq-mf/miniconda3`.
-- **D12** Anaconda ToS for the `defaults` channels accepted on our Leonardo Miniconda (user, 2026-11-06).
-- **D1b** The system-split MSE members (100, LF-scale) run on Leonardo, not on the DGX (done 20:35: the
-  local scheduler was replaced by energy-only ones).
+- **General response** (all reviewers + AC): one table "new experiment | question | does the paper's
+  conclusion hold?" (rows A-D above), plus the list of text changes (E, G5 renaming, related work).
+- **Per reviewer**: short answers in `draft_rebuttal.md`, each ending with "see App. X / general response";
+  ge6X answered point by point for the AC; Q2LT gets the mechanism figure first.
+- Waves: **A (Nov 10-11)**: G1, G3, G5, G6, Q3, J1-J3 text + WP2, WP4.1, WP4.2 (+4.3 if recorded);
+  **B (Nov 13-14)**: mechanism ablations (C) and MSE LF->HF; **C (Nov 16-17)**: revised PDF + anything optional.
 
-Open:
+### 3.3 Figure / table work (CPU only, `paper-figures` skill)
 
-- **D2** Fidelity-aware training: **paused (user, 2026-11-07)**: no WP6 experiment; written answer only
-  (other MF strategies such as multi-head and Delta-learning exist; we study fine-tuning, the most used).
-- **D3** Forces in pretraining (WP5.2): energy split only, or both splits.
-- **D4** Second dataset/architecture (WP7.2): argue only, or water with aligned splits on Leonardo.
-- **D5** Rename AU/EU in the revision (WP8.2).
-- **D6** Is a revised PDF planned (ICLR allows revisions during discussion)?
-- **D10** Leonardo budget allocation (Section 5 table).
+- [ ] 3.3a `papers/iclr27/figures/figA_lr_sensitivity.py` (item B) from aggregate summaries + `ablations_vs_reference.csv`.
+- [ ] 3.3b `papers/iclr27/figures/figA_ablations.py` (item C, forest plot) from `ablations_vs_reference.csv`.
+- [ ] 3.3c Table generator for item A from `lf_only_vs_hf.csv` (LaTeX, appendix).
+- [ ] 3.3d General-response table (Markdown, in `draft_rebuttal.md` Section 5).
 
-## 7. Log (newest last)
+## 4. Work packages: status and what is left
 
-- 2026-11-06 ~14:30 — mace-80: reviews received (1/2/2). On request: work committed on `main`
-  (`30afae8`); MSE-ensemble scheduler, post-processing and 9 running members stopped (SIGTERM, ~14:31);
-  branch `iclr_rebuttal`; `reviews.md`, this plan and `draft_rebuttal.md` (literature checked online).
-- 2026-11-06 14:37 — mace-23 (MSE-study session) misread the stop as a crash and restarted scheduler and
-  post-processing as systemd user units; kept, since the user then chose to resume MSE locally (D1).
-- 2026-11-06 — user: deadline 2026-11-18, post results early; Leonardo with ~10,000 GPU-h. Added
-  `RUNS.md`, WP11, the two-machine compute plan; D7, D8 decided.
-- 2026-11-06 15:31 — codex-audit (read-only, on user request): `LOCAL_AUDIT_2026-11-06.md`.
-- 2026-11-06 20:01 — mace-80: resume support (WP11.6) tested on a scratch copy, then the 9 partial MSE
-  members resumed (units `uq-resume-mse-a/b`); audit findings fixed (missing checkpoint dir; two
-  overstated draft claims). Pushed `32c2e64`. User rule: never message other sessions.
-- 2026-11-06 20:16 — mace-80: Leonardo access from the DGX works (WP11.1); account, storage and budget
-  facts recorded. Pushed `caa794c`.
-- 2026-11-06 evening — mace-80: read the CINECA guide (filesystems, SLURM, accounting, linearization):
-  `LEONARDO.md` (replaces `LEONARDO_LOGIN.md`). D9, D11 decided. Cleaned all rebuttal Markdown files;
-  `README.md` added as entry point; `CLAUDE.md` points to it.
-- 2026-11-06 20:35-20:50 — mace-80: D1b done on the DGX (old scheduler replaced by energy-only ones without
-  killing members; `RUNS.md`). Leonardo: compute nodes of `lrd_all_serial` have internet; repo cloned,
-  Miniconda installed, data copied and verified (WP11.3). Env creation blocked on D12 (Anaconda ToS).
-- 2026-11-06 21:10 — mace-80: D12 accepted (user): Anaconda ToS accepted on our Leonardo Miniconda. First env
-  job failed to solve (no `__cuda` on the serial node; strict channel priority): fixed with
-  `CONDA_OVERRIDE_CUDA=12.4`, `CONDA_CHANNEL_PRIORITY=flexible` (the DGX uses flexible); resubmitted
-  (63699144). WP11.5 done (`uq train-slurm`, 58 tests). `git push` from this shell hangs (stale VS Code
-  askpass): commits reach Leonardo by `git bundle` (same hashes) until the user pushes.
-- 2026-11-06 ~21:30 — mace-80 paused. Next: fix the pip step of the Leonardo env (job 63699144 log), then
-  WP11.8 smoke test (`UQ_RUNS=$CINECA_SCRATCH/uq-mf/smoke/runs uq train-slurm ... --qos boost_qos_dbg`),
-  then system-split MSE (D1b) and FT ablations. `git push` may need the user (stale VS Code askpass).
-- 2026-11-07 01:20 — mace-leo: WP11.8 smoke test passed on Leonardo (losses match the DGX; LF member ~3.5 min/epoch
-  with 3 packed per GPU, ~18 h per chain). System-split MSE (WP3.6, D1b) launched: 50 LF->HF chains in 17 1-GPU
-  jobs, QOS normal 24 h, all running. Next on Leonardo: per-split evaluation script (11.7) and sync-back (11.9)
-  before the jobs end (~2026-11-07 evening); other Leonardo experiments wait for D2-D4/D10 or code (WP3.2-3.5).
-- 2026-11-07 01:36 — mace-leo (sole session, owner of all jobs): WP11.7 `uq evaluate-slurm` (per-split GPU jobs after
-  training, `afterany` + completeness check, optional prune job) and WP11.9 `uq sync-back` (no overwrite) done; Leonardo
-  inference matches the DGX. Queued after the system MSE training: 17 back-up chains (`--resume`), 10 evaluations, prune.
-- 2026-11-07 02:40 — mace-leo: WP2 done and recorded (ledger entry; paired table `results/tables/lf_only_vs_hf.csv`,
-  `python -m uq.evaluation.compare_lf_only`). Side effect logged in `RUNS.md` (one DGX MSE child OOM, retried).
-- 2026-11-07 10:00 — mace-leo, night summary. Recorded: WP2 (LF-only on CC, E0 refit), WP4.1 (gradient steps),
-  WP4.2 first experiment (HF-only lr 1e-3, energy). Done: WP1.3 (Bilbrey read in full), WP10.1 (ICLR rules), J1 text,
-  WP11.7-11.9 (`uq evaluate-slurm`, `uq sync-back`, robust `sbatch`). Trained on Leonardo, evaluations running or
-  done there: WP3.2, 3.3, 3.5, 4.2, 4.3 (energy and system) and the system MSE. Open for the user: renew the
-  Leonardo certificate and sync back (RUNS.md 3b); decide WP3.4 design, D2-D4, D10; whether to start the DGX retry
-  watchdog; WP3.1 needs robust per-epoch statistics (note under 3.1). Draft caveat added to Q1(a).
+### Done (ledger)
+- [x] WP2 LF-only on CC labels, E0 refit (G7, G4).
+- [x] WP4.1 gradient steps per protocol (G4).
+- [x] WP4.2 HF-only lr 1e-3 / 3e-3, both splits (G4).
+- [x] WP1.3 Bilbrey 2025 read; WP10.1 ICLR rules; WP11 Leonardo setup (env, `uq train-slurm`,
+      `uq evaluate-slurm`, `uq sync-back`).
 
+### In progress (no new launches; finish, evaluate, record)
+- [~] (agent: mace-leo) WP3.2 variance-head reset, WP3.3 beta-NLL, WP3.5/4.3 FT lr 1e-4 / 1e-2:
+      energy split synced and aggregated 2026-11-07; system: reset-var re-sync and beta-NLL syncing,
+      FT lr evaluating (~18:00). Then `compare_ablations`, one ledger entry per WP. Note: reset-var
+      and beta-NLL on the system split need the FT-lr system twins only for item B, not for C.
+- [~] (agent: mace-80 -> mace-leo) WP3.6 MSE ensembles LF-only / LF->HF: energy on the DGX (70/100,
+      automatic evaluation at 50/50), system on Leonardo (training, then evaluation ~10 h per split).
+
+### Open, needs a user decision (after looking at the energy results)
+- [ ] WP3.4 held-out-fitted variance head (prediction (d); also a practical fix). Design in Git
+      history (PLAN.md of 2026-11-07 10:00): fit only the 32 variance weights on half of `cc_val`,
+      select on the other half; decisions: data files, frozen parameters. FT-scale cost.
+- [!] WP3.1 AU vs training MSE per epoch (prediction (a)): the stored per-epoch means are inconclusive;
+      a fair test needs robust per-configuration statistics (GPU re-run of `epoch_quality`). Do not cite.
+- [ ] WP5.2 forces in pretraining (D3) and WP7.2 second dataset (D4): budget allows (~70k local h
+      left), time does not if decided after ~Nov 9 (LF-scale ~19 h per chain + evaluation).
+
+### Dropped or paused by the user
+- [-] WP6 fidelity-aware / multi-head training (2026-11-07): written answer only (Section 2, J2/Q2).
+- [-] Further learning-rate sweeps and WP4.4 model size (2026-11-07: "enough ablations on the LR").
+
+### Writing (all reviewers)
+- [ ] WP1.1/1.2/1.4 literature table, novelty table, motivation paragraph (G1, Q3).
+- [ ] WP5.1 forces argument (G3); WP7.1 dataset/architecture argument (done in draft 2.2, verify citations).
+- [ ] WP8.1 "aleatoric" paragraph, WP8.2 renaming (D5) (G5).
+- [ ] WP9 revision: 9.1 Fig. 1 Safari fix (G6); 9.2 "Design choices and scope" (J3); 9.3 related work;
+      9.4 appendix of Section 3.1; 9.5 `\revise{}` marks + changelog.
+- [ ] WP10.2-10.5 general response, per-reviewer replies (replace every `[PENDING]` or drop it), final
+      check (numbers -> ledger, prior work -> verified reference, no author names), post by wave.
+
+## 5. Decisions
+
+Decided: D1/D1b MSE energy on the DGX, system on Leonardo; D7 3-GPU cap on the DGX only; D8 code to
+Leonardo from `iclr_rebuttal`; D9 prune epoch checkpoints after evaluation; D11/D12 Leonardo Miniconda
++ ToS; **D2 multi-head paused (2026-11-07)**; **no further LR sweeps (2026-11-07)**.
+
+Open: **D3** forces (WP5.2); **D4** second dataset/architecture (WP7.2); **D5** rename AU/EU;
+**D6** revised PDF (assumed yes, Section 3.1); **D10** use of the remaining Leonardo budget;
+**WP3.4** go/no-go and design.
+
+## 6. Log (newest last; earlier entries in Git history)
+
+- 2026-11-06 — reviews received; branch `iclr_rebuttal`; Leonardo access and setup (mace-80).
+- 2026-11-07 01:00-10:00 — mace-leo: all FT/HF ablations and the system MSE launched on Leonardo;
+  WP2, WP4.1, WP4.2 (energy lr 1e-3) recorded; Bilbrey read; ICLR rules; night summary.
+- 2026-11-07 10:30-12:30 — mace-leo: certificate renewed (user); Leonardo healthy (no unexpected failures);
+  sync-back of 9 finished experiments (one interrupted, retried); WP4.2 complete and recorded (`5c16649`);
+  draft G2/J1/J2/Q2/G7 rewritten per user directions; WP6 paused; PLAN condensed with the presentation plan.
