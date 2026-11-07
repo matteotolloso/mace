@@ -87,3 +87,7 @@ Last verified **2026-11-07 18:15** (mace-leo-2), both machines.
   back-up/eval/prune pending on dependencies. DGX: energy MSE 42/50 + 42/50 members, `uq-mse-*` units active.
 - 2026-11-07 18:17-18:31 — mace-leo-2: system FT lr synced back, aggregated, `compare_ablations` 24/24; recorded (ledger
   "Fine-tuning learning rate on the system split"); appendix figures B, C and table A (`03e6b94`).
+- 2026-11-07 ~18:50 — mace-leo-2, **handoff** (steps 2 and 4 of the handoff above done): left is step 3, tomorrow morning
+  (system MSE prune 63718311 COMPLETED -> sync back `ani1x-system/mace-mse/{lf-only,lf-to-hf}` from `$WORK`, aggregate,
+  contrast vs B, ledger WP3.6; energy MSE on the DGX via `runs/_jobs/mse_postprocess.log`), then the MSE LF->HF row in
+  `figA_ablations` and in the general-response table. Certificate expires ~22:40: renew only when Leonardo is needed.
