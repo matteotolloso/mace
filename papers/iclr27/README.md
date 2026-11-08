@@ -39,6 +39,7 @@ TrueType fonts; scale them to `\linewidth` in LaTeX.
 | Appendix (rebuttal, revision) | `figA_lr_sensitivity` | item B: RMSE, TU Spearman, TU ENCE vs learning rate, HF-only and LF→HF, rows system/energy; reads aggregate summaries |
 | Appendix (rebuttal, revision) | `figA_ablations` | item C: forest plot of FT ablations (head reset, β-NLL, FT lr) vs LF→HF; reads `results/tables/ablations_vs_reference.csv` |
 | Appendix (rebuttal, revision) | `tabA_lf_only` | item A: LaTeX table LF-only (E0 refit) / HF-only / LF→HF on CC labels; reads `results/tables/lf_only_vs_hf.csv`; writes `out/tabA_lf_only.tex` |
+| Appendix (rebuttal, revision) | `tabA_estimators` | item D: LaTeX tables (Spearman, ENCE) MSE-ensemble EU / MVE-ensemble EU, TU / one MVE model AU, HF-only and LF→HF; reads `results/tables/mse_vs_mve.csv`; writes `out/tabA_estimators_{spearman,ence}.tex` ("pending" for tests not yet evaluated on all five splits) |
 | Water (not in paper) | `figW_final_summary` | CCSDT test set, final models: (a) RMSE, (b) AUSE, (c) ENCE; HF-only (wC) vs LF→HF (wB) |
 | Water (not in paper) | `figW_reliability` | RMSE vs RMV reliability diagrams, 15 equal-count bins: (a) HF-only, (b) LF→HF |
 | Water (not in paper) | `figW_dynamics` | (a, b) AUSE/ENCE during the CCSDT stage, both protocols; LF→HF over BLYP pretraining + CCSDT fine-tuning on (c, d) train and (e, f) test |
