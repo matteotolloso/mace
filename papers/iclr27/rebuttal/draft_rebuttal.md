@@ -1,6 +1,7 @@
 # ICLR 2027 rebuttal: working draft (Submission 18667)
 
-Status: **first draft, 2026-11-06.** Not for posting yet. Plan and task status: `PLAN.md`; point
+Status: **first draft, 2026-11-06; recorded results filled in 2026-11-08 (all but WP3.6 energy and the open
+decisions D3/D4).** Not for posting yet. Plan and task status: `PLAN.md`; point
 IDs: `reviews.md`.
 
 Conventions for every agent editing this file:
@@ -40,7 +41,7 @@ Conventions for every agent editing this file:
 |---|---|---|
 | Ranking and calibration can disagree | Metrics capture different properties (rasmussen2023uncertain, lind2024uncertainty); calibration vs sharpness (kuleshov2018accurate) | They move in **opposite directions along the energy-extrapolation axis**, and pretraining *amplifies* the split (TU ENCE Energy-OOD 1.637 HF-only vs 2.969 LF->HF while Spearman 0.556 vs 0.640) `[ledger 2026-09-23]`; in-domain isotonic recalibration does not repair it `[paper App. "Post-hoc isotonic recalibration"]` |
 | AU unreliable under distribution shift | valdenegro2022deeper | AU also collapses **in domain**, and the collapse is located **in the HF stage** and accelerated by pretraining (OOD AU ENCE, end of pretraining -> end of FT: system 0.993 -> 81.913, energy 10.863 -> 207.071) `[ledger 2026-09-23]`; on the training set AU is never overconfident (train ENCE below 1, mean AU above the mean squared training error: conservative, not "calibrated") `[ledger 2026-09-23, interpretation checks]` |
-| NLL variance heads are fragile | nix1994estimating, skafte2019reliable, seitzer2022pitfalls, stirn2023faithful, sluijterman2024optimal | These works study single-task training; we show that the failure emerges during HF optimization in both protocols, is accelerated by pretraining, and quantify it per epoch; whether the target switch itself contributes is what the ablations test `[PENDING: WP3]` |
+| NLL variance heads are fragile | nix1994estimating, skafte2019reliable, seitzer2022pitfalls, stirn2023faithful, sluijterman2024optimal | These works study single-task training; we show that the failure emerges during HF optimization in both protocols, is accelerated by pretraining, and quantify it per epoch; our ablations show that the collapse re-emerges after a variance-head reset (several times more slowly), is delayed but not removed by slower fine-tuning, and is not removed by beta-NLL `[ledger 2026-11-07, "Fine-tuning ablations of the AU collapse"; "Head reset: AU calibration along fine-tuning"]` |
 | Overconfidence of MACE ensemble UQ | bilbrey2025uncertainty: readout ensembles of MACE-MP-0 and fine-tuned models are overconfident by orders of magnitude; quantile readouts are not | Bilbrey et al. retrain only readouts of a foundation model (ensemble and quantile model separately) and do not track AU/EU of a deep ensemble across an LF->HF transition or through training; we do, and find that EU, not AU, carries the improvement after pretraining |
 | Pretraining changes the decomposition | - (not found in prior work) | HF-only: EU is the weakest ranking signal on every test set; LF->HF: EU ranks as well as or better than AU on 3 of 4 `[paper Sec. 4.1]` |
 | Pretrained UQ is a better acquisition function | QBC with ensemble disagreement (smith2018less), committee AL (schran2020committee) | Despite starting more accurate, the pretrained ensemble benefits more from uncertainty-guided CC acquisition: gain over random 2.316 / 2.497 / 2.347 vs 0.807 / 1.603 / 1.140 meV/atom (AU/EU/TU) `[ledger 2026-09-23]` |
@@ -118,8 +119,10 @@ We agree this is a limitation and state it (App. limitations). Our reasons (user
   chen2023data). Our setting is broader than that. [Citations to verify and add to the bib; pick 2-3.]
 - Within this setting we vary what reviewers asked about: the estimator (ten-member MVE ensemble,
   single MVE model, MSE ensemble without a variance head `[ledger 2026-11-02, 2026-11-03, 2026-11-04]`),
-  the objective (beta-NLL, `[PENDING: WP3.3]`) and the optimization (learning-rate sweeps,
-  `[ledger 2026-11-07 WP4.2]`, FT lr `[PENDING: WP4.3]`).
+  the objective (beta-NLL, `[ledger 2026-11-07, "Fine-tuning ablations of the AU collapse"]`) and the
+  optimization (HF-only learning rates `[ledger 2026-11-07, "HF-only learning-rate sweep complete"]`, FT learning
+  rates `[ledger 2026-11-07, "Fine-tuning ablations of the AU collapse"; "Fine-tuning learning rate on the system
+  split"]`).
 - [Optional, decision D4: second dataset (liquid water, chen2023data) `[PENDING: WP7.2]`.]
 
 ### 2.3 G3: energies only, no forces
@@ -151,14 +154,18 @@ scoped to energy prediction, as in the current conclusion.]
   fine-tuned members have taken a median of 234 steps (2-3 epochs), HF-only members about 20 times more
   (4758 system, 5304 energy, of 23400 available). LF->HF thus uses *less* compute on the scarce labels;
   its extra ~1.1-1.5 x 10^5 steps are on the 10x larger DFT set.
-- **Learning rates.** We added sweeps for HF-only (3e-3, 1e-3) and for fine-tuning (1e-4, 1e-2)
-  `[PENDING: WP4.2, WP4.3]`. First result (energy split, HF-only at lr 1e-3, `[ledger 2026-11-07]`):
-  the lower LR helps HF-only slightly (OOD RMSE x0.94, TU Spearman +0.03), yet LF->HF remains more
-  accurate (x0.51 ID, x0.83 OOD) and ranks better on both tests; its in-distribution calibration
-  remains worse (x1.35), while the Energy-OOD calibration gap is no longer significant at this LR
-  (x1.30, interval contains 1). [Complete when lr 3e-3 and the system split are synced back.] [Write the conclusion once results exist: does the
-  ranking-improves/calibration-degrades pattern hold at each protocol's best LR?]
-- **Model size.** `[PENDING: WP4.4, optional]`.
+- **Learning rates.** We added sweeps for HF-only (3e-3 and 1e-3, besides the paper's 1e-2) and for fine-tuning
+  (1e-4 and 1e-2, besides 1e-3), on both splits, 5 splits x 10 members each (new App. "Learning rates and compute",
+  figure). A lower learning rate helps HF-only only a little (TU Spearman +0.012 to +0.035; RMSE changes of at most
+  ~6% where significant) `[ledger 2026-11-07, "HF-only learning-rate sweep complete"]`. Against every tuned
+  HF-only ensemble, LF->HF stays about 2x more accurate in distribution and ranks errors better in all 8
+  (split, learning rate, test) cells `[same entry]`. The calibration contrast is split-dependent: on the energy
+  split LF->HF is less calibrated in all 4 cells (significant in 2), on the system split better calibrated in
+  all 4 (significant in 1) `[same entry]`; we now state the calibration conclusion per split. For fine-tuning,
+  1e-4 and 1e-3 give nearly the same accuracy and ranking, while 1e-2 ranks worse and makes TU underconfident
+  in distribution `[ledger 2026-11-07, "Fine-tuning learning rate on the system split" and the energy entry]`.
+  So the paper's accuracy and ranking conclusions do not depend on the learning rates we chose.
+- **Model size.** [Not run (user 2026-11-07, PLAN WP4.4 dropped): text-only answer still to write; point to the new App. "Design choices and scope".]
 - **Pretrain-only (LF-only).** See G7.
 
 ### 2.5 G5: "aleatoric" with deterministic labels
@@ -186,7 +193,9 @@ the quantity is meaningful and worth reporting, for four reasons:
    e.g. Energy-OOD Spearman difference +0.1179 [0.09477, 0.141] and ENCE ratio x0.1246
    [0.09637, 0.1611] in favour of MVE TU `[ledger 2026-11-03]`; System-OOD +0.04945
    [0.02668, 0.07222] and x0.2649 [0.207, 0.339] `[ledger 2026-11-04]`; most of the gain comes from AU.
-   (HF-only protocol; LF->HF `[PENDING: WP3.6]`, energy split in training.)
+   (HF-only protocol.) After LF->HF fine-tuning the gap widens: on the system split MVE TU beats the MSE-ensemble
+   EU on every metric and test, e.g. System-OOD Spearman +0.133991 [0.115563, 0.152418] and ENCE ratio x0.166871
+   [0.134028, 0.207762] `[ledger 2026-11-08]`. [Energy split LF->HF: evaluating, `[PENDING: WP3.6 energy]`.]
 4. *The reviewer's reading is in fact one of our results.* If labels are deterministic, all error is
    in principle reducible (the excess-risk view of epistemic uncertainty, lahlou2023deup). Our
    training dynamics show exactly this: the learned variance behaves as a reducible estimate of
@@ -318,7 +327,12 @@ down-weighting of hard examples in Gaussian NLL, leaves accuracy and ranking unc
 overconfidence (AU ENCE slightly worse, x1.15-1.26 on all four tests) `[ledger 2026-11-07, "Fine-tuning ablations
 of the AU collapse"]`. The overconfidence is thus not an artefact of NLL optimization that a re-weighted
 objective fixes. MSE-trained ensembles, which have no variance head, are the complementary control: for HF-only
-they are already in the appendix `[ledger 2026-11-03, 2026-11-04]`; for LF->HF `[PENDING: WP3.6]`.
+they are already in the appendix `[ledger 2026-11-03, 2026-11-04]`. We also fine-tuned MSE ensembles from
+MSE-pretrained members (system split; energy split being evaluated, `[PENDING: WP3.6 energy]`): pretraining improves
+the ranking of the MVE EU by +0.13 to +0.15 Spearman but that of the MSE-ensemble EU by only +0.02 to +0.03 (OOD
+interval contains 0), and does not improve the MSE-ensemble EU calibration `[ledger 2026-11-08]`. The ranking gain
+of pretraining is thus tied to the MVE members; the MSE ensemble, having no AU, cannot show the collapse, and its EU
+is not degraded by pretraining.
 
 **(d) A variance scale fitted to held-out residuals should repair calibration where held-out data resemble the
 test data.** This is what the isotonic recalibration of the appendix does (fitted on held-out validation data):
@@ -343,7 +357,10 @@ of it the final model shows. [Draft wording; check against the paper's Discussio
   2026-11-04]`. Key results: one MVE model's AU already ranks as well as or better than a ten-member
   MSE ensemble on OOD (system: Spearman difference +0.02553 [0.01709, 0.03398]; energy: -0.01237
   [-0.02983, 0.005095], interval contains 0) and is better calibrated (ENCE ratio x0.5149 and
-  x0.5312) `[ledger 2026-11-03, 2026-11-04]`; [LF->HF comparison PENDING].
+  x0.5312) `[ledger 2026-11-03, 2026-11-04]`. After LF->HF fine-tuning (system split) the MVE ensemble ranks
+  better than the MSE ensemble on every metric and test, with EU, TU and even a single member's AU (System-OOD
+  Spearman difference +0.117636, +0.133991 and +0.078157), at equal accuracy (RMSE ratio x1.004406 [0.788443,
+  1.279523]) `[ledger 2026-11-08]`; energy split `[PENDING: WP3.6 energy]`.
 - *Multi-fidelity strategies.* We agree that joint, multi-head, alternating and Delta-learning strategies
   (ramakrishnan2015big) are interesting and may show different uncertainty dynamics; we focused on
   sequential fine-tuning because it is the most used route to CC-accurate MLIPs (Section 2.1), and the
@@ -376,14 +393,15 @@ localizes the calibration loss to the HF stage. We added this paragraph to the r
 
 1. Thanks; all reviewers find the paper clear; j1p7 finds no soundness concerns.
 2. Motivation: LF->HF fine-tuning is the standard route to CC accuracy (Section 2.1, 6 citations).
-3. New experiments (list only those completed): LF-only on CC; variance-head reset; beta-NLL;
-   held-out head; LR sweeps; MSE ensembles; single model / ensemble size; [forces].
+3. New experiments (list only those completed): LF-only on CC; variance-head reset; beta-NLL; LR sweeps
+   (HF-only and fine-tuning); MSE ensembles (HF-only, LF->HF); single model / ensemble size; [forces, if D3].
+   (Held-out-fitted head: dropped by the user 2026-11-07, not to be listed.)
 4. Revisions: novelty table, renamed AU, design-choices section, Fig. 1 fix, related work.
 
-**Table for item 3 (draft, 3.3d, mace-leo-2 2026-11-07).** Every row: both distribution shifts, 5 dataset
-splits x 10 members, paired contrasts with 95% intervals over splits; details in the new appendix
-"Additional baselines and ablations" (App. A-D). Rows only for recorded results; the MSE LF->HF row is
-`[PENDING: WP3.6]`.
+**Table for item 3 (draft, 3.3d, mace-leo-2 2026-11-07; updated mace-leo-3 2026-11-08).** Every row: both distribution
+shifts, 5 dataset splits x 10 members, paired contrasts with 95% intervals over splits; details in the new appendix
+"Additional baselines and ablations" (items A-D below; in the revised PDF draft of 2026-11-08 this is App. M,
+A-E = M.1-M.5). Rows only for recorded results; the MSE LF->HF row has the system split only (energy evaluating).
 
 | New experiment (App.) | Asked by | Does the paper's conclusion hold? |
 |---|---|---|
@@ -394,7 +412,7 @@ splits x 10 members, paired contrasts with 95% intervals over splits; details in
 | beta-NLL fine-tuning (C) | Q2LT Q1/Q4 | Yes: same accuracy and ranking, AU still overconfident `[ledger 2026-11-07, "Fine-tuning ablations of the AU collapse"]`. |
 | Slower fine-tuning, lr 1e-4 (C) | Q2LT Q1/Q4 | Yes: the selected epoch moves 2 -> 25-30, the endpoint does not change `[same entries]`. |
 | Single MVE model, ensemble size M = 1..10, MSE ensembles (HF-only) (D) | Q2LT Q2/Q5 | Yes: the decomposition's TU beats the MSE-ensemble signal on every metric and test; even one MVE model's AU ranks about as well as ten MSE members `[ledger 2026-11-02, 2026-11-03, 2026-11-04]`. |
-| MSE ensembles, LF->HF (C/D) | Q2LT Q1/Q2 | `[PENDING: WP3.6]` |
+| MSE ensembles, LF->HF (D) | Q2LT Q1/Q2 | Yes (system split; energy `[PENDING: WP3.6 energy]`): pretraining improves the MVE ranking much more than the MSE-ensemble ranking, so after LF->HF the MVE ensemble ranks better on every metric and test at equal accuracy `[ledger 2026-11-08]`. |
 
 ---
 

@@ -144,3 +144,13 @@ Last verified **2026-11-08 11:20** (mace-leo-3), both machines.
   `uq-mse-eval3` (3 workers, GPUs 0 2 6, one split per job; `runs/_jobs/mse_energy_eval3.log`). A failed job leaves a
   `.failed` marker and blocks the final aggregate/prune of its experiment (needs a human). Do not restart
   `uq-mse-postprocess` before `uq-mse-eval3` has finished (it would re-evaluate).
+- 2026-11-08 ~12:15 — mace-leo-3, **handoff** (energy MSE still evaluating on 3 GPUs; certificate valid until ~23:15):
+  1. `uq-mse-eval3`: read `runs/_jobs/mse_energy_eval3.log`; a `.failed` marker needs the user. When the log says
+     `finish done` (both aggregated + pruned): `python -m uq.evaluation.compare_uq` (energy LF->HF rows; other rows
+     unchanged, check `git diff`), `python -m uq.evaluation.compare_uq_protocols`, ledger entry "MSE ensembles after
+     LF->HF fine-tuning, ANI-1x energy split" (format of the 2026-11-08 system entry), commit the evaluation outputs.
+  2. CPU: rerun `papers/iclr27/figures/tabA_estimators.py`; add the MSE LF->HF row (EU only) to `figA_ablations.py`
+     from `mse_vs_mve*.csv`; paste the new tables/figure into App. M of the manuscript and fill the red
+     `\pending{}` in M.4; replace `[PENDING: WP3.6 energy]` in `draft_rebuttal.md` (2.5, 4.1, 4.2, Section 5).
+  3. The user reviews the revised-appendix PDF and decides D3/D4/D5/D10 + the Q1 rewrite on 2026-11-09 (PLAN 5).
+
