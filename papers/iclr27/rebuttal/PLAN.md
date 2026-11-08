@@ -73,10 +73,16 @@ fix (G6); related work (Bilbrey 2025, Tompa 2026, Gardner 2025, Messerly 2025). 
 
 ### 3.3 Figure / table work (CPU only, `paper-figures` skill)
 
+User rules (2026-11-08): AUSE + ENCE only (no Spearman); final models as Fig. 2 dot plots (`dotplot.py`), dynamics as
+Fig. 5 line plots; always show the training dynamics. Interpretation and phrasing of every new result: `FINDINGS.md`.
+
 - [x] 3.3a `papers/iclr27/figures/figA_lr_sensitivity.py` (item B): RMSE / TU Spearman / TU ENCE vs lr, both protocols and splits, from the aggregate summaries (mace-leo-2, `03e6b94`).
 - [x] 3.3b `papers/iclr27/figures/figA_ablations.py` (item C, forest plot: reset, beta-NLL, FT lr 1e-4/1e-2 x 4 tests; RMSE, AU Spearman, AU/TU ENCE) (mace-leo-2, `03e6b94`). Add an MSE LF->HF row when WP3.6 is recorded.
 - [x] 3.3c `papers/iclr27/figures/tabA_lf_only.py` -> `out/tabA_lf_only.tex` (item A, booktabs; LF-only / HF-only / LF->HF x 4 tests) (mace-leo-2, `03e6b94`).
 - [x] 3.3d General-response table (Markdown, in `draft_rebuttal.md` Section 5; MSE LF->HF row: system filled 2026-11-08, energy pending) (mace-leo-2, mace-leo-3).
+- [x] 3.3g (mace-leo-3, `7463f08`) `figA_pretrain_only.py` and `figA_estimators.py` (Fig. 2 style, replace tabA_* in the
+  appendix), `figA_ablation_dynamics.py` (Fig. 5 style; Energy-OOD column waits for `uq-abl-epochpred`), AUSE instead of
+  Spearman in `figA_ablations.py` / `figA_lr_sensitivity.py`.
 - [x] 3.3e `papers/iclr27/figures/tabA_estimators.py` -> `out/tabA_estimators_{spearman,ence}.tex` (item D; "pending" cells until energy MSE LF->HF is evaluated; rerun then) (mace-leo-3, `97da6e4`).
 - [~] 3.3f (mace-leo-3, 2026-11-08) Revised appendix drafted in `ICLR27-UQ-MF/iclr2027_conference.tex`: new App. "Additional baselines and ablations" (M.1-M.5 = items A-E) after Broader impact, all in `\revise{}`, open items as red `\pending{}`; one pointer sentence in Results intro; the Limitations sentence "we do not ablate ... squared loss, single model, reset head" replaced (old text kept as a comment). Figures copied from `03e6b94`. Compiles (pdflatex, 38 pp., main text still ends p. 9); preview `ICLR27-UQ-MF/iclr2027_conference.pdf` (untracked). **Not committed in the paper repo: waiting for the user's review.** Still to fill: MSE LF->HF row in figA_ablations + energy in tabA_estimators, ensemble-size figure (or text only), design-choices arguments and citations (rebuttal 2.1, 2.2, 3.1-3.3).
 

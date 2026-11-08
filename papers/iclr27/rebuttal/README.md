@@ -13,6 +13,7 @@ manuscript is `ICLR27-UQ-MF/` (own Git repo, synced with Overleaf).
 | [`PLAN.md`](PLAN.md) | reviewer asks -> status, **presentation plan** (appendix items, posts, figures), TODO with claims, decisions, short log | every agent |
 | [`RUNS.md`](RUNS.md) | **every job on every machine** (local DGX, CINECA Leonardo), sync protocol, Leonardo budget | every agent that launches or checks jobs |
 | [`LEONARDO.md`](LEONARDO.md) | Leonardo login (2FA) and cluster rules: filesystems, SLURM, accounting, our layout there | when a fact about Leonardo changes |
+| [`FINDINGS.md`](FINDINGS.md) | **interpretation of the new results**: what strengthens the paper, what is risky, how to phrase it; the user's presentation preferences (AUSE + ENCE only, Fig. 2 / Fig. 5 styles) | whoever records or interprets a result |
 | [`draft_rebuttal.md`](draft_rebuttal.md) | draft OpenReview responses + verified reference table | writing agents |
 | [`reviews.md`](reviews.md) | reviews verbatim with point IDs `G*` `J*` `Q*` | frozen (append follow-ups only) |
 

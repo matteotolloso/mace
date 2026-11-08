@@ -51,6 +51,7 @@ Last verified **2026-11-08 11:20** (mace-leo-3), both machines.
 | `ani1x-system/mace-mve/lf-to-hf-lr1e-{4,2}` | 3.5, 4.3 | Leonardo `$WORK` | 016dbb6 | eval 63722646-655, prune 63722656 | **recorded** (ledger 2026-11-07 "Fine-tuning learning rate on the system split") | synced 18:17-18:31 (`runs/_jobs/sync_ftlr_system_2026-11-07.sh`) |
 | `ani1x-energy/mace-mve/lf-to-hf-beta-nll` | 3.3 | Leonardo `$FAST` | c7710ef | `$FAST/.../_slurm/beta-nll*/`; prune 63721011 | **recorded** (ledger 2026-11-07 "Fine-tuning ablations of the AU collapse") | |
 | `ani1x-system/mace-mve/lf-to-hf-beta-nll` | 3.3 | Leonardo `$FAST` | c7710ef | same | **recorded** (ledger 2026-11-07 "Fine-tuning ablations of the AU collapse") | |
+| `ani1x-energy/mace-mve/lf-to-hf-{reset-var,beta-nll,lr1e-4,lr1e-2}`: Energy-OOD per-epoch predictions | 3.2-3.5 (App. M.3 dynamics) | DGX **GPU 4** (4th GPU, user-approved 2026-11-08) | 7463f08 | `uq-abl-epochpred` (`runs/_jobs/abl_epoch_predictions.sh`, log in each `split_<s>/epoch_predictions_cc_test_ood.log`) | running since 12:50 | `python -m uq.evaluation.epoch_predictions all ... --gpu 4 --streams 1`, ~8 min per split, 20 splits; ~10 GB; restartable (skips finished outputs); then FINDINGS.md Section 4 |
 | WP2 LF-only on CC (B, D; step `lfonly_baseline`) | 2 | DGX GPU 0 + Leonardo 63721292 | 9f8da8b / c7710ef | | **recorded** | caused one MSE OOM on the DGX (retried, complete) |
 | Leonardo setup and smoke tests | 11 | Leonardo | adc12bd-c7710ef | 63701795; 63715545, 63715577, 63718842, 63720530 | done | smoke tests cancelled on purpose; 63698806, 63699144 = failed env attempts (fixed) |
 
@@ -153,4 +154,9 @@ Last verified **2026-11-08 11:20** (mace-leo-3), both machines.
      from `mse_vs_mve*.csv`; paste the new tables/figure into App. M of the manuscript and fill the red
      `\pending{}` in M.4; replace `[PENDING: WP3.6 energy]` in `draft_rebuttal.md` (2.5, 4.1, 4.2, Section 5).
   3. The user reviews the revised-appendix PDF and decides D3/D4/D5/D10 + the Q1 rewrite on 2026-11-09 (PLAN 5).
+- 2026-11-08 12:50 — mace-leo-3: **user approved a 4th DGX GPU** for this one job (other users also hold 4 GPUs; avoids moving
+  data to Leonardo): `uq-abl-epochpred` on GPU 4 (23 GB free before launch) computes the support-filterable Energy-OOD
+  per-epoch predictions of the four energy FT ablations for the App. M.3 dynamics figure. The 3-GPU cap otherwise stands.
+- 2026-11-08 ~13:00 — mace-leo-3: interpretation of all new results written to `FINDINGS.md` (read it before writing the
+  rebuttal or the revised appendix); the appendix now uses Fig. 2 / Fig. 5 styles and AUSE + ENCE only (user).
 
