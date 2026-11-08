@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Appendix figure (rebuttal item B) - sensitivity of both protocols to the learning rate.
 
-Rows: system split, energy split. Columns: RMSE (meV/atom), TU Spearman, TU ENCE of the
+Rows: system split, energy split. Columns: RMSE (meV/atom), TU AUSE, TU ENCE of the
 final, uncalibrated, support-filtered ensembles. x: learning rate of the trained stage
 (HF-only: 1e-2 as in the paper, 3e-3, 1e-3; LF->HF fine-tuning: 1e-4, 1e-3 as in the
 paper, 1e-2; LF pretraining unchanged). ID solid, OOD dashed; the paper's setting is
 ringed. Five-split values from the aggregate summaries
 (``experiments/<id>/evaluation/reliability_<test>_nocal_summary.csv``): RMSE and ENCE as
-geometric means with log-space 95% Student-t intervals, Spearman as arithmetic means
+geometric means with log-space 95% Student-t intervals, AUSE as arithmetic means
 (df = 4). An experiment whose aggregate is missing or has fewer than five splits is left
 out and reported, never filled in.
 """
@@ -27,7 +27,7 @@ PAPER = {"HF-only": "hf-only", "LF→HF": "lf-to-hf"}
 SPLITS_ROWS = (("system", "System split"), ("energy", "Energy split"))
 # (metric, uncertainty_type, label, scale, geometric)
 COLUMNS = (("rmse", "ensemble", "RMSE (meV/atom) ↓", 1000.0, True),
-           ("spearman", "total", "TU Spearman ↑", 1.0, False),
+           ("ause", "total", "TU AUSE ↓", 1.0, False),
            ("ence", "total", "TU ENCE ↓", 1.0, True))
 TEST_STYLE = {"id": ("-", "ID"), "ood": ((0, (4, 2)), "OOD")}
 

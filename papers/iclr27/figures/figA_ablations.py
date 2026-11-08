@@ -4,7 +4,7 @@
 Forest plot of paired contrasts between each LF->HF ablation and its reference
 (B on the system split, D on the energy split): one row group per ablation
 (variance-head reset, beta-NLL, FT lr 1e-4, FT lr 1e-2), one row per test set.
-Columns: RMSE ratio, AU Spearman difference, AU ENCE ratio, TU ENCE ratio of the
+Columns: RMSE ratio, AU AUSE difference, AU ENCE ratio, TU ENCE ratio of the
 final, uncalibrated, support-filtered ensembles. Centers and 95% Student-t
 intervals (df = 4) over the five paired splits, as computed by
 ``python -m uq.evaluation.compare_ablations`` (ratios in log space); this script
@@ -22,7 +22,7 @@ ABLATIONS = (("lf-to-hf-reset-var", "variance-head reset"), ("lf-to-hf-beta-nll"
              ("lf-to-hf-lr1e-4", "FT lr 1e-4"), ("lf-to-hf-lr1e-2", "FT lr 1e-2"))
 # (metric, uncertainty_type, column title, ticks of the log axis or None for a linear axis)
 COLUMNS = (("rmse", "ensemble", "RMSE ratio ↓", (0.9, 1, 1.1, 1.2)),
-           ("spearman", "aleatoric", "AU Spearman diff. ↑", None),
+           ("ause", "aleatoric", "AU AUSE diff. ↓", None),
            ("ence", "aleatoric", "AU ENCE ratio ↓", (0.25, 0.5, 1, 2)),
            ("ence", "total", "TU ENCE ratio ↓", (0.25, 0.5, 1, 2)))
 Contrast = namedtuple("Contrast", "mean low high")

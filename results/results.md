@@ -1209,3 +1209,60 @@ How to use it:
   ensemble-size tables follow the same filtering as the 2026-11-03/04 MSE entries.
 
 ---
+
+### 2026-11-08 AU along fine-tuning for all LF->HF ablations (rebuttal WP3.2, 3.3, 3.5; Q1 (b), (c)); appendix figure
+
+- **Status:** verified (computed in this task from complete five-split aggregates; extends the entry "Head reset: AU
+  calibration along fine-tuning" to beta-NLL and both FT learning rates, and to every 5th epoch).
+- **Purpose:** the per-epoch AU dynamics behind the final-model ablations: does each variant change *when* the AU
+  overconfidence develops, and how far it goes by the end of fine-tuning?
+- **Code commit:** `dcd2a087e5f3dcafb8db7820cbaca89033eacd4d`; dirty tree: yes (the new figure scripts of this entry and
+  the AUSE-for-Spearman change of `figA_ablations.py` / `figA_lr_sensitivity.py`, which change no number).
+- **Command(s):** pandas read of `experiments/ani1x-{system,energy}/mace-mve/<variant>/evaluation/epoch_quality_<test>.csv`
+  (columns `ence_aleatoric_geometric_mean` / `_n`, `ause_aleatoric_mean`), variants `lf-to-hf` (B / D),
+  `lf-to-hf-reset-var`, `lf-to-hf-beta-nll`, `lf-to-hf-lr1e-4`, `lf-to-hf-lr1e-2`; figure
+  `python papers/iclr27/figures/figA_ablation_dynamics.py` (from the per-split files, EMA-smoothed).
+- **Configuration / data / seeds:** as in "Fine-tuning ablations of the AU collapse"; tests System-ID, System-OOD, Energy-ID
+  (cached curves; Energy-OOD per-epoch curves are not support-filtered and are not used); epochs 0-95 every 5; five splits
+  x ten members for every variant and epoch (`_n` = 5 everywhere).
+- **Compute:** CPU (cached per-epoch outputs).
+- **Metrics:** AU ENCE, five-split geometric mean, uncalibrated, per atom: value at FT epoch 0, minimum (epoch), first epoch
+  after the minimum where it exceeds 1, value at epochs 50 and 95 (3 significant digits):
+
+  | Test | Variant | ep 0 | min (ep) | first > 1 | ep 50 | ep 95 |
+  |---|---|---|---|---|---|---|
+  | System-ID | LF->HF (B) | 0.21 | 0.21 (0) | 5 | 31 | 67.2 |
+  | System-ID | head reset | 0.946 | 0.24 (10) | 20 | 4.88 | 12.5 |
+  | System-ID | beta-NLL | 0.442 | 0.442 (0) | 10 | 26.7 | 67 |
+  | System-ID | FT lr 1e-4 | 25.4 | 0.455 (10) | 50 | 1.07 | 2.28 |
+  | System-ID | FT lr 1e-2 | 0.373 | 0.373 (0) | 40 | 1.43 | 3.35 |
+  | System-OOD | LF->HF (B) | 0.374 | 0.374 (0) | 5 | 37.7 | 81.9 |
+  | System-OOD | head reset | 0.911 | 0.495 (10) | 20 | 6.1 | 14.9 |
+  | System-OOD | beta-NLL | 0.71 | 0.71 (0) | 5 | 31.3 | 77.7 |
+  | System-OOD | FT lr 1e-4 | 28.9 | 0.674 (15) | 35 | 1.44 | 2.96 |
+  | System-OOD | FT lr 1e-2 | 0.33 | 0.33 (0) | 25 | 1.87 | 4.17 |
+  | Energy-ID | LF->HF (D) | 0.116 | 0.116 (0) | 10 | 26.6 | 60.5 |
+  | Energy-ID | head reset | 0.969 | 0.192 (15) | 25 | 3.55 | 9.41 |
+  | Energy-ID | beta-NLL | 0.435 | 0.435 (0) | 10 | 21.7 | 57.6 |
+  | Energy-ID | FT lr 1e-4 | 25.7 | 0.294 (15) | 75 | 0.633 | 1.42 |
+  | Energy-ID | FT lr 1e-2 | 0.382 | 0.36 (5) | 35 | 1.23 | 3.02 |
+
+  On the training set (`epoch_quality_train.csv`, AU ENCE geometric mean, epochs 10-95) every variant stays at or below
+  0.909 on both splits (0.755-0.909 at epoch 95), except system lr 1e-2 at its unstable epoch 10 (1.16): AU is not
+  overconfident on the data it is fitted to. At FT epoch 0,
+  lr 1e-4 has a training RMSE of 35.4 (system) / 30.7 (energy) meV/atom (mean over splits) against 14.3 / 9.0 for the
+  paper's lr: after one epoch at the small lr the DFT-to-CC offset is not yet absorbed, hence the overconfident start.
+  The system lr 1e-2 runs show an unstable epoch 10 (mean training RMSE 771.9 meV/atom), recovered by epoch 50 (10.0).
+- **Output files:** new `papers/iclr27/figures/figA_ablation_dynamics.py` -> `papers/iclr27/figures/out/figA_ablation_dynamics.{pdf,svg,png}`.
+- **Interpretation:** (1) With the inherited head (paper, beta-NLL) held-out AU ENCE exceeds 1 within 5-10 FT epochs and
+  reaches 58-82 by epoch 95; beta-NLL follows the paper's curve almost exactly. (2) A re-initialized head starts near 1,
+  is best calibrated at epochs 10-15 and then degrades like the inherited head but ~5x less by epoch 95 (9-15).
+  (3) Both FT learning rates away from the paper's 1e-3 slow the collapse strongly: ENCE first exceeds 1 at epochs 35-75
+  (1e-4) and 25-40 (1e-2) instead of 5-10, and ends at 1.4-4.2 instead of 58-82. For 1e-4 this is the predicted
+  delay (prediction (c), ~10x later); for 1e-2 it is not a slower fit of the training set (training RMSE at epoch 95 is
+  similar: 9.6 vs 9.0 meV/atom system), so the extent of the collapse is not a monotone function of the learning rate.
+  So the statement "the time scale follows the optimization speed" holds for the smaller lr only; the general claim is
+  that the overconfidence is fastest under the paper's setting and develops in every variant, at different rates. In all
+  variants AU stays calibrated or conservative on the training set while it becomes overconfident on held-out data.
+
+---
