@@ -1266,3 +1266,39 @@ How to use it:
   variants AU stays calibrated or conservative on the training set while it becomes overconfident on held-out data.
 
 ---
+
+### 2026-11-08 AU along fine-tuning for the LF->HF ablations on Energy-OOD (support-filtered; completes the previous entry)
+
+- **Status:** verified (computed in this task from complete five-split per-configuration predictions).
+- **Purpose:** the Energy-OOD column of the ablation dynamics (App. M.3 figure), missing from the entry "AU along
+  fine-tuning for all LF->HF ablations" because the cached Energy-OOD curves are not support-filtered.
+- **Code commit:** `85e546e82a47ae9ad4151d2a1c0e250a64ab6ac4`; dirty tree: only untracked evaluation outputs (the new npz below).
+- **Command(s):** `runs/_jobs/abl_epoch_predictions.sh` (DGX GPU 4, user-approved 4th GPU, 2026-11-08 12:54-14:57):
+  `python -m uq.evaluation.epoch_predictions all ani1x-energy/mace-mve/lf-to-hf-{reset-var,beta-nll,lr1e-4,lr1e-2} --gpu 4 --streams 1`;
+  summary: `papers/iclr27/figures/epoch_data._from_npz` (support filter `supported("energy", s, "cc_test_ood")`) +
+  `across_splits(..., log=True)`, as the figure; figure `python papers/iclr27/figures/figA_ablation_dynamics.py`.
+  The paper's LF->HF (D) uses its existing tracked npz (as in Fig. 5).
+- **Configuration / data / seeds:** as in "Fine-tuning ablations of the AU collapse"; test `data/ani1x-energy/split_<s>/cc_test_ood`
+  restricted to the training-support region; FT epochs 0-95 every 5; five splits x ten members for every variant and epoch.
+- **Compute:** GPU inference (new per-epoch predictions, 20 split runs), then CPU.
+- **Metrics:** AU ENCE (five-split geometric mean, uncalibrated, per atom; columns as in the previous entry) and AU AUSE
+  (five-split mean) at epochs 0 and 95, 3 significant digits:
+
+  | Variant | ENCE ep 0 | min (ep) | first > 1 | ep 50 | ep 95 | AUSE ep 0 | AUSE ep 95 |
+  |---|---|---|---|---|---|---|---|
+  | LF->HF (D) | 3.4 | 3.4 (0) | 0 | 98.4 | 207 | 0.175 | 0.133 |
+  | head reset | 0.713 | 0.713 (0) | 5 | 18.4 | 41.2 | 0.537 | 0.174 |
+  | beta-NLL | 4.3 | 4.3 (0) | 0 | 104 | 239 | 0.176 | 0.144 |
+  | FT lr 1e-4 | 22.9 | 5.64 (10) | 10 | 9.79 | 13.9 | 0.262 | 0.139 |
+  | FT lr 1e-2 | 5.68 | 5.68 (0) | 0 | 25.1 | 42.4 | 0.181 | 0.157 |
+
+- **Output files:** `experiments/ani1x-energy/mace-mve/lf-to-hf-{reset-var,beta-nll,lr1e-4,lr1e-2}/evaluation/split_{0..4}/epoch_predictions_cc_test_ood.{npz,log}`;
+  `papers/iclr27/figures/out/figA_ablation_dynamics.{pdf,svg,png}` (now with the Energy-OOD column).
+- **Interpretation:** Under energy extrapolation AU is overconfident from the first FT epoch with the inherited head (paper,
+  beta-NLL, both lrs); only the re-initialized head starts calibrated (0.71) and crosses 1 after 5 epochs. The ordering of the
+  other tests holds: paper and beta-NLL go furthest (207-239 by epoch 95), head reset and lr 1e-2 end ~5x lower (41-42),
+  lr 1e-4 ~15x lower (13.9). Unlike the in-distribution tests, no lr variant is ever calibrated on Energy-OOD, so the
+  "delayed collapse" of the previous entry applies to System-ID/OOD and Energy-ID only. The head reset again ranks worst at
+  every epoch (AUSE 0.537 at epoch 0, 0.174 at 95 vs 0.133).
+
+---

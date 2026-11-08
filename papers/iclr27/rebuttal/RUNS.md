@@ -12,7 +12,7 @@ provenance of recorded numbers: the ledger entries. Condensed 2026-11-07; the fu
 | **DGX** (shared, 8x A100 40 GB) | GPUs 0, 2, 6 | **max 3 GPUs for this project at any time**; no extra inference next to packed training (OOM) | shell; jobs as systemd user units `uq-*` (`KillMode=control-group`: stopping a unit kills its members) |
 | **Leonardo** (Booster, 4x A100 64 GB per node) | `IscrC_UQ-MF`, 80,000 local h | SLURM QOS; `$WORK` and `$FAST` 1 TB each | `ssh leonardo` while the user's 12 h certificate (`leonardo-login`) is valid |
 
-**Owner of all jobs:** session `mace-leo-3` (since 2026-11-08 morning; took over from `mace-leo-2`, before that `mace-leo`). A later session takes over by writing its name here.
+**Owner of all jobs:** session `mace-leo-4` (since 2026-11-08 16:40; before it `mace-leo-3`, took over from `mace-leo-2`, before that `mace-leo`). A later session takes over by writing its name here.
 
 ## 2. Sync protocol (short)
 
@@ -51,7 +51,7 @@ Last verified **2026-11-08 11:20** (mace-leo-3), both machines.
 | `ani1x-system/mace-mve/lf-to-hf-lr1e-{4,2}` | 3.5, 4.3 | Leonardo `$WORK` | 016dbb6 | eval 63722646-655, prune 63722656 | **recorded** (ledger 2026-11-07 "Fine-tuning learning rate on the system split") | synced 18:17-18:31 (`runs/_jobs/sync_ftlr_system_2026-11-07.sh`) |
 | `ani1x-energy/mace-mve/lf-to-hf-beta-nll` | 3.3 | Leonardo `$FAST` | c7710ef | `$FAST/.../_slurm/beta-nll*/`; prune 63721011 | **recorded** (ledger 2026-11-07 "Fine-tuning ablations of the AU collapse") | |
 | `ani1x-system/mace-mve/lf-to-hf-beta-nll` | 3.3 | Leonardo `$FAST` | c7710ef | same | **recorded** (ledger 2026-11-07 "Fine-tuning ablations of the AU collapse") | |
-| `ani1x-energy/mace-mve/lf-to-hf-{reset-var,beta-nll,lr1e-4,lr1e-2}`: Energy-OOD per-epoch predictions | 3.2-3.5 (App. M.3 dynamics) | DGX **GPU 4** (4th GPU, user-approved 2026-11-08) | 7463f08 | `uq-abl-epochpred` (`runs/_jobs/abl_epoch_predictions.sh`, log in each `split_<s>/epoch_predictions_cc_test_ood.log`) | running since 12:50 | `python -m uq.evaluation.epoch_predictions all ... --gpu 4 --streams 1`, ~8 min per split, 20 splits; ~10 GB; restartable (skips finished outputs); then FINDINGS.md Section 4 |
+| `ani1x-energy/mace-mve/lf-to-hf-{reset-var,beta-nll,lr1e-4,lr1e-2}`: Energy-OOD per-epoch predictions | 3.2-3.5 (App. M.3 dynamics) | DGX **GPU 4** (4th GPU, user-approved 2026-11-08) | 7463f08 | `uq-abl-epochpred` (`runs/_jobs/abl_epoch_predictions.sh`, log in each `split_<s>/epoch_predictions_cc_test_ood.log`) | **recorded** (ledger 2026-11-08 "... on Energy-OOD") | finished 14:57, 20/20 splits (21 MB of npz); GPU 4 released; figure rebuilt, App. M.3 updated |
 | WP2 LF-only on CC (B, D; step `lfonly_baseline`) | 2 | DGX GPU 0 + Leonardo 63721292 | 9f8da8b / c7710ef | | **recorded** | caused one MSE OOM on the DGX (retried, complete) |
 | Leonardo setup and smoke tests | 11 | Leonardo | adc12bd-c7710ef | 63701795; 63715545, 63715577, 63718842, 63720530 | done | smoke tests cancelled on purpose; 63698806, 63699144 = failed env attempts (fixed) |
 
@@ -159,4 +159,7 @@ Last verified **2026-11-08 11:20** (mace-leo-3), both machines.
   per-epoch predictions of the four energy FT ablations for the App. M.3 dynamics figure. The 3-GPU cap otherwise stands.
 - 2026-11-08 ~13:00 — mace-leo-3: interpretation of all new results written to `FINDINGS.md` (read it before writing the
   rebuttal or the revised appendix); the appendix now uses Fig. 2 / Fig. 5 styles and AUSE + ENCE only (user).
-
+- 2026-11-08 16:40 — mace-leo-4 takes over. `uq-abl-epochpred` finished 14:57 (20/20 ok) -> figure, ledger, App. M.3, PDF.
+  `uq-mse-eval3` is much slower than expected: after 4.7 h lf-only s1 is at `epoch_quality_id` (its `train_curves` took
+  3 h), s2/s3 still in `train_curves` (shared GPUs at 100 % from other users); 6 split jobs still queued (lf-only s4,
+  lf-to-hf s0-4). Rough estimate: energy MSE results tomorrow (2026-11-09), not today.

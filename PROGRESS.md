@@ -130,3 +130,6 @@ at ~30-111. Possible extra arm: compare both methods after the same recalibratio
 - 2026-11-07 12:30 — (mace-leo) Certificate renewed; Leonardo and DGX healthy. Rebuttal ablations synced back and
   aggregated (HF-only lr sweep recorded; energy reset-var / FT lr / beta-NLL aggregated, entries pending). User:
   no further LR ablations, multi-head paused; `PLAN.md` condensed with a presentation plan (Section 3).
+- 2026-11-08 16:50 — (mace-leo-4) Rebuttal: Energy-OOD per-epoch AU of the energy FT ablations done (ledger "AU along
+  fine-tuning for the LF->HF ablations on Energy-OOD"); App. M.3 figure/caption updated. Energy MSE evaluation
+  (`uq-mse-eval3`, 3 DGX GPUs) still running, slower than planned: results expected 2026-11-09.

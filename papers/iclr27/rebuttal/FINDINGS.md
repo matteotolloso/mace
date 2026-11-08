@@ -66,6 +66,11 @@ result arrives or the user changes the framing.
    inherited head (reset result). **Phrase:** "the overconfidence is robust; its speed depends on
    the optimization and is fastest in the main setting". Do not write "the time scale follows the
    optimization speed" without the 1e-2 caveat.
+   **Energy-OOD (ledger 2026-11-08 "... on Energy-OOD", added 16:50):** there AU is overconfident from FT
+   epoch 0 in every variant with the inherited head, at either lr (lr 1e-4 minimum 5.6, never < 1); only the
+   reset head starts calibrated (0.71) and crosses 1 at epoch 5. Paper / beta-NLL end at 207-239, reset and
+   lr 1e-2 at ~41, lr 1e-4 at 14. So the "delayed collapse" holds in distribution and on System-OOD only;
+   under energy extrapolation no lr makes AU calibrated (App. M.3 text says so).
 2. **The calibration contrast between protocols is split-dependent and lr-sensitive.** Ledger
    2026-11-07 "HF-only learning-rate sweep complete": energy split LF->HF less calibrated in all 4
    (split, lr) cells (significant in 2); system split better calibrated in all 4 (significant in 1);
@@ -84,9 +89,5 @@ appendix. Open: user review of this framing, D3/D4/D5/D10 (2026-11-09).
 
 ## 4. Pending data
 
-- Energy-OOD per-epoch AU for the energy FT ablations (support-filtered): computing on DGX GPU 4
-  (`uq-abl-epochpred`, `runs/_jobs/abl_epoch_predictions.sh`, ~2.5-3 h from 12:50 on 2026-11-08), then rerun
-  `papers/iclr27/figures/figA_ablation_dynamics.py` (already has the 4th column), extend the ledger entry
-  "AU along fine-tuning ..." with Energy-OOD, copy the PDF into `ICLR27-UQ-MF/figures/`, update the caption of
-  `fig:app:abl_dyn` (it still says Energy-OOD is omitted) and recompile.
+- ~~Energy-OOD per-epoch AU for the energy FT ablations~~: done 2026-11-08 16:50 (figure, ledger, App. M.3 caption/text, PDF recompiled).
 - Energy MSE LF-only / LF->HF evaluation (`uq-mse-eval3`, RUNS.md handoff).
