@@ -133,3 +133,6 @@ at ~30-111. Possible extra arm: compare both methods after the same recalibratio
 - 2026-11-08 16:50 — (mace-leo-4) Rebuttal: Energy-OOD per-epoch AU of the energy FT ablations done (ledger "AU along
   fine-tuning for the LF->HF ablations on Energy-OOD"); App. M.3 figure/caption updated. Energy MSE evaluation
   (`uq-mse-eval3`, 3 DGX GPUs) still running, slower than planned: results expected 2026-11-09.
+- 2026-11-08 17:15 — (mace-leo-4) Energy-split MSE LF->HF final models evaluated first (GPU 4, user-approved) and
+  recorded (ledger "MSE ensembles after LF->HF fine-tuning, ANI-1x energy split"): confirms the system split.
+  WP3.6 numbers complete; full curves/aggregates of the energy MSE experiments still running (RUNS.md).

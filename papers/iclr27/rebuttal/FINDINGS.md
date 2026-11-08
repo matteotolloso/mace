@@ -38,7 +38,11 @@ result arrives or the user changes the framing.
    **pretraining improves the MVE ranking ~5x more than the MSE ranking** (AUSE -0.10/-0.11 vs
    -0.02/-0.03), so the ranking gain of pretraining is tied to the mean-variance members, not to
    starting an ensemble from pretrained weights. The MSE EU is not degraded by pretraining (it has no
-   AU to collapse). Energy split pending (DGX `uq-mse-eval3`).
+   AU to collapse). **Energy split (ledger 2026-11-08 "..., ANI-1x energy split") confirms it:** AUSE gain of
+   pretraining MVE EU -0.14/-0.10 vs MSE EU -0.04/-0.04 (ID/OOD; 2-4x; the small MSE gain is significant here);
+   at LF->HF the MVE ensemble ranks better with EU, TU and single-member AU, TU ENCE x0.23-0.25, and is more
+   accurate (RMSE x0.68 ID, x0.95 OOD). Caveat: on Energy-OOD both EUs are equally miscalibrated (ENCE ~13) and a
+   single member's AU is worse calibrated than the MSE EU (x1.70); the calibration win there is TU's.
 5. **Mechanism (Q1/Q4)** — ledger 2026-11-07 "Fine-tuning ablations of the AU collapse", "Head reset: AU
    calibration along fine-tuning", 2026-11-08 "AU along fine-tuning for all LF->HF ablations".
    - **Held-out effect:** in every variant AU on the *training* set stays calibrated or conservative
@@ -90,4 +94,5 @@ appendix. Open: user review of this framing, D3/D4/D5/D10 (2026-11-09).
 ## 4. Pending data
 
 - ~~Energy-OOD per-epoch AU for the energy FT ablations~~: done 2026-11-08 16:50 (figure, ledger, App. M.3 caption/text, PDF recompiled).
-- Energy MSE LF-only / LF->HF evaluation (`uq-mse-eval3`, RUNS.md handoff).
+- Energy MSE: final-model numbers recorded 2026-11-08 17:10; the full evaluation (curves, aggregates) of both
+  experiments still runs (`uq-mse-eval3` + `uq-mse-fast`, RUNS.md); it changes no recorded number.

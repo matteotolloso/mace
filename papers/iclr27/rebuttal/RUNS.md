@@ -42,7 +42,7 @@ Last verified **2026-11-08 11:20** (mace-leo-3), both machines.
 
 | Experiment | WP | Machine | Commit | Job ids / unit | Status | Notes |
 |---|---|---|---|---|---|---|
-| `ani1x-energy/mace-mse/{lf-only,lf-to-hf}` | 3.6 | DGX GPUs 0 2 6 | 30afae8 / c7fa140; eval at 5577d20 | `uq-mse-eval3` (`runs/_jobs/mse_energy_eval3.sh`; replaced `uq-mse-postprocess`, stopped 11:55) | trained 100/100; evaluating on GPUs 0 2 6 since 11-08 11:55 | queue of 10 split jobs (`mse_energy_eval3.queue`, per-job logs/markers `mse_energy_eval3.*`); lf-only s0 resumed after `epoch_raw_train`; when all 10 are ok: aggregate + prune both (`.pruned` markers) |
+| `ani1x-energy/mace-mse/{lf-only,lf-to-hf}` | 3.6 | DGX GPUs 0 2 6 + **4** (4th GPU user-approved 2026-11-08 17:00 for this evaluation) | 30afae8 / c7fa140; eval at 5577d20, fast steps at 4363236 | `uq-mse-eval3` (`runs/_jobs/mse_energy_eval3.sh`) + `uq-mse-fast` (`runs/_jobs/mse_energy_fast.sh 4`) | final models **recorded** (ledger 2026-11-08 "..., ANI-1x energy split"); full evaluation running | 17:03-17:09 `uq-mse-fast` ran `member_predictions`+`ensemble_size` for lf-to-hf s0-4 (`.fast_ok` markers), compare_uq, then joined the queue as a 4th worker; queue reordered 17:02 (backup `mse_energy_eval3.queue.bak-1708`): lf-only s0 rest, lf-to-hf s0-4 *without* those 4 steps, lf-only s4. **`finish` (aggregate + prune) of eval3 only waits for GPUs 0 2 6**: if GPU 4 still runs a split then, it logs NOT FINISHING; run `runs/_jobs/mse_energy_eval3.sh finish` by hand when all 10 `.ok` exist. |
 | `ani1x-system/mace-mse/{lf-only,lf-to-hf}` | 3.6 | Leonardo `$WORK` | 7e1b998 / 0323ada | train 63716417-441 (17), back-up 63718283-300, eval 63718301-310, prune 63718311 | **recorded** (ledger 2026-11-08 "MSE ensembles after LF->HF fine-tuning, ANI-1x system split") | eval COMPLETED 11-08 03:40-07:52, prune COMPLETED 07:57; no FAILED/TIMEOUT/CANCELLED since 11-07 |
 | `ani1x-{energy,system}/mace-mve/hf-only-lr{1e-3,3e-3}` | 4.2 | Leonardo `$FAST` | b4d07ac / 016dbb6 | prune 63720299, 63722493 | **recorded** (ledger 2026-11-07, `5c16649`) | |
 | `ani1x-energy/mace-mve/lf-to-hf-reset-var` | 3.2 | Leonardo `$WORK` | ac60247 | `runs/_slurm/reset-var*/`; prune 63720981 | **recorded** (ledger 2026-11-07 "Fine-tuning ablations of the AU collapse") | |
@@ -163,3 +163,7 @@ Last verified **2026-11-08 11:20** (mace-leo-3), both machines.
   `uq-mse-eval3` is much slower than expected: after 4.7 h lf-only s1 is at `epoch_quality_id` (its `train_curves` took
   3 h), s2/s3 still in `train_curves` (shared GPUs at 100 % from other users); 6 split jobs still queued (lf-only s4,
   lf-to-hf s0-4). Rough estimate: energy MSE results tomorrow (2026-11-09), not today.
+- 2026-11-08 17:00-17:15 — mace-leo-4 (user: results by tomorrow morning, 4th GPU allowed, the freest = GPU 4): queue
+  reordered, final-model steps of energy MSE LF->HF run first on GPU 4 (6 min), compare_uq -> ledger entry "MSE
+  ensembles after LF->HF fine-tuning, ANI-1x energy split"; tabA/figA_estimators rebuilt, App. M.4 and the rebuttal
+  draft updated. GPU 4 then works the remaining queue. Estimated end of the full evaluation: 2026-11-09 during the day.

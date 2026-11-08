@@ -1,6 +1,6 @@
 # ICLR 2027 rebuttal: working draft (Submission 18667)
 
-Status: **first draft, 2026-11-06; recorded results filled in 2026-11-08 (all but WP3.6 energy and the open
+Status: **first draft, 2026-11-06; recorded results filled in 2026-11-08 (all, incl. WP3.6 energy at 17:10, but the open
 decisions D3/D4).** Not for posting yet. Plan and task status: `PLAN.md`; point
 IDs: `reviews.md`.
 
@@ -195,7 +195,8 @@ the quantity is meaningful and worth reporting, for four reasons:
    [0.02668, 0.07222] and x0.2649 [0.207, 0.339] `[ledger 2026-11-04]`; most of the gain comes from AU.
    (HF-only protocol.) After LF->HF fine-tuning the gap widens: on the system split MVE TU beats the MSE-ensemble
    EU on every metric and test, e.g. System-OOD Spearman +0.133991 [0.115563, 0.152418] and ENCE ratio x0.166871
-   [0.134028, 0.207762] `[ledger 2026-11-08]`. [Energy split LF->HF: evaluating, `[PENDING: WP3.6 energy]`.]
+   [0.134028, 0.207762] `[ledger 2026-11-08]`; Energy-OOD Spearman +0.158443 [0.137397, 0.179490] and ENCE ratio x0.226098 [0.180046,
+   0.283930] `[ledger 2026-11-08, energy split]`.
 4. *The reviewer's reading is in fact one of our results.* If labels are deterministic, all error is
    in principle reducible (the excess-risk view of epistemic uncertainty, lahlou2023deup). Our
    training dynamics show exactly this: the learned variance behaves as a reducible estimate of
@@ -328,9 +329,10 @@ overconfidence (AU ENCE slightly worse, x1.15-1.26 on all four tests) `[ledger 2
 of the AU collapse"]`. The overconfidence is thus not an artefact of NLL optimization that a re-weighted
 objective fixes. MSE-trained ensembles, which have no variance head, are the complementary control: for HF-only
 they are already in the appendix `[ledger 2026-11-03, 2026-11-04]`. We also fine-tuned MSE ensembles from
-MSE-pretrained members (system split; energy split being evaluated, `[PENDING: WP3.6 energy]`): pretraining improves
-the ranking of the MVE EU by +0.13 to +0.15 Spearman but that of the MSE-ensemble EU by only +0.02 to +0.03 (OOD
-interval contains 0), and does not improve the MSE-ensemble EU calibration `[ledger 2026-11-08]`. The ranking gain
+MSE-pretrained members (both splits): pretraining improves
+the ranking of the MVE EU by +0.13 to +0.19 Spearman but that of the MSE-ensemble EU by only +0.02 to +0.06 (system
+OOD interval contains 0), and does not improve the MSE-ensemble EU calibration on either split `[ledger 2026-11-08,
+system and energy splits]`. The ranking gain
 of pretraining is thus tied to the MVE members; the MSE ensemble, having no AU, cannot show the collapse, and its EU
 is not degraded by pretraining.
 
@@ -360,7 +362,8 @@ of it the final model shows. [Draft wording; check against the paper's Discussio
   x0.5312) `[ledger 2026-11-03, 2026-11-04]`. After LF->HF fine-tuning (system split) the MVE ensemble ranks
   better than the MSE ensemble on every metric and test, with EU, TU and even a single member's AU (System-OOD
   Spearman difference +0.117636, +0.133991 and +0.078157), at equal accuracy (RMSE ratio x1.004406 [0.788443,
-  1.279523]) `[ledger 2026-11-08]`; energy split `[PENDING: WP3.6 energy]`.
+  1.279523]) `[ledger 2026-11-08]`; on the energy split likewise (Energy-OOD +0.107719, +0.158443 and +0.047083),
+  with the MVE ensemble also more accurate (RMSE ratio x0.678857 ID, x0.945985 OOD) `[ledger 2026-11-08, energy split]`.
 - *Multi-fidelity strategies.* We agree that joint, multi-head, alternating and Delta-learning strategies
   (ramakrishnan2015big) are interesting and may show different uncertainty dynamics; we focused on
   sequential fine-tuning because it is the most used route to CC-accurate MLIPs (Section 2.1), and the
@@ -412,7 +415,7 @@ A-E = M.1-M.5). Rows only for recorded results; the MSE LF->HF row has the syste
 | beta-NLL fine-tuning (C) | Q2LT Q1/Q4 | Yes: same accuracy and ranking, AU still overconfident `[ledger 2026-11-07, "Fine-tuning ablations of the AU collapse"]`. |
 | Slower fine-tuning, lr 1e-4 (C) | Q2LT Q1/Q4 | Yes: the selected epoch moves 2 -> 25-30, the endpoint does not change `[same entries]`. |
 | Single MVE model, ensemble size M = 1..10, MSE ensembles (HF-only) (D) | Q2LT Q2/Q5 | Yes: the decomposition's TU beats the MSE-ensemble signal on every metric and test; even one MVE model's AU ranks about as well as ten MSE members `[ledger 2026-11-02, 2026-11-03, 2026-11-04]`. |
-| MSE ensembles, LF->HF (D) | Q2LT Q1/Q2 | Yes (system split; energy `[PENDING: WP3.6 energy]`): pretraining improves the MVE ranking much more than the MSE-ensemble ranking, so after LF->HF the MVE ensemble ranks better on every metric and test at equal accuracy `[ledger 2026-11-08]`. |
+| MSE ensembles, LF->HF (D) | Q2LT Q1/Q2 | Yes (both splits): pretraining improves the MVE ranking much more than the MSE-ensemble ranking, so after LF->HF the MVE ensemble ranks better on every metric and test at equal accuracy `[ledger 2026-11-08]`. |
 
 ---
 
