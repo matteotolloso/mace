@@ -1133,3 +1133,79 @@ How to use it:
   appendix (items B and C).
 
 ---
+
+### 2026-11-08 MSE ensembles after LF->HF fine-tuning, ANI-1x system split (rebuttal WP3.6; Q2LT Q1 "no variance head", Q2)
+
+- **Status:** verified for the system split (computed in this task from complete per-split files: 5 splits x 10
+  members for `ani1x-system/mace-mse/{lf-only,lf-to-hf}`; the HF-only rows of `results/tables/mse_vs_mve.csv` are
+  byte-identical to the 2026-11-04 entry). Energy split pending (evaluating on the DGX), separate entry.
+- **Purpose:** does LF pretraining change the EU of a plain MSE ensemble (no variance head, so no AU to collapse) the
+  way it changes the MVE ensemble's EU/TU? And at LF->HF, how does the MSE-ensemble EU compare with its MVE twin B?
+- **Code commit:** training on CINECA Leonardo at `7e1b998` (LF-only) / `0323ada` (LF->HF); evaluation on Leonardo at
+  `016dbb6` (jobs 63718301-310, printed in each `.out`); sync-back, aggregate and tables on the DGX at
+  `5577d20eaad3d3b2d5111b0f5211bb391e4a5094`, dirty tree: `papers/iclr27/rebuttal/RUNS.md` (notes) and the new
+  `uq/evaluation/compare_uq_protocols.py` (this entry).
+- **Command(s):** on Leonardo `uq train-slurm ani1x-system/mace-mse/lf-only ani1x-system/mace-mse/lf-to-hf --pack 3
+  --submit` (train 63716417-441) and `uq evaluate-slurm ... --prune --submit` (eval 63718301-310, prune 63718311,
+  all COMPLETED 2026-11-08 07:57); on the DGX `runs/_jobs/sync_mse_system_2026-11-08.sh` (`uq sync-back <exp> --host
+  leonardo --checkpoints --apply`, then `uq aggregate <exp>`, log `runs/_jobs/sync_mse_system_2026-11-08.log`);
+  `python -m uq.evaluation.compare_uq`; `python -m uq.evaluation.compare_uq_protocols`.
+- **Configuration:** `experiments/ani1x-system/mace-mse/{lf-only,lf-to-hf}/{experiment.yaml,config.yaml}`: as A / B
+  except `predict_mve: False`, `loss: "energy_only"`; LF->HF member (s, m) fine-tuned from MSE LF-only member (s, m).
+  Selected epochs (validation MSE, `uq.evaluation.training_steps.member_rows`): MSE LF-only median 285, range
+  211-299 of 300; MSE LF->HF median 9.5, range 1-99 of 100 (MVE B: median 2, range 1-3).
+- **Dataset and split:** `data/ani1x-system/split_{0..4}/`; LF-only on `dft_*`, LF->HF on `cc_*.xyz`; support filter
+  as for B/E (the ensemble-size tables are built from `members_<test>.npz`, as in the 2026-11-03/04 entries).
+- **Random seeds:** split seeds 0-4; member seeds 0-9 (50/50 members per experiment; nothing missing).
+- **Compute:** retraining (100 members, Leonardo) + GPU inference (Leonardo) + CPU (DGX).
+- **Metrics:** uncalibrated, per atom; M = 10 unless "single"; five-split mean [95% Student-t, df = 4]; contrasts
+  paired per split: difference for Spearman/AUSE, geometric ratio [log-space interval] for RMSE/ENCE. (1) MSE vs MVE
+  at LF->HF, from `results/tables/mse_vs_mve.csv` (rows `ani1x-system,lf-to-hf`):
+
+  | Test | Metric | MSE EU | MVE EU - MSE EU | MVE TU - MSE EU | single MVE AU - MSE EU |
+  |---|---|---|---|---|---|
+  | OOD | Spearman | 0.383849 [0.364706, 0.402992] | 0.117636 [0.101460, 0.133811] | 0.133991 [0.115563, 0.152418] | 0.078157 [0.060745, 0.095569] |
+  | OOD | AUSE | 0.270191 [0.247562, 0.292821] | -0.095593 [-0.110085, -0.081101] | -0.107613 [-0.119144, -0.096082] | -0.069608 [-0.083307, -0.055910] |
+  | OOD | ENCE (ratio) | 1.917238 [1.313071, 2.799391] | x0.777860 [0.488524, 1.238560] | x0.166871 [0.134028, 0.207762] | x1.141149 [0.685608, 1.899367] |
+  | ID | Spearman | 0.351971 [0.329968, 0.373973] | 0.139945 [0.118109, 0.161782] | 0.148200 [0.125263, 0.171136] | 0.075478 [0.049414, 0.101543] |
+  | ID | AUSE | 0.332668 [0.313315, 0.352021] | -0.115140 [-0.139948, -0.090333] | -0.127812 [-0.153246, -0.102377] | -0.084282 [-0.110850, -0.057714] |
+  | ID | ENCE (ratio) | 1.622512 [1.084572, 2.427265] | x0.737723 [0.583246, 0.933114] | x0.211060 [0.128868, 0.345675] | x0.835977 [0.581798, 1.201202] |
+
+  RMSE (eV/atom), MSE ensemble: OOD 0.031592 [0.021249, 0.046971], ID 0.014243 [0.013763, 0.014741]; ratio MVE
+  ensemble / MSE ensemble: OOD x1.004406 [0.788443, 1.279523], ID x1.113989 [0.930848, 1.333162].
+
+  (2) Effect of pretraining, LF->HF minus HF-only on the same split, from `results/tables/mse_vs_mve_pretraining.csv`
+  (rows `ani1x-system`):
+
+  | Test | Metric | MSE EU | MVE EU | MVE TU |
+  |---|---|---|---|---|
+  | OOD | Spearman | 0.022088 [-0.007000, 0.051176] | 0.131816 [0.100692, 0.162939] | 0.106627 [0.077427, 0.135827] |
+  | OOD | AUSE | -0.031811 [-0.044979, -0.018642] | -0.113318 [-0.141212, -0.085425] | -0.084252 [-0.104822, -0.063682] |
+  | OOD | ENCE (ratio) | x1.299972 [0.928895, 1.819287] | x0.738941 [0.454851, 1.200468] | x0.818863 [0.555936, 1.206140] |
+  | ID | Spearman | 0.030117 [0.017197, 0.043037] | 0.153823 [0.138290, 0.169357] | 0.123222 [0.113173, 0.133271] |
+  | ID | AUSE | -0.018393 [-0.030092, -0.006694] | -0.103572 [-0.131385, -0.075759] | -0.067976 [-0.084179, -0.051772] |
+  | ID | ENCE (ratio) | x1.162340 [0.811730, 1.664391] | x0.546147 [0.420290, 0.709693] | x0.853624 [0.806909, 0.903043] |
+
+  RMSE ratio LF->HF / HF-only, MSE ensemble: OOD x1.150773 [0.840819, 1.574986], ID x0.685133 [0.649926, 0.722247];
+  MVE ensemble: OOD x0.936004 [0.635113, 1.379443], ID x0.441992 [0.256304, 0.762211]. MVE AU after pretraining
+  (same file): ENCE OOD x1.860774 [1.260638, 2.746611], ID x2.005605 [1.627671, 2.471292] (the AU collapse).
+  MSE LF-only on its DFT System-OOD test (`experiments/ani1x-system/mace-mse/lf-only/evaluation/
+  reliability_ood_nocal_summary.csv`, `uq summary ... --test ood`): EU Spearman 0.408 [0.395, 0.421].
+- **Output files:** new `experiments/ani1x-system/mace-mse/{lf-only,lf-to-hf}/evaluation/` (per split + aggregates,
+  synced from Leonardo); `results/tables/mse_vs_mve.csv` regenerated (system LF->HF rows filled; energy LF->HF still
+  missing; all other rows unchanged); new `results/tables/mse_vs_mve_pretraining.csv` and
+  `uq/evaluation/compare_uq_protocols.py`; checkpoints in `runs/ani1x-system/mace-mse/{lf-only,lf-to-hf}/` (pruned on
+  Leonardo by 63718311 before the copy).
+- **Interpretation:** (1) Pretraining helps the MVE ensemble's uncertainty much more than the MSE ensemble's: MVE EU
+  ranking improves by +0.13 to +0.15 Spearman (AUSE -0.10 to -0.11), the MSE-ensemble EU by +0.02 to +0.03 (OOD
+  interval contains 0), and the MSE-ensemble EU calibration does not improve (ENCE ratio intervals contain 1). So the
+  large gain in EU ranking after LF->HF is specific to the MVE members, not a generic ensemble effect of starting
+  from a pretrained model. (2) Consequently, at LF->HF the MVE ensemble beats the MSE ensemble on every ranking metric
+  and test (EU, TU, and even a single member's AU), whereas at HF-only the two EUs ranked alike (2026-11-04 entry);
+  accuracy is now equal (RMSE ratio intervals contain 1; at HF-only the MSE ensemble was more accurate). (3) The MSE
+  ensemble has no AU, so it cannot show the collapse; its EU is not hurt by pretraining, while the MVE AU's
+  calibration worsens ~2x (ENCE) as recorded for B. Caveats: MSE LF->HF members are selected later (median epoch 9.5)
+  than MVE (median 2), so their EU reflects longer FT; one split only until the energy entry is recorded; the
+  ensemble-size tables follow the same filtering as the 2026-11-03/04 MSE entries.
+
+---

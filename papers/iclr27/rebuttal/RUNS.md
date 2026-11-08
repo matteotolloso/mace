@@ -12,7 +12,7 @@ provenance of recorded numbers: the ledger entries. Condensed 2026-11-07; the fu
 | **DGX** (shared, 8x A100 40 GB) | GPUs 0, 2, 6 | **max 3 GPUs for this project at any time**; no extra inference next to packed training (OOM) | shell; jobs as systemd user units `uq-*` (`KillMode=control-group`: stopping a unit kills its members) |
 | **Leonardo** (Booster, 4x A100 64 GB per node) | `IscrC_UQ-MF`, 80,000 local h | SLURM QOS; `$WORK` and `$FAST` 1 TB each | `ssh leonardo` while the user's 12 h certificate (`leonardo-login`) is valid |
 
-**Owner of all jobs:** session `mace-leo-2` (since 2026-11-07 18:15; took over from `mace-leo`). A later session takes over by writing its name here.
+**Owner of all jobs:** session `mace-leo-3` (since 2026-11-08 morning; took over from `mace-leo-2`, before that `mace-leo`). A later session takes over by writing its name here.
 
 ## 2. Sync protocol (short)
 
@@ -38,12 +38,12 @@ A training job at walltime: `uq train-slurm <exps> --resume --pack 3 --submit`.
 ## 3. Runs
 
 Status: `queued` -> `running` -> `evaluated` (on Leonardo) -> `synced` -> `aggregated` -> `recorded` (ledger), or `failed`.
-Last verified **2026-11-07 18:15** (mace-leo-2), both machines.
+Last verified **2026-11-08 11:20** (mace-leo-3), both machines.
 
 | Experiment | WP | Machine | Commit | Job ids / unit | Status | Notes |
 |---|---|---|---|---|---|---|
-| `ani1x-energy/mace-mse/{lf-only,lf-to-hf}` | 3.6 | DGX GPUs 0 2 6 | 30afae8 / c7fa140 | `uq-mse-energy-x/y`, `uq-resume-mse-a/b`, `uq-mse-postprocess` | running, 84/100 (18:15) | 9 LF members running; at 50/50 `uq-mse-postprocess` evaluates (GPU 0) and prunes; markers in `runs/_jobs/` keep it off the system split |
-| `ani1x-system/mace-mse/{lf-only,lf-to-hf}` | 3.6 | Leonardo `$WORK` | 7e1b998 / 0323ada | train 63716417-441 (17), back-up 63718283-300, eval 63718301-310, prune 63718311 | running | LF parents ~18:30-19:00, children in the same jobs, then evaluation ~10 h per split |
+| `ani1x-energy/mace-mse/{lf-only,lf-to-hf}` | 3.6 | DGX GPUs 0 2 6 | 30afae8 / c7fa140; eval at 5577d20 | `uq-mse-eval3` (`runs/_jobs/mse_energy_eval3.sh`; replaced `uq-mse-postprocess`, stopped 11:55) | trained 100/100; evaluating on GPUs 0 2 6 since 11-08 11:55 | queue of 10 split jobs (`mse_energy_eval3.queue`, per-job logs/markers `mse_energy_eval3.*`); lf-only s0 resumed after `epoch_raw_train`; when all 10 are ok: aggregate + prune both (`.pruned` markers) |
+| `ani1x-system/mace-mse/{lf-only,lf-to-hf}` | 3.6 | Leonardo `$WORK` | 7e1b998 / 0323ada | train 63716417-441 (17), back-up 63718283-300, eval 63718301-310, prune 63718311 | **recorded** (ledger 2026-11-08 "MSE ensembles after LF->HF fine-tuning, ANI-1x system split") | eval COMPLETED 11-08 03:40-07:52, prune COMPLETED 07:57; no FAILED/TIMEOUT/CANCELLED since 11-07 |
 | `ani1x-{energy,system}/mace-mve/hf-only-lr{1e-3,3e-3}` | 4.2 | Leonardo `$FAST` | b4d07ac / 016dbb6 | prune 63720299, 63722493 | **recorded** (ledger 2026-11-07, `5c16649`) | |
 | `ani1x-energy/mace-mve/lf-to-hf-reset-var` | 3.2 | Leonardo `$WORK` | ac60247 | `runs/_slurm/reset-var*/`; prune 63720981 | **recorded** (ledger 2026-11-07 "Fine-tuning ablations of the AU collapse") | |
 | `ani1x-system/mace-mve/lf-to-hf-reset-var` | 3.2 | Leonardo `$WORK` | ac60247 | same | **recorded** (ledger 2026-11-07 "Fine-tuning ablations of the AU collapse") | sync interrupted 11:36, completed by the retry 12:06 |
@@ -60,6 +60,7 @@ Last verified **2026-11-07 18:15** (mace-leo-2), both machines.
 |---|---|---|---|
 | 2026-11-07 12:00 | `saldo -b`: 0 (daily update lag); **sacct: ~594 GPU-h = ~4,750** (287 GPU jobs) | ~75,250 | ~2,500 more committed by running/queued jobs (system MSE, system FT-lr evaluation) |
 | 2026-11-07 18:55 | `saldo -b`: 0 (still lagging; monthTotal 8,759); **sacct since 11-06: ~773 GPU-h = ~6,180** (297 jobs, running ones counted to now) | **~73,800** | still committed: the rest of the system MSE chain (training ~7 h to walltime, then evaluation ~10 h per split), roughly 1,500-2,500 more |
+| 2026-11-08 11:20 | `saldo -b`: 0 (still lagging; monthTotal 8,759); **sacct since 11-06: ~874 GPU-h = ~6,990** (314 GPU jobs) | **~73,000** | nothing running or queued |
 
 ## 5. Log (newest last; earlier entries in Git history)
 
@@ -133,3 +134,13 @@ Last verified **2026-11-07 18:15** (mace-leo-2), both machines.
   9. **Waiting on the user:** review of the Q1 rewrite (`draft_rebuttal.md` 4.1, including the proposed mechanism
      sentence for the revision); open decisions D3/D4/D5/D10 in PLAN Section 5. Wave A is planned for Nov 10-11.
   No reminders or scheduled wake-ups (user rule); never message other sessions.
+- 2026-11-08 11:15 — mace-leo-3 takes over; certificate renewed by the user (valid until ~23:15). Leonardo: queue empty, system MSE
+  eval 63718301-310 and prune 63718311 COMPLETED, no FAILED/TIMEOUT/CANCELLED since 11-07. DGX: energy MSE 100/100 trained,
+  `uq-mse-postprocess` evaluating lf-only (1/5) on GPU 0 since 07:18. 11:22: system MSE sync-back started.
+- 2026-11-08 11:46 — mace-leo-3: system MSE synced (both, no interruption) and aggregated, 5/5 + aggregate; `compare_uq`
+  (system LF->HF rows filled, HF-only rows unchanged) and new `compare_uq_protocols` -> recorded (ledger 2026-11-08).
+- 2026-11-08 11:55 — mace-leo-3 (user: speed up the energy MSE evaluation, up to 3 GPUs): `uq-mse-postprocess` was
+  sequential on GPU 0 (4.5 h for part of lf-only split 0); stopped right after split 0's `epoch_raw_train`, replaced by
+  `uq-mse-eval3` (3 workers, GPUs 0 2 6, one split per job; `runs/_jobs/mse_energy_eval3.log`). A failed job leaves a
+  `.failed` marker and blocks the final aggregate/prune of its experiment (needs a human). Do not restart
+  `uq-mse-postprocess` before `uq-mse-eval3` has finished (it would re-evaluate).

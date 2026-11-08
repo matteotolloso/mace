@@ -14,8 +14,9 @@ output), `[!]` blocked, `[-]` dropped/paused by the user. Keep IDs stable.
   Attacks: motivation/novelty (G1, Q3), generality (G2, J1, Q2), missing baselines/ablations
   (G4, G7, Q1, J2), "aleatoric" framing (G5). Most winnable: **Q2LT** (concrete ablations), then j1p7.
 - **Responses and revised PDF due 2026-11-18** (main text <= 10 pages, appendix unlimited, pdfdiff
-  against the submission; word limit per comment, any number of comments). Post in waves, early:
-  Wave A **Nov 10-11**, Wave B **Nov 13-14**, revised PDF + Wave C **Nov 16-17**, Nov 18 replies only.
+  against the submission; word limit per comment, any number of comments). Post in waves, early
+  (user 2026-11-08: shortened, reviewers need time to answer; nothing new after Nov 14):
+  Wave A **Nov 10**, Wave B **Nov 12**, revised PDF + Wave C **Nov 14**, Nov 15-18 discussion replies only.
 - Budget: Leonardo `IscrC_UQ-MF` 80,000 local h (1 GPU-h = 8 local h); used ~4,750 by 2026-11-07
   noon (sacct), ~2,500 more committed by queued jobs; DGX: 3 GPUs max.
 
@@ -66,8 +67,9 @@ fix (G6); related work (Bilbrey 2025, Tompa 2026, Gardner 2025, Messerly 2025). 
   conclusion hold?" (rows A-D above), plus the list of text changes (E, G5 renaming, related work).
 - **Per reviewer**: short answers in `draft_rebuttal.md`, each ending with "see App. X / general response";
   ge6X answered point by point for the AC; Q2LT gets the mechanism figure first.
-- Waves: **A (Nov 10-11)**: G1, G3, G5, G6, Q3, J1-J3 text + WP2, WP4.1, WP4.2 (+4.3 if recorded);
-  **B (Nov 13-14)**: mechanism ablations (C) and MSE LF->HF; **C (Nov 16-17)**: revised PDF + anything optional.
+- Waves (shortened by the user 2026-11-08): **A (Nov 10)**: G1, G3, G5, G6, Q3, J1-J3 text + WP2, WP4.1-4.3;
+  **B (Nov 12)**: mechanism ablations (C) and MSE LF->HF; **C (Nov 14)**: revised PDF + anything optional;
+  Nov 15-18 replies only. Order of work (user 2026-11-08): revised appendix PDF first, then the rebuttal.
 
 ### 3.3 Figure / table work (CPU only, `paper-figures` skill)
 
@@ -90,8 +92,10 @@ fix (G6); related work (Bilbrey 2025, Tompa 2026, Gardner 2025, Messerly 2025). 
       energy split synced and aggregated 2026-11-07; system: reset-var re-sync and beta-NLL syncing,
       FT lr evaluating (~18:00). Then `compare_ablations`, one ledger entry per WP. Note: reset-var
       and beta-NLL on the system split need the FT-lr system twins only for item B, not for C.
-- [~] (agent: mace-80 -> mace-leo -> mace-leo-2) WP3.6 MSE ensembles LF-only / LF->HF: energy on the DGX (84/100 at 18:15,
-      automatic evaluation at 50/50), system on Leonardo (training, then evaluation ~10 h per split).
+- [~] (agent: mace-80 -> mace-leo -> mace-leo-2 -> mace-leo-3) WP3.6 MSE ensembles LF-only / LF->HF: **system recorded**
+      (ledger 2026-11-08: pretraining improves the MVE EU ranking ~5x more than the MSE EU; at LF->HF the MVE ensemble
+      ranks better on every metric, accuracy equal; `results/tables/mse_vs_mve_pretraining.csv`). Energy: 100/100
+      trained, evaluating on the DGX on 3 GPUs (`uq-mse-eval3`, since 11-08 11:55), then a second entry.
 
 ### Open, needs a user decision (after looking at the energy results)
 - [!] WP3.1 AU vs training MSE per epoch (prediction (a)): the stored per-epoch means are inconclusive;
@@ -123,8 +127,9 @@ Decided: D1/D1b MSE energy on the DGX, system on Leonardo; D7 3-GPU cap on the D
 Leonardo from `iclr_rebuttal`; D9 prune epoch checkpoints after evaluation; D11/D12 Leonardo Miniconda
 + ToS; **D2 multi-head paused (2026-11-07)**; **no further LR sweeps (2026-11-07)**.
 
-Open: **D3** forces (WP5.2); **D4** second dataset/architecture (WP7.2); **D5** rename AU/EU;
-**D6** revised PDF (assumed yes, Section 3.1); **D10** use of the remaining Leonardo budget;
+Open (**the user decides on 2026-11-09**, together with the Q1-rewrite review): **D3** forces (WP5.2); **D4** second
+dataset/architecture (WP7.2); **D5** rename AU/EU; **D10** use of the remaining Leonardo budget; WP3.1 (GPU re-run
+or drop). **D6** revised PDF: yes (user 2026-11-08: wants to see the revised appendix PDF before the rebuttal);
 WP3.4 dropped (user, 2026-11-07).
 
 ## 6. Log (newest last; earlier entries in Git history)
