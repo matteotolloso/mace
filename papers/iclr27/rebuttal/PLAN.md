@@ -126,6 +126,7 @@ Fig. 5 line plots; always show the training dynamics. Interpretation and phrasin
 - [ ] WP8.1 "aleatoric" paragraph, WP8.2 renaming (D5) (G5).
 - [ ] WP9 revision: 9.1 Fig. 1 Safari fix (G6); 9.2 "Design choices and scope" (J3); 9.3 related work;
       9.4 appendix of Section 3.1; 9.5 `\revise{}` marks + changelog.
+- [x] (mace-leo-5, 2026-11-09) Consistency pass of draft_rebuttal.md and App. M against ledger/FINDINGS: AUSE instead of Spearman everywhere (values from the ledger tables `ablations_vs_reference.csv`, `mse_vs_mve*.csv`, `iclr27_main_text_numbers.txt`); 4.1 held-out effect + (c) caveats (lr 1e-2, Energy-OOD); MSE energy rows; every promise about the PDF that does not exist yet marked `[NOT YET IN PDF]` (novelty table, Bilbrey related work, Fig. 1 fix, D5 rename, main-text mechanism paragraph, model size); 6 references verified (Section 7). App. M: estimator paragraph, MACE and sequential-FT paragraphs with citations (bib: +ramakrishnan2015big, seitzer2022pitfalls -> ICLR 2022), counts verified (1246 held out in all 5 splits), M.4 Energy-OOD single-AU caveat, MSE row of figA_ablations replaced by a pointer to M.4 (no AU, so no row in AU panels). Recompiled: 40 pp., main text ends p. 9, no undefined refs; paper repo still uncommitted. Remaining `\pending`: ensemble-size figure vs text (user).
 - [ ] WP10.2-10.5 general response, per-reviewer replies (replace every `[PENDING]` or drop it), final
       check (numbers -> ledger, prior work -> verified reference, no author names), post by wave.
 
@@ -150,3 +151,4 @@ WP3.4 dropped (user, 2026-11-07).
   draft G2/J1/J2/Q2/G7 rewritten per user directions; WP6 paused; PLAN condensed with the presentation plan.
 - 2026-11-07 18:15-18:40 — mace-leo-2: took over; system FT lr synced and recorded (24/24 pairs); 3.3a-c done (`03e6b94`);
   3.3d general-response table; Q1 (draft 4.1) rewritten from the recorded ablations (to review by the user).
+- 2026-11-09 — mace-leo-5: energy MSE evaluation relaunched (`uq-mse-eval4`, RUNS.md); consistency pass of the rebuttal draft and App. M (see Writing).
