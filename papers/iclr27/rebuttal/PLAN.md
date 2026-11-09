@@ -152,3 +152,4 @@ WP3.4 dropped (user, 2026-11-07).
 - 2026-11-07 18:15-18:40 — mace-leo-2: took over; system FT lr synced and recorded (24/24 pairs); 3.3a-c done (`03e6b94`);
   3.3d general-response table; Q1 (draft 4.1) rewritten from the recorded ablations (to review by the user).
 - 2026-11-09 — mace-leo-5: energy MSE evaluation relaunched (`uq-mse-eval4`, RUNS.md); consistency pass of the rebuttal draft and App. M (see Writing).
+- 2026-11-09 — mace-leo-5: Fig. 22 (App. M.3, `figA_ablations`) rebuilt as a Fig. 2-style plot of raw values (user); old forest plot kept as `figA_ablations_contrasts.py`; caption + one TU clause in M.3; plotted values match the ledger, `paper_numbers.py` unchanged.

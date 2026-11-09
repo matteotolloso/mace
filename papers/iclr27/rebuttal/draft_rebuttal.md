@@ -309,8 +309,8 @@ epochs", "Head reset: AU calibration along fine-tuning", "Fine-tuning learning r
 We thank the reviewer for this suggestion; we ran exactly these ablations. Each fine-tunes the same pretrained
 members as in the paper, on both distribution shifts, 5 splits x 10 members, and is compared with the paper's
 LF->HF ensembles on the same splits (paired contrasts, 95% intervals over splits; new appendix "Additional
-baselines and ablations": per-epoch AU dynamics, App. M.3 Fig. "AU along fine-tuning", and paired contrasts of the
-final models). Our explanation makes three testable predictions.
+baselines and ablations": per-epoch AU dynamics, App. M.3 Fig. "AU along fine-tuning", and the final models in Fig. 2 style;
+the contrasts quoted below are paired over splits). Our explanation makes three testable predictions.
 
 **The overconfidence is a held-out effect.** In every variant below, AU on the *training* set stays calibrated or
 conservative from the tenth fine-tuning epoch on (training-set AU ENCE at most 0.909, apart from one unstable epoch at
