@@ -72,6 +72,28 @@ generate at scale:
   see also radova2025fine, and multi-fidelity training studies (gardner2025understanding,
   messerly2025multi).
 
+*How the CC transfer-learning examples optimize (full texts checked 2026-11-09, supervisor's request):*
+- kaser2023transfer: PhysNet; LL models (HF/VDZ, B3LYP/aVTZ, MP2/aVTZ) on 71 208 structures (malonaldehyde,
+  acetoacetaldehyde, acetylacetone + 49 amons; 9208 = ~13% test), energies + forces + dipoles; TL to CCSD(T)/aVTZ with
+  25/50/100/862 malonaldehyde structures (~100 suffice), HL also with forces and dipoles; "all parameters of PhysNet were
+  allowed to change in the TL step"; 10 independent TL runs per setting. Optimizer and learning rate not stated.
+- chen2023data: Behler-Parrinello NNPs (n2p2), committee of 8; LL HF or BLYP on 531 periodic boxes of 16 waters (energies +
+  forces), or the published generation-1 revPBE0-D3 fits of Schran et al. (data size not stated, not checked; the
+  main-text CC models start from these); the parameters are the starting point and the committee is "retrained" on <=200
+  CCSD / CCSD(T) / AFQMC **energies only** (extended Kalman filter, 90/10 train/validation split, early stopping per
+  member). Against random initialisation and Delta-learning on the same 200 energies, only TL gave stable MD.
+- smith2019approaching (ANI-1ccx) differs: two of the four hidden layers are frozen during TL (PMC6602931).
+- Ours: all MACE weights updated (Adam, lr 1e-3 = 1/10 of pretraining), per-member checkpoint by validation loss. So the
+  two new references fine-tune exactly as we do (Chen also: ensemble, CC energies only, per-member early stopping).
+
+*Proposed ge6X **Motivation.** (2026-11-09, given to the user in chat; NOT applied to `ICLR27-UQ-MF/rebuttal.tex`, user
+decision).* Recommended (ge6X box 4975/5000 characters):
+> **Motivation.** You mention that you may have missed a trend, and we believe there is indeed one. Atomistic modelling is moving towards foundation models that are fine-tuned on a small amount of more accurate data. MACE-MP-0 is meant to reach ab initio accuracy after fine-tuning on a few application-specific data points (Batatia et al., 2023), and fine-tuning these models is becoming common practice (Tompa et al., 2026). Coupled-cluster potentials are built the same way, from ANI-1ccx on the dataset we use (Smith et al., 2019) to small molecules (Käser & Meuwly, 2023) and liquid water (Chen et al., 2023). These models then need uncertainty, for active learning or long simulations. Bilbrey et al. (2025) showed that ensembles of fine-tuned MACE foundation models can be overconfident by orders of magnitude, but to our knowledge how uncertainty changes during the fine-tuning itself had not been studied. Our paper is a controlled version of this workflow.
+
+Variant stating the optimization (box 4998/5000, trim ~20 characters elsewhere if used): "... ANI-1ccx on the dataset we
+use (Smith et al., 2019), small molecules (Käser & Meuwly, 2023) and liquid water (Chen et al., 2023), the last two
+fine-tuning all weights as we do. These models then need uncertainty for active learning or long simulations. ..."
+
 In all of these, the fine-tuned model is then used in active learning or simulation, where
 uncertainty decides which configurations to label next or when to stop trusting the model
 (ANI-1x itself was assembled by query-by-committee active learning, smith2018less). How the
@@ -481,13 +503,13 @@ quoted phrases copied from the abstract). `memory` = not yet checked: verify bef
 
 | Key | Reference | Check |
 |---|---|---|
-| smith2019approaching | Smith et al., Approaching coupled cluster accuracy with a general-purpose neural network potential through transfer learning, Nat. Commun. 10, 2903 (2019) | bib; web 2026-11-06 (DFT training then transfer learning to CCSD(T)/CBS; ~5M DFT, ~500k CC) |
+| smith2019approaching | Smith et al., Approaching coupled cluster accuracy with a general-purpose neural network potential through transfer learning, Nat. Commun. 10, 2903 (2019) | bib; web 2026-11-06 (DFT training then transfer learning to CCSD(T)/CBS; ~5M DFT, ~500k CC); PMC6602931 2026-11-09: two of four hidden layers frozen in TL |
 | smith2020ani | Smith et al., The ANI-1ccx and ANI-1x data sets, Sci. Data (2020) | bib |
 | smith2018less | Smith, Nebgen, Lubbers, Isayev, Roitberg, Less is more: sampling chemical space with active learning, J. Chem. Phys. 148, 241733 (2018) | web 2026-11-06 (QBC with ensemble disagreement built ANI-1x) |
 | kaser2021transfer | Käser, Boittier, Upadhyay, Meuwly, Transfer learning to CCSD(T): accurate anharmonic frequencies from machine learning models, J. Chem. Theory Comput. 17(6) (2021) | web 2026-11-06 |
-| kaser2023transfer | Käser, Meuwly, Transfer-learned potential energy surfaces: towards microsecond-scale molecular dynamics simulations in the gas phase at CCSD(T) quality, J. Chem. Phys. (2023), arXiv:2303.11685 | web 2026-11-06 (volume/pages to add) |
+| kaser2023transfer | Käser, Meuwly, Transfer-learned potential energy surfaces: towards microsecond-scale molecular dynamics simulations in the gas phase at CCSD(T) quality, J. Chem. Phys. (2023), arXiv:2303.11685 | web 2026-11-06; full text (arXiv v1) read 2026-11-09: PhysNet, all parameters updated in TL, see 2.1; DOI 10.1063/5.0151266 (volume/pages to add); **not in the paper bib** |
 | zaverkin2023transfer | Zaverkin et al., Transfer learning for chemically accurate interatomic neural network potentials, PCCP (2023) | bib |
-| chen2023data | Chen et al., Data-efficient machine learning potentials from transfer learning of periodic correlated electronic structure methods: liquid water at AFQMC, CCSD, and CCSD(T) accuracy, JCTC (2023) | bib; web 2026-11-06 (<=200 CC energies) |
+| chen2023data | Chen et al., Data-efficient machine learning potentials from transfer learning of periodic correlated electronic structure methods: liquid water at AFQMC, CCSD, and CCSD(T) accuracy, JCTC (2023) | bib; web 2026-11-06 (<=200 CC energies); full text + SI (arXiv 2211.16619) read 2026-11-09: n2p2 committee of 8, retrained from LL weights on CC energies only, see 2.1 |
 | kim2024data | Kim et al., Data-efficient multifidelity training for high-fidelity machine learning interatomic potentials, JACS 147, 1042-1054 (2024/2025) | bib; web 2026-11-06 (SevenNet-MF, one-hot fidelity encoding, simultaneous training) |
 | ko2025data | Ko et al., Data-efficient construction of high-fidelity graph deep learning interatomic potentials, npj Comput. Mater. (2025) | bib |
 | cui2025multi | Cui, Reuter, Margraf, Multi-fidelity transfer learning for quantum chemical data using a robust density functional tight binding baseline, Mach. Learn.: Sci. Technol. 6, 015071 (2025) | web 2026-11-06 |

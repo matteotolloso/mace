@@ -139,3 +139,7 @@ at ~30-111. Possible extra arm: compare both methods after the same recalibratio
 - 2026-11-09 12:05 — (mace-leo-5) Energy MSE full evaluation: `uq-mse-eval3` failed overnight on 9/10 splits (CUDA OOM, other users' jobs on the
   shared GPUs); missing steps relaunched as `uq-mse-eval4` (GPUs 7 2 0, per-step retries); expected end ~2026-11-10 evening
   (RUNS.md). Rebuttal draft and App. M made consistent (AUSE only, caveats, Fig. 22 raw values); first rebuttal post planned tonight.
+- 2026-11-09 23:12 — Energy MSE full evaluation: LF-only complete (all 5 splits); every remaining LF->HF step had OOM'd twice
+  (GPU 0 filled by other users) and was on its last attempt. Remaining 27 steps moved to `uq-mse-eval5`
+  (`runs/_jobs/mse_energy_eval5.sh`: GPU with most free memory per step, max 3 GPUs incl. eval4, attempts reset);
+  eval4 finishes its 3 running steps, then eval5 runs aggregate + prune. Expected end ~2026-11-10 evening (RUNS.md).
