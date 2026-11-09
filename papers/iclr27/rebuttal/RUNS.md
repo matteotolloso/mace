@@ -12,7 +12,7 @@ provenance of recorded numbers: the ledger entries. Condensed 2026-11-07; the fu
 | **DGX** (shared, 8x A100 40 GB) | GPUs 0, 2, 6 | **max 3 GPUs for this project at any time**; no extra inference next to packed training (OOM) | shell; jobs as systemd user units `uq-*` (`KillMode=control-group`: stopping a unit kills its members) |
 | **Leonardo** (Booster, 4x A100 64 GB per node) | `IscrC_UQ-MF`, 80,000 local h | SLURM QOS; `$WORK` and `$FAST` 1 TB each | `ssh leonardo` while the user's 12 h certificate (`leonardo-login`) is valid |
 
-**Owner of all jobs:** session `mace-leo-4` (since 2026-11-08 16:40; before it `mace-leo-3`, took over from `mace-leo-2`, before that `mace-leo`). A later session takes over by writing its name here.
+**Owner of all jobs:** session `mace-leo-5` (since 2026-11-09 10:30; before it `mace-leo-4`, since 2026-11-08 16:40; before it `mace-leo-3`, took over from `mace-leo-2`, before that `mace-leo`). A later session takes over by writing its name here.
 
 ## 2. Sync protocol (short)
 
@@ -42,7 +42,7 @@ Last verified **2026-11-08 11:20** (mace-leo-3), both machines.
 
 | Experiment | WP | Machine | Commit | Job ids / unit | Status | Notes |
 |---|---|---|---|---|---|---|
-| `ani1x-energy/mace-mse/{lf-only,lf-to-hf}` | 3.6 | DGX GPUs 0 2 6 + **4** (4th GPU user-approved 2026-11-08 17:00 for this evaluation) | 30afae8 / c7fa140; eval at 5577d20, fast steps at 4363236 | `uq-mse-eval3` (`runs/_jobs/mse_energy_eval3.sh`) + `uq-mse-fast` (`runs/_jobs/mse_energy_fast.sh 4`) | final models **recorded** (ledger 2026-11-08 "..., ANI-1x energy split"); full evaluation running | 17:03-17:09 `uq-mse-fast` ran `member_predictions`+`ensemble_size` for lf-to-hf s0-4 (`.fast_ok` markers), compare_uq, then joined the queue as a 4th worker; queue reordered 17:02 (backup `mse_energy_eval3.queue.bak-1708`): lf-only s0 rest, lf-to-hf s0-4 *without* those 4 steps, lf-only s4. **`finish` (aggregate + prune) of eval3 only waits for GPUs 0 2 6**: if GPU 4 still runs a split then, it logs NOT FINISHING; run `runs/_jobs/mse_energy_eval3.sh finish` by hand when all 10 `.ok` exist. |
+| `ani1x-energy/mace-mse/{lf-only,lf-to-hf}` | 3.6 | DGX GPUs 7 2 0 | 30afae8 / c7fa140; eval at 5577d20 / 4363236; resume at 6b0d568 | `uq-mse-eval4` (`runs/_jobs/mse_energy_eval4.sh all "7 2 0"`) | final models **recorded** (ledger 2026-11-08); **resume running** | `uq-mse-eval3` ended 2026-11-09 06:24 with 9/10 splits FAILED, all CUDA OOM (other users' jobs grew to 14-23 GB on GPUs 0 2 6); only lf-only s1 complete. eval4: one queue line per missing step (71, dynamics first), up to 3 attempts, `expandable_segments`; markers `mse_energy_eval4.<tag>_s<s>_<step>.{ok,failed}`; `finish` (aggregate + prune) runs only if no step `.failed`. |
 | `ani1x-system/mace-mse/{lf-only,lf-to-hf}` | 3.6 | Leonardo `$WORK` | 7e1b998 / 0323ada | train 63716417-441 (17), back-up 63718283-300, eval 63718301-310, prune 63718311 | **recorded** (ledger 2026-11-08 "MSE ensembles after LF->HF fine-tuning, ANI-1x system split") | eval COMPLETED 11-08 03:40-07:52, prune COMPLETED 07:57; no FAILED/TIMEOUT/CANCELLED since 11-07 |
 | `ani1x-{energy,system}/mace-mve/hf-only-lr{1e-3,3e-3}` | 4.2 | Leonardo `$FAST` | b4d07ac / 016dbb6 | prune 63720299, 63722493 | **recorded** (ledger 2026-11-07, `5c16649`) | |
 | `ani1x-energy/mace-mve/lf-to-hf-reset-var` | 3.2 | Leonardo `$WORK` | ac60247 | `runs/_slurm/reset-var*/`; prune 63720981 | **recorded** (ledger 2026-11-07 "Fine-tuning ablations of the AU collapse") | |
@@ -167,3 +167,4 @@ Last verified **2026-11-08 11:20** (mace-leo-3), both machines.
   reordered, final-model steps of energy MSE LF->HF run first on GPU 4 (6 min), compare_uq -> ledger entry "MSE
   ensembles after LF->HF fine-tuning, ANI-1x energy split"; tabA/figA_estimators rebuilt, App. M.4 and the rebuttal
   draft updated. GPU 4 then works the remaining queue. Estimated end of the full evaluation: 2026-11-09 during the day.
+- 2026-11-09 10:30 — mace-leo-5: took over. `uq-mse-eval3` failed overnight (CUDA OOM from other users on the shared GPUs, 9/10 splits); relaunched only the missing steps as `uq-mse-eval4` on GPUs 7 2 0 (retries, expandable segments).
