@@ -512,6 +512,8 @@ quoted phrases copied from the abstract). `memory` = not yet checked: verify bef
 | krogh1994neural | ambiguity decomposition | bib |
 | rasmussen2023uncertain, lind2024uncertainty, kuleshov2018accurate, levi2022evaluating | UQ metrics, calibration | bib |
 | batatia2022mace, batatia2025design | MACE | bib |
+| batatia2023foundation | Batatia et al., A foundation model for atomistic materials chemistry (MACE-MP-0), arXiv:2401.00096 (2023) | web 2026-11-09 (quote "can be fine-tuned on just a handful of application-specific data points to reach ab initio accuracy"; not in bib) |
+| kovacs2025maceoff | Kovács et al., MACE-OFF: short-range transferable machine learning force fields for organic molecules, JACS (2025), doi:10.1021/jacs.4c07099 | web 2026-11-09 (not in bib) |
 | chmiela2018towards | Chmiela, Sauceda, Müller, Tkatchenko, Towards exact molecular dynamics simulations with machine-learned force fields, Nat. Commun. 9, 3887 (2018) | web 2026-11-06 (CCSD(T)-level sGDML; candidate 2nd dataset with CC forces, WP7) |
 | kennedy2000predicting | Kennedy, O'Hagan, Predicting the output from a complex computer code when fast approximations are available, Biometrika 87(1), 1-13 (2000) | web 2026-11-09 (title, authors, Biometrika 87(1), 2000; GP model combining expensive code runs with cheap approximations; page range from memory) |
 | ramakrishnan2015big | Ramakrishnan, Dral, Rupp, von Lilienfeld, Big data meets quantum chemistry approximations: the Delta-machine learning approach, J. Chem. Theory Comput. 11(5), 2087-2096 (2015), doi:10.1021/acs.jctc.5b00099 | web 2026-11-09 (arXiv:1503.04987; ML corrections added to cheap approximate methods) |

@@ -24,9 +24,11 @@ COLUMNS = (("RMSE", "RMSE (meV/atom)  ←", True), ("AUSE", "AUSE  ← (ranking)
 def draw(plt, series: Sequence[Tuple[str, str]], signals: Callable[[str], Sequence[str]],
          value: Callable[[str, str, Optional[str], str], Optional[Triple]], hollow=lambda key, signal: False,
          marker=lambda signal: SIGNAL_MARKER[signal], fade=lambda signal: CAL_ALPHA[signal], rmse_per_signal=False,
-         figsize=(7.0, 2.9), rmse_ticks=(5, 10, 20, 50, 100), ence_ticks=(0.2, 0.5, 1, 2, 5, 10)):
+         figsize=(7.0, 2.9), rmse_ticks=(5, 10, 20, 50, 100), ence_ticks=(0.2, 0.5, 1, 2, 5, 10),
+         highlight=lambda key, signal: False, highlight_color="#fbecc4"):
     """series: (key, colour); signals(key): signals drawn for that series; value(test, key, signal, metric),
-    signal None for RMSE unless rmse_per_signal (then one RMSE slot per signal). Returns (fig, axes)."""
+    signal None for RMSE unless rmse_per_signal (then one RMSE slot per signal); slots with
+    highlight(key, signal) get a tinted strip behind them in every column. Returns (fig, axes)."""
     from matplotlib.ticker import FixedLocator, FuncFormatter, NullLocator
 
     fig, axes = plt.subplots(1, 3, figsize=figsize, sharey=True,
@@ -48,6 +50,9 @@ def draw(plt, series: Sequence[Tuple[str, str]], signals: Callable[[str], Sequen
         for i, (_, _, top, bottom) in enumerate(bands):
             if i % 2 == 0:
                 ax.axhspan(bottom, top, color="#f4f4f2", zorder=0, lw=0)
+        for (_, key, s), yy in slot.items():
+            if highlight(key, s):
+                ax.axhspan(yy - 0.21, yy + 0.21, color=highlight_color, zorder=0.5, lw=0)
         pending = set()
         for _, _, label in TESTS:
             for key, colour in series:

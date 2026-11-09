@@ -11,7 +11,12 @@ ENCE), smoothed the same way. Data: per-split ``epoch_quality_<test>.csv`` of ea
 (cached curves; the support filter removes no System configuration and at most 2 of 5000
 Energy-ID ones, see epoch_data.py); Energy-OOD from the per-configuration predictions
 ``epoch_predictions_cc_test_ood.npz`` restricted to the training-support region, as in Fig. 5.
+Dots: the median, over the 50 members of a variant, of the epoch each member is evaluated at
+(lowest validation NLL, ``reliability.select_best_checkpoints``, as in the final-model figures),
+placed on the drawn line.
 """
+
+import re
 
 import numpy as np
 
@@ -28,6 +33,22 @@ COLUMNS = (("system", "id", "System-ID"), ("system", "ood", "System-OOD"), ("ene
 ROWS = (("AUSE", "AU AUSE  ← (ranking)", False), ("ENCE", "AU ENCE  ← (calibration)", True))
 
 
+def selected_epoch(kind, variant):
+    """Median over the 50 members of the epoch of the checkpoint the evaluation selects."""
+    from uq import paths, registry
+    from uq.evaluation.reliability import select_best_checkpoints
+
+    exp = registry.experiment(f"ani1x-{kind}/mace-mve/{variant}")
+    epochs = []
+    for split in exp.splits:
+        selected = select_best_checkpoints(paths.checkpoints_dir(exp.id, split), paths.results_dir(exp.id, split),
+                                           exp.run_name, "loss", "min", None)
+        epochs += [int(re.search(r"_epoch-(\d+)\.pt$", path.name).group(1)) for path in selected]
+    if len(epochs) != len(exp.splits) * len(exp.members) or len(exp.splits) != 5:
+        raise RuntimeError(f"{exp.id}: {len(epochs)} selected checkpoints")
+    return float(np.median(epochs))
+
+
 def series(kind, variant, test, split):
     if kind == "energy" and test == "ood":  # support-filtered per-configuration predictions
         return _from_npz(f"ani1x-{kind}/mace-mve/{variant}", split)
@@ -40,6 +61,7 @@ def main():
     from matplotlib.patches import Patch
     from matplotlib.ticker import FixedLocator, FuncFormatter, NullLocator
 
+    chosen = {(kind, v): selected_epoch(kind, v) for kind in ("system", "energy") for v, _, _ in VARIANTS}
     fig, axes = plt.subplots(2, 4, figsize=(7.0, 3.8), sharex=True, sharey="row",
                              gridspec_kw={"hspace": 0.12, "wspace": 0.08})
     for c, (kind, test, title) in enumerate(COLUMNS):
@@ -54,8 +76,12 @@ def main():
                 transform = (lambda v: 10 ** v) if log else (lambda v: v)
                 ax.fill_between(epochs, transform(ema(mean - half)), transform(ema(mean + half)),
                                 color=colour, alpha=0.10, lw=0)
-                ax.plot(epochs, transform(ema(mean)), color=colour,
+                line = ema(mean)
+                ax.plot(epochs, transform(line), color=colour,
                         lw=1.8 if variant == "lf-to-hf" else 1.3)
+                x = chosen[(kind, variant)]
+                ax.plot([x], [transform(np.interp(x, epochs, line))], ls="", marker="o", ms=4.2, color=colour,
+                        mec="white", mew=0.6, zorder=4)
             if log:
                 ax.set_yscale("log")
                 ax.axhline(1.0, color="#777777", lw=0.6, ls=(0, (2, 2)), zorder=1)
@@ -75,7 +101,9 @@ def main():
     handles = [Line2D([], [], color=colour, lw=1.8 if v == "lf-to-hf" else 1.3, label=label)
                for v, label, colour in VARIANTS]
     handles.append(Patch(color=MUTED, alpha=0.3, lw=0, label="95% CI, 5 splits"))
-    fig.legend(handles=handles, loc="upper center", ncol=6, bbox_to_anchor=(0.5, 1.02),
+    handles.append(Line2D([], [], ls="", marker="o", ms=4.2, color=MUTED, mec="white", mew=0.6,
+                          label="selected checkpoint (median epoch)"))
+    fig.legend(handles=handles, loc="upper center", ncol=4, bbox_to_anchor=(0.5, 1.07),
                handlelength=1.8, columnspacing=1.1)
     save(fig, "figA_ablation_dynamics")
 
