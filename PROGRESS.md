@@ -136,3 +136,6 @@ at ~30-111. Possible extra arm: compare both methods after the same recalibratio
 - 2026-11-08 17:15 — (mace-leo-4) Energy-split MSE LF->HF final models evaluated first (GPU 4, user-approved) and
   recorded (ledger "MSE ensembles after LF->HF fine-tuning, ANI-1x energy split"): confirms the system split.
   WP3.6 numbers complete; full curves/aggregates of the energy MSE experiments still running (RUNS.md).
+- 2026-11-09 12:05 — (mace-leo-5) Energy MSE full evaluation: `uq-mse-eval3` failed overnight on 9/10 splits (CUDA OOM, other users' jobs on the
+  shared GPUs); missing steps relaunched as `uq-mse-eval4` (GPUs 7 2 0, per-step retries); expected end ~2026-11-10 evening
+  (RUNS.md). Rebuttal draft and App. M made consistent (AUSE only, caveats, Fig. 22 raw values); first rebuttal post planned tonight.

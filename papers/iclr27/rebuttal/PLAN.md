@@ -153,3 +153,4 @@ WP3.4 dropped (user, 2026-11-07).
   3.3d general-response table; Q1 (draft 4.1) rewritten from the recorded ablations (to review by the user).
 - 2026-11-09 — mace-leo-5: energy MSE evaluation relaunched (`uq-mse-eval4`, RUNS.md); consistency pass of the rebuttal draft and App. M (see Writing).
 - 2026-11-09 — mace-leo-5: Fig. 22 (App. M.3, `figA_ablations`) rebuilt as a Fig. 2-style plot of raw values (user); old forest plot kept as `figA_ablations_contrasts.py`; caption + one TU clause in M.3; plotted values match the ledger, `paper_numbers.py` unchanged.
+- 2026-11-09 12:05 — mace-leo-5: user plans to post a first rebuttal (wave A) **tonight, 2026-11-09**, after correcting the draft and the PDF. Before posting: resolve every `[NOT YET IN PDF]` in `draft_rebuttal.md` (apply or drop the sentence), decide D5, D3/D4 wording in G2/G3, trim per OpenReview limits, no author names; commit the paper repo after the user's review of App. M.

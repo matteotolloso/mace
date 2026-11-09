@@ -94,5 +94,6 @@ appendix. Open: user review of this framing, D3/D4/D5/D10 (2026-11-09).
 ## 4. Pending data
 
 - ~~Energy-OOD per-epoch AU for the energy FT ablations~~: done 2026-11-08 16:50 (figure, ledger, App. M.3 caption/text, PDF recompiled).
+- 2026-11-09: Fig. 22 (App. M.3) now shows raw values in Fig. 2 style (user: easier to read than ratios); it makes visible that the head reset worsens TU calibration on 3 of 4 tests (text says so). Spearman removed from the rebuttal draft (AUSE + ENCE only).
 - Energy MSE: final-model numbers recorded 2026-11-08 17:10; the full evaluation (curves, aggregates) of both
   experiments still runs (`uq-mse-eval3` + `uq-mse-fast`, RUNS.md); it changes no recorded number.
