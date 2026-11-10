@@ -146,3 +146,5 @@ at ~30-111. Possible extra arm: compare both methods after the same recalibratio
 - 2026-11-10 — Energy MSE full evaluation finished (`uq-mse-eval5`, 08:13; 27/27 steps ok), both experiments aggregated and
   pruned; final-model numbers unchanged (`members_*.npz` from 11-08, `compare_uq` byte-identical); ledger entry 2026-11-10
   with ID/train dynamics. WP3.6 closed. Leonardo: temporary 20 TB/user quota on SCRATCH (LEONARDO.md).
+- 2026-11-10 16:40 — Filtered Energy-OOD per-epoch predictions of the energy MSE ensembles (DGX GPUs 5+6, 1 h) and new figure
+  `papers/iclr27/figures/out/figA_mse_dynamics` (MSE EU vs MVE EU/TU along LF->HF, AUSE + ENCE, 4 tests); ledger entry.

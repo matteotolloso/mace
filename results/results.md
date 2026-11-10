@@ -1449,3 +1449,57 @@ How to use it:
   by `papers/iclr27/figures/figA_dynamics_*`); a side-by-side with the MVE twin D along the trajectory.
 
 ---
+
+### 2026-11-10 MSE vs MVE ensemble along LF->HF training, both ANI-1x splits, Energy-OOD support-filtered (rebuttal WP3.6, item D dynamics; Q2LT Q1, Q2)
+
+- **Status:** verified (computed in this task; 5 splits x 10 members for every curve and epoch, 80 epochs per curve).
+- **Purpose:** the dynamic counterpart of Fig. 23/24 (`figA_estimators_{hf,lfhf}`): does the MSE-ensemble EU behave like
+  the MVE ensemble along DFT pretraining and CC fine-tuning? Fills the gap left by the previous entry (Energy-OOD dynamics
+  of the energy MSE ensembles were unfiltered).
+- **Code commit:** base `e676a6a` with the tree dirty in `papers/iclr27/figures/epoch_data.py` (optional `pair=` argument for
+  `lf_to_hf`, `_mixed_cached` and `lf_to_hf_any`; defaults A/B, C/D unchanged) and the new script
+  `papers/iclr27/figures/figA_mse_dynamics.py`; both committed together with this entry. Check: after the edit,
+  `paper_numbers.py` output equals `results/tables/iclr27_main_text_numbers.txt` except for the pre-existing path text in
+  the active-learning header (no numeric difference), and the rebuilt PNGs of `fig5_decomposition` and `figA_dynamics_*`
+  are byte-identical.
+- **Command(s):** GPU (DGX, GPU 5 and 6, 2026-11-10 15:32-16:30): `runs/_jobs/mse_epoch_predictions.sh
+  ani1x-energy/mace-mse/lf-only 5 2` and `runs/_jobs/mse_epoch_predictions.sh ani1x-energy/mace-mse/lf-to-hf 6 1` (= `python -m
+  uq.evaluation.epoch_predictions all <exp> --gpu <g> --streams <n>`; units `uq-mse-epochpred-{lfonly,lfhf}`, logs
+  `runs/_jobs/mse_epoch_predictions.<protocol>.log`). CPU: `cd papers/iclr27/figures && python -B figA_mse_dynamics.py`; the
+  values below were printed with `epoch_data.lf_to_hf_any("energy", s, "ood", pair=...)`, `across_splits` and `band`
+  (the functions the figure draws from).
+- **Configuration:** as the 2026-11-08 MSE entries (system, energy) and A/B, C/D.
+- **Dataset and split:** Energy-OOD = `data/ani1x-energy/split_{0..4}/cc_test_ood.xyz` geometries, scored against DFT labels
+  while pretraining (epochs 0-295, parent LF-only members) and CC labels while fine-tuning (300-395), restricted to the
+  training-support region (13/15/16/15/16 of 5000 configurations removed on splits 0-4), as in Fig. 4/5 and `figA_dynamics`.
+  System-ID/OOD and Energy-ID from the cached `epoch_quality_finetune_mixed_{id,ood}.csv` (unfiltered; the filter removes
+  nothing on the system split and at most 2 of 5000 Energy-ID configurations, `epoch_data.py`).
+- **Random seeds:** split seeds 0-4; member seeds 0-9.
+- **Compute:** GPU inference (per-epoch predictions, new files only) + CPU.
+- **Metrics:** uncalibrated, per atom, M = 10; AUSE five-split arithmetic mean, ENCE geometric mean, both with 95% Student-t
+  intervals (df = 4; log space for ENCE). Energy-OOD, per epoch (epoch 300 = fine-tuning epoch 0):
+
+  | Signal | Metric | 150 | 295 | 300 | 310 | 350 | 395 |
+  |---|---|---|---|---|---|---|---|
+  | MSE ens. EU | AUSE | 0.242368 [0.227395, 0.257342] | 0.248174 [0.230636, 0.265712] | 0.252934 [0.237072, 0.268796] | 0.259280 [0.243580, 0.274979] | 0.259300 [0.240860, 0.277740] | 0.253928 [0.246746, 0.261109] |
+  | MVE ens. EU | AUSE | 0.204281 [0.185846, 0.222715] | 0.191602 [0.175547, 0.207658] | 0.230468 [0.206152, 0.254784] | 0.184037 [0.171468, 0.196607] | 0.178331 [0.164581, 0.192081] | 0.178017 [0.165553, 0.190482] |
+  | MVE ens. TU | AUSE | 0.128035 [0.118608, 0.137463] | 0.130915 [0.124167, 0.137663] | 0.171648 [0.162673, 0.180624] | 0.135350 [0.126177, 0.144523] | 0.135081 [0.123565, 0.146597] | 0.137387 [0.126970, 0.147804] |
+  | MSE ens. EU | ENCE | 12.301750 [10.371815, 14.590798] | 14.554843 [13.496306, 15.696401] | 13.878519 [11.940082, 16.131656] | 12.970223 [10.713204, 15.702744] | 10.444782 [9.576930, 11.391278] | 9.307517 [8.384944, 10.331598] |
+  | MVE ens. EU | ENCE | 13.654769 [10.941198, 17.041344] | 15.851218 [11.983387, 20.967455] | 10.005334 [7.017071, 14.266167] | 13.125542 [10.672813, 16.141936] | 11.895787 [8.947574, 15.815432] | 11.854943 [9.004450, 15.607803] |
+  | MVE ens. TU | ENCE | 2.120738 [1.414153, 3.180370] | 3.955717 [2.835857, 5.517800] | 1.541857 [0.967602, 2.456924] | 4.215436 [3.317043, 5.357152] | 5.216540 [4.283831, 6.352325] | 5.723913 [4.657193, 7.034963] |
+
+  The other seven panels (System-ID/OOD, Energy-ID) are drawn from cached curves; their MSE energy ID values are in the
+  previous entry; the MVE curves are read from the same files as `figA_dynamics_{system,energy}_lfhf` (not re-quoted here).
+- **Output files:** `experiments/ani1x-energy/mace-mse/{lf-only,lf-to-hf}/evaluation/split_{0..4}/epoch_predictions_cc_test_ood.{npz,log}`
+  (new); `papers/iclr27/figures/out/figA_mse_dynamics.{pdf,svg,png}` (new). No existing output changed.
+- **Interpretation:** On all four tests the MSE-ensemble EU ranks worse than the MVE-ensemble EU and TU at every epoch of
+  both stages (panels a-d, read from the figure; Energy-OOD values in the table), and its AUSE hardly moves during fine-tuning (Energy-OOD 0.253 -> 0.254; ID see previous
+  entry), whereas the MVE EU and TU improve within the first ~10 fine-tuning epochs after the jump at the label switch.
+  On Energy-OOD both EUs are equally miscalibrated (ENCE ~9-16, intervals overlapping); the MVE TU is far better
+  calibrated (1.5-5.7) but degrades along fine-tuning (1.54 at fine-tuning epoch 0 -> 5.72 at 95), the AU collapse the
+  paper studies; the MSE EU ENCE improves slowly (13.9 -> 9.3) and stays above the MVE TU at every epoch. The figure
+  therefore supports, along training, the final-model statement of the 2026-11-08 entries: the advantage of the MVE
+  ensemble is not specific to the selected checkpoint. Caveat: the per-epoch curves are not checkpoint-selected (MSE
+  LF->HF members are selected at median fine-tuning epoch 11, MVE D at 2).
+
+---
