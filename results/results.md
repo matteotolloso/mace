@@ -1372,3 +1372,80 @@ How to use it:
   epoch 11) than MVE (median 2).
 
 ---
+
+### 2026-11-10 MSE ensembles, ANI-1x energy split: full evaluation, five-split aggregates and training dynamics (rebuttal WP3.6; completes the 2026-11-08 energy entry)
+
+- **Status:** verified (computed in this task from complete per-split files: 5 splits x 10 members of both
+  `ani1x-energy/mace-mse/lf-only` and `ani1x-energy/mace-mse/lf-to-hf`; `uq status`: 10/10 members on every split,
+  5/5 + aggregate). Energy-OOD dynamics are **not** reported here (see Dataset and split).
+- **Purpose:** close WP3.6 on the energy split: the evaluation steps that the 2026-11-08 entry left running (reliability,
+  distributions, Energy-OOD bins, training curves, epoch quality; LF->HF parent + fine-tuning trajectory), their
+  five-split aggregates, and a check that the final-model numbers of the 2026-11-08 entry are unchanged.
+- **Code commit:** training `30afae8` (LF-only) / `c7fa140` (LF->HF); per-split evaluation `5577d20` / `4363236`, resumed at
+  `6b0d568`; aggregate and checks at `747a2e8` (tracked tree clean; untracked: these evaluation outputs and
+  `papers/iclr27/figures/out/figA_estimators_{hf,lfhf}.*`).
+- **Command(s):** DGX, at most 3 GPUs of this user: `runs/_jobs/mse_energy_eval3.sh`, then `runs/_jobs/mse_energy_eval4.sh all
+  "7 2 0"` (unit `uq-mse-eval4`, 2026-11-09), then `runs/_jobs/mse_energy_eval5.sh run` (unit `uq-mse-eval5`, 2026-11-09 23:12 to
+  2026-11-10 08:13; 27/27 steps `.ok`, no `.failed` marker). Each step is `python -m uq evaluate <exp> --gpu <g> --splits <s>
+  --no-aggregate --steps <step>`. The automatic finish ran `python -m uq.evaluation.aggregate --cache-dir
+  experiments/ani1x-energy/mace-mse/<protocol>/evaluation --output-dir experiments/ani1x-energy/mace-mse/<protocol>/evaluation
+  --split-seeds 0 1 2 3 4` for both protocols, then pruned `runs/` (lf-only 189.3 GiB, lf-to-hf 62.7 GiB; logs
+  `runs/_jobs/mse_energy_eval{4,5}.log`). Check (CPU, this task): `python -m uq.evaluation.compare_uq` and `python -m
+  uq.evaluation.compare_uq_protocols` (the output files are byte-identical to `747a2e8`, `git diff` empty).
+- **Configuration:** as the 2026-11-08 energy entry (`experiments/ani1x-energy/mace-mse/{lf-only,lf-to-hf}/{experiment.yaml,config.yaml}`).
+- **Dataset and split:** LF-only on `data/ani1x-energy/split_{0..4}/dft_{train,test_id,test_ood}.xyz` (DFT labels); LF->HF on
+  `cc_{train,test_id,test_ood}.xyz`. The final-model Energy-OOD reliability summaries use the support filter (LF->HF and LF-only
+  alike drop 13/15/16/15/16 of 5000 configurations on splits 0-4). The `epoch_quality_finetune_mixed_ood` aggregate is unfiltered
+  (`docs/evaluation-outputs.md`), so its numbers are not quoted. The mixed curve evaluates epochs 0-295 of the parent MSE LF-only
+  member on the DFT files and labels and epochs 300-395 (= fine-tuning epochs 0-95) on the CC files; every 5th epoch.
+- **Random seeds:** split seeds 0-4; member seeds 0-9 (no gaps; `_n` = 5 at every epoch and metric quoted).
+- **Compute:** GPU inference (DGX) for the per-split steps; CPU for the aggregates and checks. The per-member prediction files
+  (`split_<s>/members_{id,ood}.npz`, `ensemble_size_*.csv`) were not recomputed (timestamps 2026-11-08 17:03-17:04), so every
+  number of the 2026-11-08 energy entry stands.
+- **Metrics:** uncalibrated, energy per atom, ensemble M = 10, EU = TU for an MSE ensemble (there is no AU); five-split mean [95%
+  Student-t, df = 4]; ENCE as the geometric mean; RMSE in eV/atom.
+  (1) Final models, `experiments/ani1x-energy/mace-mse/<protocol>/evaluation/reliability_{id,ood}_nocal_summary.csv`:
+
+  | Protocol | Test | EU AUSE | EU ENCE (geo) | RMSE |
+  |---|---|---|---|---|
+  | lf-only (DFT labels) | ID | 0.334 [0.324, 0.343] | 1.503 [1.331, 1.698] | 9.8 [9.6, 10.0] meV/atom |
+  | lf-only (DFT labels) | OOD (filtered) | 0.205769 [0.180745, 0.230793] | 15.667438 [12.679997, 19.358727] | 0.064955 [0.063506, 0.066404] eV/atom |
+  | lf-to-hf (CC labels) | ID | 0.360 [0.337, 0.384] | 1.724 [1.517, 1.959] | 11.6 [11.3, 11.8] meV/atom |
+  | lf-to-hf (CC labels) | OOD (filtered) | 0.253 [0.247, 0.260] | 13.140 [11.337, 15.230] | 62.0 [57.4, 66.7] meV/atom |
+
+  (values as printed by `uq summary`, except the lf-only OOD AUSE and RMSE, read from the CSV). The LF->HF rows agree with
+  `results/tables/mse_vs_mve.csv` (2026-11-08 entry) up to the third decimal; ENCE differs by at most 0.003 (13.140 vs 13.136982),
+  because the reliability step runs its own GPU inference.
+
+  (2) Dynamics of the LF->HF trajectory (EU), `experiments/ani1x-energy/mace-mse/lf-to-hf/evaluation/epoch_quality_finetune_mixed_{id,train}.csv`
+  (columns `ause_epistemic_*`, `ence_epistemic_geometric_*`, `rmse_e_atom_mean`):
+
+  | Set | Epoch | Phase | EU AUSE | EU ENCE (geo) | RMSE (eV/atom) |
+  |---|---|---|---|---|---|
+  | ID | 150 | pretrain (DFT) | 0.340633 [0.328093, 0.353173] | 0.775378 [0.618578, 0.971924] | 0.011001 |
+  | ID | 295 | pretrain (DFT) | 0.347805 [0.330956, 0.364653] | 0.846456 [0.657241, 1.090144] | 0.009895 |
+  | ID | 300 | fine-tune 0 (CC) | 0.357769 [0.342375, 0.373162] | 2.111967 [1.810995, 2.462958] | 0.012377 |
+  | ID | 310 | fine-tune 10 | 0.364116 [0.345797, 0.382436] | 1.522398 [1.311797, 1.766809] | 0.011669 |
+  | ID | 350 | fine-tune 50 | 0.360978 [0.344355, 0.377602] | 1.088734 [0.874269, 1.355808] | 0.011447 |
+  | ID | 395 | fine-tune 95 | 0.351371 [0.334291, 0.368451] | 0.954062 [0.860764, 1.057473] | 0.011355 |
+  | train | 295 | pretrain (DFT) | 0.371837 [0.355344, 0.388330] | 0.681813 [0.501522, 0.926917] | 0.008655 |
+  | train | 300 | fine-tune 0 (CC) | 0.378218 [0.362043, 0.394394] | 1.788553 [1.699353, 1.882436] | 0.010178 |
+  | train | 310 | fine-tune 10 | 0.428445 [0.403538, 0.453351] | 1.093311 [1.013453, 1.179461] | 0.008372 |
+  | train | 350 | fine-tune 50 | 0.459811 [0.434808, 0.484814] | 0.620248 [0.511353, 0.752334] | 0.006856 |
+  | train | 395 | fine-tune 95 | 0.477045 [0.462856, 0.491233] | 0.496994 [0.479344, 0.515294] | 0.006062 |
+
+- **Output files:** `experiments/ani1x-energy/mace-mse/{lf-only,lf-to-hf}/evaluation/` five-split aggregates (`reliability_{id,ood}_{cal,nocal}_{summary,bins}.csv`,
+  `distribution_{train,id,ood}.csv`, `energy_ood_bins.csv`, `ensemble_size_{id,ood}.csv`, `train_curves.csv`; lf-only
+  `epoch_quality_{train,id,ood}.csv`, `epoch_raw_train.csv`; lf-to-hf `epoch_quality_finetune_mixed_{train,id,ood}.csv`, `finetune.csv`)
+  with their `.svg`, and `split_{0..4}/` per-split files; `runs/ani1x-energy/mace-mse/*/split_*/` pruned. `results/tables/mse_vs_mve*.csv` unchanged.
+- **Interpretation:** WP3.6 is complete on both splits. The final-model conclusions of 2026-11-08 do not change. Dynamics (ID,
+  train): the MSE-ensemble EU ranking (AUSE) does not improve during fine-tuning (ID 0.358 at the fine-tuning start, 0.351
+  after 95 epochs, intervals overlapping); on the training set it gets worse (0.378 -> 0.477) while the RMSE falls, i.e. the
+  members converge on the configurations they fit. EU calibration jumps at the switch to CC labels (ID ENCE 0.85 -> 2.11)
+  and then recovers steadily (0.95 at fine-tuning epoch 95). The checkpoints selected by validation MSE (median fine-tuning
+  epoch 11, 2026-11-08 entry) lie early on that recovery, which is why the final ID ENCE (1.72) is above the end of the
+  curve. Phases 0-295 and 300-395 use different labels (DFT vs CC), so the jump at 300 mixes a target change with the
+  model change (as for B/D). Not covered: Energy-OOD dynamics with the support filter (needs the filtered recomputation used
+  by `papers/iclr27/figures/figA_dynamics_*`); a side-by-side with the MVE twin D along the trajectory.
+
+---

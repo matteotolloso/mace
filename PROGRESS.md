@@ -143,3 +143,6 @@ at ~30-111. Possible extra arm: compare both methods after the same recalibratio
   (GPU 0 filled by other users) and was on its last attempt. Remaining 27 steps moved to `uq-mse-eval5`
   (`runs/_jobs/mse_energy_eval5.sh`: GPU with most free memory per step, max 3 GPUs incl. eval4, attempts reset);
   eval4 finishes its 3 running steps, then eval5 runs aggregate + prune. Expected end ~2026-11-10 evening (RUNS.md).
+- 2026-11-10 — Energy MSE full evaluation finished (`uq-mse-eval5`, 08:13; 27/27 steps ok), both experiments aggregated and
+  pruned; final-model numbers unchanged (`members_*.npz` from 11-08, `compare_uq` byte-identical); ledger entry 2026-11-10
+  with ID/train dynamics. WP3.6 closed. Leonardo: temporary 20 TB/user quota on SCRATCH (LEONARDO.md).

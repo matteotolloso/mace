@@ -51,7 +51,7 @@ DGX: a VS Code Remote terminal usually forwards it (Ports panel); otherwise firs
 | `$HOME` `/leonardo/home/userexternal/mtolloso` | 50 GB | while the user exists | daily, 3 versions | dot-files, ssh, small files only |
 | `$WORK` `/leonardo_work/IscrC_UQ-MF` | 1 TB per project | up to 6 months after the project ends; no purge | **none** | **persistent project data**: code, conda env, datasets, run outputs ("the main area for maintaining scratch files resulting from batch processing") |
 | `$FAST` `/leonardo_scratch/fast/IscrC_UQ-MF` | 1 TB per project, no extensions | up to 6 months after the project ends | none | I/O-heavy working data; our overflow for epoch checkpoints |
-| `$CINECA_SCRATCH` `/leonardo_scratch/large/userexternal/mtolloso` | no quota | **files not accessed for 40 days are deleted daily** | none | temporary files of batch jobs only; never the only copy of anything |
+| `$CINECA_SCRATCH` `/leonardo_scratch/large/userexternal/mtolloso` | no quota normally; **temporary 20 TB per user since 2026-11-10** (CINECA notice: SCRATCH > 87% full; lifted when occupancy is safe again). Our use (W&B offline files) is far below it; do not move checkpoints or run outputs here | **files not accessed for 40 days are deleted daily** | none | temporary files of batch jobs only; never the only copy of anything |
 | `$TMPDIR` (on a Booster node: 10 GB in RAM) | 10 GB | **deleted when the job ends** | none | per-job caches (pip, torch, matplotlib) |
 | `$PUBLIC` | 50 GB | while the user exists | none | sharing with other users (not needed) |
 

@@ -100,10 +100,12 @@ Fig. 5 line plots; always show the training dynamics. Interpretation and phrasin
       energy split synced and aggregated 2026-11-07; system: reset-var re-sync and beta-NLL syncing,
       FT lr evaluating (~18:00). Then `compare_ablations`, one ledger entry per WP. Note: reset-var
       and beta-NLL on the system split need the FT-lr system twins only for item B, not for C.
-- [~] (agent: mace-80 -> mace-leo -> mace-leo-2 -> mace-leo-3) WP3.6 MSE ensembles LF-only / LF->HF: **system recorded**
+- [x] (agent: mace-80 -> mace-leo -> mace-leo-2 -> mace-leo-3 -> 2026-11-10 session) WP3.6 MSE ensembles LF-only / LF->HF: **system recorded**
       (ledger 2026-11-08: pretraining improves the MVE EU ranking ~5x more than the MSE EU; at LF->HF the MVE ensemble
       ranks better on every metric, accuracy equal; `results/tables/mse_vs_mve_pretraining.csv`). Energy: 100/100
-      trained, evaluating on the DGX on 3 GPUs (`uq-mse-eval3`, since 11-08 11:55), then a second entry.
+      trained; final models recorded 2026-11-08; full evaluation, aggregates and ID/train dynamics recorded 2026-11-10
+      (EU AUSE flat during fine-tuning, ENCE jumps at the switch to CC and recovers). Optional: support-filtered Energy-OOD
+      dynamics and an MSE-vs-D dynamics panel (CPU, not started).
 
 ### Open, needs a user decision (after looking at the energy results)
 - [!] WP3.1 AU vs training MSE per epoch (prediction (a)): the stored per-epoch means are inconclusive;
@@ -166,3 +168,4 @@ WP3.4 dropped (user, 2026-11-07).
 - 2026-11-09 23:12 — DGX energy-MSE eval queue moved from `uq-mse-eval4` to `uq-mse-eval5` (dynamic GPU placement against OOM); details in RUNS.md log.
 - 2026-11-10 — after the "draft 2" pull (user + Luigi): Fig. 23 split into Fig. 23 HF-only / Fig. 24 LF→HF (`figA_estimators_{hf,lfhf}`, CPU, numbers unchanged: same `mse_vs_mve.csv`), tint removed, "(ours)" in the legend; rebuttal: thanks before each answer, TODO citations filled from the reference table (Zaverkin 2023, Käser & Meuwly 2023, Chen 2023; Batatia 2023, Radova 2025), typos, closings for j1p7/Q2LT. Open: ge6X (~5.6k) and Q2LT (~6.4k chars) exceed the 5000-character limit; Bocus et al. 2025 not in Section 7 (unverified). Paper-repo changes left uncommitted for the user.
 - 2026-11-10 13:10 — user follow-up: Bocus et al. 2025 verified (Angew. Chem., transfer learning to RI-RPA, Section 7 row added). Promises turned into edits (blue): Sec. 1 motivation sentence (radova2025fine, bilbrey2025uncertainty, new bib entry) and a sentence on how findings (i)-(iv) extend single-fidelity work (rasmussen2023uncertain, valdenegro2022deeper, seitzer2022pitfalls); Sec. 3 one sentence on ANI-1x/MACE (-> App. M.5). Rebuttal says "we have updated..."; every closing asks whether there is anything else we can do. Main text still ends on p. 9; Figs. 23/24 now p. 40. Box lengths ge6X 5707, j1p7 3022, Q2LT 6624 (limit 5000). Paper repo still uncommitted.
+- 2026-11-10 — energy MSE evaluation finished on the DGX (`uq-mse-eval5`, 08:13), aggregated + pruned; ledger entry "MSE ensembles, ANI-1x energy split: full evaluation ..."; WP3.6 closed. DGX idle for this project.
