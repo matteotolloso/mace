@@ -105,8 +105,8 @@ Fig. 5 line plots; always show the training dynamics. Interpretation and phrasin
       ranks better on every metric, accuracy equal; `results/tables/mse_vs_mve_pretraining.csv`). Energy: 100/100
       trained; final models recorded 2026-11-08; full evaluation, aggregates and ID/train dynamics recorded 2026-11-10
       (EU AUSE flat during fine-tuning, ENCE jumps at the switch to CC and recovers). Dynamics figure
-      `figA_mse_dynamics` (MSE EU vs MVE EU/TU, 4 tests, Energy-OOD filtered) recorded 2026-11-10; not in App. M yet
-      (user decides).
+      `figA_mse_dynamics` (MSE EU vs MVE EU/TU, 4 tests, Energy-OOD filtered) recorded 2026-11-10; in App. M.4 as
+      Fig. 25 (paper repo, user request).
 
 ### Open, needs a user decision (after looking at the energy results)
 - [!] WP3.1 AU vs training MSE per epoch (prediction (a)): the stored per-epoch means are inconclusive;
@@ -171,3 +171,4 @@ WP3.4 dropped (user, 2026-11-07).
 - 2026-11-10 13:10 — user follow-up: Bocus et al. 2025 verified (Angew. Chem., transfer learning to RI-RPA, Section 7 row added). Promises turned into edits (blue): Sec. 1 motivation sentence (radova2025fine, bilbrey2025uncertainty, new bib entry) and a sentence on how findings (i)-(iv) extend single-fidelity work (rasmussen2023uncertain, valdenegro2022deeper, seitzer2022pitfalls); Sec. 3 one sentence on ANI-1x/MACE (-> App. M.5). Rebuttal says "we have updated..."; every closing asks whether there is anything else we can do. Main text still ends on p. 9; Figs. 23/24 now p. 40. Box lengths ge6X 5707, j1p7 3022, Q2LT 6624 (limit 5000). Paper repo still uncommitted.
 - 2026-11-10 — energy MSE evaluation finished on the DGX (`uq-mse-eval5`, 08:13), aggregated + pruned; ledger entry "MSE ensembles, ANI-1x energy split: full evaluation ..."; WP3.6 closed. DGX idle for this project.
 - 2026-11-10 16:40 — `figA_mse_dynamics` (item D dynamics) built and recorded; candidate for App. M next to Fig. 23/24, not copied to the paper repo.
+- 2026-11-10 evening — after the user's "final rebuttal" pull (paper `f8b4309`): consistency check (compiles, no undefined refs, all section/figure numbers cited in rebuttal.tex match, promised intro/Sec. 3/M.5 edits present, figure PDFs identical to `figures/out/` except fig6 creation date); `figA_mse_dynamics` added to App. M.4 as Fig. 25 (paper commit, not pushed). Open: ge6X 5462 and Q2LT 5832 characters (> 5000).
