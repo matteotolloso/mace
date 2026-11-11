@@ -1,7 +1,9 @@
-# Agent guide: ICLR 2027 oral talk
+# Agent guide: RPS @ NeurIPS 2026 oral talk
 
-Self-contained folder for the 20-minute oral of *Multi-Fidelity Training Reshapes Uncertainty
-Decomposition in Atomistic Models* (Tolloso, Bacciu, Bonati). Everything needed to present,
+Self-contained folder for the 20-minute oral of *Multi-Fidelity Transfer Learning Reshapes
+Uncertainty Quantification in Atomistic Models* (Tolloso, Bacciu, Bonati) at the Representations
+for the Physical Sciences (RPS) workshop, NeurIPS 2026. The talk follows the full (ICLR 2027
+submission) paper's Figs. 2–6, so "paper" below and the `iclr27` paths refer to that paper. Everything needed to present,
 edit and rebuild the talk is here; the only inputs from outside are the paper's figure code
 (read-only, for `data/`) and the paper's Fig. 1 PDF (for `assets/`). The parent
 `../CLAUDE.md` rules still apply (ledger, no claims without provenance, do not touch
