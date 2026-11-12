@@ -1,11 +1,13 @@
-# What the rebuttal results say (interpretation layer, read before writing)
+# What the recorded results say (interpretation layer, read before writing)
 
-Created 2026-11-08 (mace-leo-3) after discussing the results with the user. This file holds the
-*interpretation*: what each new result supports, where it is risky, and how to phrase it. Numbers
-stay in `results/results.md`; every statement below names its ledger entry. Update this file when a
-result arrives or the user changes the framing.
+Created 2026-11-08 during the ICLR 2027 rebuttal after discussing the results with the user; moved
+here from `papers/iclr27/rebuttal/` on 2026-11-12 because it is about the results, not about one
+venue. This file holds the *interpretation*: what each result supports, where it is risky, and how
+to phrase it. Numbers stay in `results/results.md`; every statement below names its ledger entry.
+Update this file when a result arrives or the user changes the framing. How the findings shape the
+next version of the paper: [`PLAN.md`](PLAN.md) Section 2.
 
-## 0. User preferences for presenting results (2026-11-08)
+## 0. User preferences for presenting results (2026-11-08; still valid)
 
 - **Metrics: AUSE (ranking) and ENCE (calibration) only**, as in the main text; RMSE for accuracy.
   No Spearman in new figures, appendix text or (when revised) the rebuttal.
@@ -15,8 +17,6 @@ result arrives or the user changes the framing.
 - Final models = each member at its lowest validation loss (Gaussian NLL; validation MSE for
   `mace-mse`); say so in captions/text.
 - Show the training dynamics, not only final models: the most interesting observations are there.
-- The user wants to see the revised appendix PDF (`ICLR27-UQ-MF/iclr2027_conference.pdf`, untracked)
-  before the rebuttal text. Waves: A Nov 10, B Nov 12, C (revised PDF) Nov 14, then replies only.
 
 ## 1. Results that strengthen the paper
 
@@ -84,16 +84,15 @@ result arrives or the user changes the framing.
 3. Minor: on the system split the MSE ensemble is more accurate than the MVE ensemble at HF-only
    (RMSE ratio x1.24 OOD, ledger 2026-11-04); equal after LF->HF. The decomposition can cost accuracy.
 
-## 3. Recommended stance
+## 3. Stance taken in the rebuttal (2026-11-10)
 
-Publish all of it: accuracy, ranking, estimators and the mechanism ablations are the solid core.
-Make the two calibration caveats (Section 2.1, 2.2) explicit in the revised appendix (done in App. M.3
-for 2.1) and in the Q1 / G4 replies; hiding the lr dependence is riskier because the data are in the
-appendix. Open: user review of this framing, D3/D4/D5/D10 (2026-11-09).
+All of it was published: accuracy, ranking, estimators and the mechanism ablations as the solid
+core, with the two calibration caveats (Sections 2.1, 2.2) explicit in Appendix M.3 and in the
+replies to Q2LT and ge6X. Decisions D3 (forces), D4 (second dataset / architecture) and D5 (renaming
+AU / EU) of the rebuttal were left open and are carried into `PLAN.md` (P4, P5, D3).
 
 ## 4. Pending data
 
-- ~~Energy-OOD per-epoch AU for the energy FT ablations~~: done 2026-11-08 16:50 (figure, ledger, App. M.3 caption/text, PDF recompiled).
-- 2026-11-09: Fig. 22 (App. M.3) now shows raw values in Fig. 2 style (user: easier to read than ratios); it makes visible that the head reset worsens TU calibration on 3 of 4 tests (text says so). Spearman removed from the rebuttal draft (AUSE + ENCE only).
-- Energy MSE: final-model numbers recorded 2026-11-08 17:10; the full evaluation (curves, aggregates) of both
-  experiments still runs (`uq-mse-eval3` + `uq-mse-fast`, RUNS.md); it changes no recorded number.
+None: every analysis listed here during the rebuttal is recorded (Energy-OOD per-epoch AU of the
+ablations, ledger 2026-11-08; energy-split MSE full evaluation and dynamics, ledger 2026-11-10).
+Open presentation item: the ensemble-size result (ledger 2026-11-02) is text-only in App. M.4.

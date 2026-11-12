@@ -14,8 +14,10 @@ Read only the page you need; each is self-contained.
 | [known-issues.md](known-issues.md) | audit results, open issues, fixed bugs |
 | [extending.md](extending.md) | adding a dataset, experiment, model, UQ method, AL study or paper |
 | [migration-2026-09.md](migration-2026-09.md) | old paths/letters/scripts -> current ones |
+| [leonardo.md](leonardo.md) | CINECA Leonardo: access, filesystems, SLURM, budget, sync protocol with the DGX |
 | [upstream-mace.md](upstream-mace.md) | the original MACE README (installation, MACE usage) |
 | [restructure/](restructure/) | record of the 2026-09 restructure (plan, migration script) |
 
 Results and claims are not documented here: they live in the ledger
-[`results/results.md`](../results/results.md).
+[`results/results.md`](../results/results.md). Project status: `PROGRESS.md`; analysis and plans
+for the paper: `papers/strategy/`.

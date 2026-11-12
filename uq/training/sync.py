@@ -4,7 +4,7 @@
     uq sync-back ani1x-system/mace-mse/lf-only --host leonardo --apply    # copy
     uq sync-back ... --checkpoints --apply                                # also the (pruned) checkpoints
 
-Outputs flow remote -> local only (``papers/iclr27/rebuttal/RUNS.md``, protocol item 8). Per split it
+Outputs flow remote -> local only (``docs/leonardo.md``, sync protocol). Per split it
 copies ``results/``, ``logs/``, ``models/`` and, with ``--checkpoints``, ``checkpoints/`` of the run
 directory, plus ``experiments/<id>/evaluation/split_<s>/``; member logs of ``runs/_logs`` go to
 ``runs/_logs/remote/``. rsync runs with ``--ignore-existing``: a local file is never overwritten (a

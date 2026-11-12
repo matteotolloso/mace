@@ -1,7 +1,7 @@
 # ICLR 2027 submission: figures and drafts
 
-> **Rebuttal in progress (2026-11-06 to 2026-11-18):** everything about it is in
-> [`rebuttal/`](rebuttal/README.md) — start at `rebuttal/README.md`.
+> **Rebuttal posted 2026-11-10; discussion until 2026-11-18:** see [`rebuttal/`](rebuttal/README.md).
+> What comes after ICLR: [`../strategy/`](../strategy/README.md).
 
 Figures of *Multi-Fidelity Training Reshapes Uncertainty Decomposition in Atomistic
 Models* (submitted; repository state at submission = tag `iclr27-submission`). The

@@ -1,7 +1,12 @@
-# Rebuttal runs: what runs where (DGX + CINECA Leonardo)
+# Rebuttal runs: what ran where (DGX + CINECA Leonardo)
+
+> **Closed registry (2026-11-12).** Every job of the rebuttal is finished and recorded in the ledger;
+> nothing of this project runs on the DGX or is known to be queued on Leonardo (Leonardo last
+> checked 2026-11-08). Kept as provenance for the ledger entries that cite it. A new campaign
+> registers its jobs as `papers/strategy/PLAN.md` says, not here.
 
 Every training or evaluation job of the rebuttal gets a row here **before** launch, on either machine,
-and is updated when it ends. *What* and *why*: `PLAN.md`; Leonardo rules and layout: `LEONARDO.md`;
+and is updated when it ends. *What* and *why*: `PLAN.md`; Leonardo rules and layout: `docs/leonardo.md`;
 provenance of recorded numbers: the ledger entries. Condensed 2026-11-07; the full per-job notes of
 2026-11-06/07 (smoke tests, storage plans, reconciliation log) are in Git history.
 
@@ -14,26 +19,9 @@ provenance of recorded numbers: the ledger entries. Condensed 2026-11-07; the fu
 
 **Owner of all jobs:** session `mace-leo-5` (since 2026-11-09 10:30; before it `mace-leo-4`, since 2026-11-08 16:40; before it `mace-leo-3`, took over from `mace-leo-2`, before that `mace-leo`). A later session takes over by writing its name here.
 
-## 2. Sync protocol (short)
+## 2. Sync protocol
 
-1. One machine per experiment id, written here before launch.
-2. Leonardo runs clean checkouts of `iclr_rebuttal` commits (pull, or `git bundle` with identical hashes); no edits there.
-3. Data are copied from the DGX and checked against `data/MANIFEST.sha256`; never `uq data build` on Leonardo.
-4. Members run exactly `uq.training.launch.command()` through `uq train-slurm`; LF->HF children need their parent's `.model`.
-5. Outputs flow Leonardo -> DGX only: evaluate there per split (`uq evaluate-slurm ... --prune`), prune (D9), then on the
-   DGX `uq sync-back` (never overwrites), `uq aggregate`, `compare_*`, ledger entry.
-6. Refresh Sections 3-4 at least morning and evening (`squeue --me`, `sacct`, `saldo -b`; DGX `systemctl --user list-units 'uq-*'`, `nvidia-smi`); without access write "unknown since <time>".
-
-Sync-back (DGX, repo root):
-```bash
-export UQ_REMOTE_ROOT=/leonardo_work/IscrC_UQ-MF/uq-mf/mace
-export UQ_REMOTE_RUNS=/leonardo_work/IscrC_UQ-MF/uq-mf/runs     # $FAST experiments: /leonardo_scratch/fast/IscrC_UQ-MF/uq-mf/runs
-uq sync-back <exp> --host leonardo --checkpoints --apply         # rerun after an interruption: copies only what is missing
-uq aggregate <exp>; python -m uq.evaluation.compare_ablations    # -> results/tables/ablations_vs_reference.csv
-```
-`$WORK`: system MSE, `*/lf-to-hf-reset-var`, `*/lf-to-hf-lr1e-{4,2}`. `$FAST`: `*/hf-only-lr*`, `*/lf-to-hf-beta-nll`.
-A failed evaluation cancels its prune job (`afterok`): read the `.out`, `uq evaluate-slurm <exp> --splits <s> --submit`.
-A training job at walltime: `uq train-slurm <exps> --resume --pack 3 --submit`.
+Moved on 2026-11-12 to [`docs/leonardo.md`](../../../docs/leonardo.md) (last section), unchanged in substance.
 
 ## 3. Runs
 
@@ -158,7 +146,7 @@ Last verified **2026-11-10 ~09:30** (DGX only: no `uq-*` job running, 0 GPUs of 
 - 2026-11-08 12:50 — mace-leo-3: **user approved a 4th DGX GPU** for this one job (other users also hold 4 GPUs; avoids moving
   data to Leonardo): `uq-abl-epochpred` on GPU 4 (23 GB free before launch) computes the support-filterable Energy-OOD
   per-epoch predictions of the four energy FT ablations for the App. M.3 dynamics figure. The 3-GPU cap otherwise stands.
-- 2026-11-08 ~13:00 — mace-leo-3: interpretation of all new results written to `FINDINGS.md` (read it before writing the
+- 2026-11-08 ~13:00 — mace-leo-3: interpretation of all new results written to `FINDINGS.md` (now `papers/strategy/FINDINGS.md`; read it before writing the
   rebuttal or the revised appendix); the appendix now uses Fig. 2 / Fig. 5 styles and AUSE + ENCE only (user).
 - 2026-11-08 16:40 — mace-leo-4 takes over. `uq-abl-epochpred` finished 14:57 (20/20 ok) -> figure, ledger, App. M.3, PDF.
   `uq-mse-eval3` is much slower than expected: after 4.7 h lf-only s1 is at `epoch_quality_id` (its `train_curves` took

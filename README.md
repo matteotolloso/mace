@@ -13,10 +13,13 @@ research code is in the `uq/` package and its `uq` command.
 
 ## Status
 
-- 3 datasets, 9 experiments x 5 dataset splits x 10 ensemble members = **450 trained
-  models, all complete and evaluated** (`uq status`).
+- 3 datasets, 27 experiments (`uq list`), each 5 dataset splits x 10 ensemble members: the nine
+  main mean-variance experiments, six MSE-ensemble baselines and twelve learning-rate and
+  fine-tuning ablations added in November 2026; all trained and evaluated (`uq status`).
 - Active-learning proof of concept on ANI-1x Energy-OOD (400 more members).
 - Citable numbers live only in the ledger [`results/results.md`](results/results.md).
+- Where the project stands and what is planned: [`PROGRESS.md`](PROGRESS.md) and
+  [`papers/strategy/`](papers/strategy/README.md).
 
 ## Quick start
 
@@ -41,7 +44,8 @@ data/           datasets: <dataset>/dataset.yaml + split_<s>/ (large files git-i
 experiments/    <dataset>/<model>-<uq>/<protocol>/{experiment.yaml, config.yaml, evaluation/}
 runs/           checkpoints, logs, W&B, active-learning runs (git-ignored, ~650 GB)
 results/        results.md = ledger of every citable result; tables/, figures/
-papers/iclr27/  figure scripts + outputs of the ICLR 2027 paper, drafts
+papers/iclr27/  figure scripts + outputs of the ICLR 2027 paper, drafts, rebuttal
+papers/strategy/ assessment of the work, review synthesis, development plan
 notebooks/      exploratory analyses
 docs/           documentation (start at docs/README.md)
 mace/ tests/    upstream MACE (+ MVE head) and its tests
@@ -60,6 +64,8 @@ ICLR27-UQ-MF/   manuscript, separate Git repository synced with Overleaf (ignore
 | `ani1x-energy/mace-mve/hf-only` | F | same | CC only |
 | `water-random/mace-mve/{lf-only,lf-to-hf,hf-only}` | wA, wB, wC | liquid water (BLYP / CCSD(T)) | as above |
 | `ani1x-{system,energy}/mace-mse/{lf-only,lf-to-hf,hf-only}` | — | as the MVE twins | MSE-ensemble baseline (EU only), 2026-11 |
+| `ani1x-{system,energy}/mace-mve/{hf-only-lr1e-3,hf-only-lr3e-3}` | — | as the MVE twins | HF-only learning-rate sweep, 2026-11 |
+| `ani1x-{system,energy}/mace-mve/lf-to-hf-{reset-var,beta-nll,lr1e-4,lr1e-2}` | — | as the MVE twins | fine-tuning ablations (variance-head reset, beta-NLL, learning rate), 2026-11 |
 
 ## Workflow
 

@@ -1,4 +1,8 @@
-# CINECA Leonardo: access, rules, our layout
+# CINECA Leonardo: access, rules, our layout, sync protocol
+
+Moved here on 2026-11-12 from `papers/iclr27/rebuttal/LEONARDO.md` (the cluster outlives the
+rebuttal); the sync protocol at the end comes from the rebuttal's `RUNS.md`. Allocation
+`IscrC_UQ-MF` ends **2027-04-29**; budget snapshots: `papers/iclr27/rebuttal/RUNS.md` Section 4.
 
 Facts checked on 2026-11-06 against the CINECA user guide ([Leonardo][leo],
 [filesystems][fs], [accounting and linearization][intro], [scheduler][slurm], [access][acc])
@@ -126,3 +130,30 @@ test; plan for none (`WANDB_MODE=offline`, everything installed beforehand).
 
 Useful: `squeue --me`, `scontrol show job <id>` (estimated start), `sprio -j <id>`, `sacct -j <id>`,
 `scancel <id>`, `saldo -b`, `cindata`.
+
+## Sync protocol between the DGX and Leonardo
+
+Written for the rebuttal campaign (2026-11-06 to 11-10) and valid for any later one. `D9` is the
+user's approval to prune epoch checkpoints after evaluation (every fifth epoch, each member's best
+and the `.model` are kept).
+
+1. One machine per experiment id, written in the job registry before launch (the campaign's `RUNS.md`, or the Jobs table of `PROGRESS.md`).
+2. Leonardo runs clean checkouts of commits of the working branch (`iclr_rebuttal` during the rebuttal) (pull, or `git bundle` with identical hashes); no edits there.
+3. Data are copied from the DGX and checked against `data/MANIFEST.sha256`; never `uq data build` on Leonardo.
+4. Members run exactly `uq.training.launch.command()` through `uq train-slurm`; LF->HF children need their parent's `.model`.
+5. Outputs flow Leonardo -> DGX only: evaluate there per split (`uq evaluate-slurm ... --prune`), prune (D9), then on the
+   DGX `uq sync-back` (never overwrites), `uq aggregate`, `compare_*`, ledger entry.
+6. While jobs run, refresh the job registry and the budget at least morning and evening (`squeue --me`, `sacct`, `saldo -b`; DGX `systemctl --user list-units 'uq-*'`, `nvidia-smi`); without access write "unknown since <time>".
+
+Sync-back (DGX, repo root):
+```bash
+export UQ_REMOTE_ROOT=/leonardo_work/IscrC_UQ-MF/uq-mf/mace
+export UQ_REMOTE_RUNS=/leonardo_work/IscrC_UQ-MF/uq-mf/runs     # $FAST experiments: /leonardo_scratch/fast/IscrC_UQ-MF/uq-mf/runs
+uq sync-back <exp> --host leonardo --checkpoints --apply         # rerun after an interruption: copies only what is missing
+uq aggregate <exp>; python -m uq.evaluation.compare_ablations    # -> results/tables/ablations_vs_reference.csv
+```
+`$WORK`: system MSE, `*/lf-to-hf-reset-var`, `*/lf-to-hf-lr1e-{4,2}`. `$FAST`: `*/hf-only-lr*`, `*/lf-to-hf-beta-nll`.
+A failed evaluation cancels its prune job (`afterok`): read the `.out`, `uq evaluate-slurm <exp> --splits <s> --submit`.
+A training job at walltime: `uq train-slurm <exps> --resume --pack 3 --submit`.
+
+The `$WORK` / `$FAST` assignment above is that of the rebuttal experiments; a new campaign records its own.

@@ -5,7 +5,7 @@
 
 One 1-GPU job per (experiment, split) runs exactly ``uq evaluate <exp> --splits <s> --no-aggregate``
 (the five-split aggregate and the ledger entry are made on the DGX after the outputs are synced back,
-``papers/iclr27/rebuttal/RUNS.md``). A job first checks that every member of its split, and of the
+``docs/leonardo.md``, sync protocol). A job first checks that every member of its split, and of the
 parent's split for an LF->HF experiment, is complete, and fails otherwise. ``--after`` makes the jobs
 wait for the given training jobs (``afterany``: a training job can exit non-zero although its members
 are complete, so each evaluation job decides by the completeness check). ``--prune``
