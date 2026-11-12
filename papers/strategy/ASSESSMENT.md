@@ -3,8 +3,9 @@
 Written 2026-11-12 from: the ICLR 2027 manuscript with its revision appendix
 (`ICLR27-UQ-MF/iclr2027_conference.tex`, paper commit `1c358d9`), the posted rebuttal, the ledger
 `results/results.md`, [`FINDINGS.md`](FINDINGS.md), the ICLR reviews, and a literature scan of the
-same day ([`LITERATURE.md`](LITERATURE.md) Section 4, search level). Results are referred to
-qualitatively; every number lives in the ledger. Opinions here are the assessor's (an AI agent
+same day ([`LITERATURE.md`](LITERATURE.md) Section 4, search level). **Revised the same day after
+reading the NeurIPS 2026 and RPS 2026 reviews** ([`REVIEWS.md`](REVIEWS.md)): Sections 2, 5 and 6
+changed, the direction did not. Results are referred to qualitatively; every number lives in the ledger. Opinions here are the assessor's (an AI agent
 working for the first author), to be challenged by the authors.
 
 ## 1. What the work is
@@ -21,7 +22,11 @@ baselines (MSE ensembles, single model, ensemble size). 27 experiments exist tod
 
 ## 2. Is it sound?
 
-Yes, and this is its main asset.
+Yes, since the rebuild of September 2026, and this is now its main asset. It was not at the first
+submission: the NeurIPS 2026 draft (one split seed, a trim on the evaluated quantity, claims that
+its own tables contradicted, inconsistent figures) was withdrawn after a meta-review that listed
+"validity-level problems", and the reviewers were right on those points. The ICLR version fixed
+them, and the ICLR reviews show it: nobody questioned a number, the statistics or a figure.
 
 - Replication and statistics are above the norm of the field: five independent splits as the unit,
   ten members per ensemble, paired contrasts, intervals over splits, a ledger with provenance.
@@ -47,6 +52,25 @@ Points where a careful referee can still push (assessor's reading, none is an er
    and explained by the inherited head, but it is a statement about one optimization setting.
 4. **The acquisition gain is small in absolute terms** and comes from one round on a pool cut from
    the test set (proof of concept by the paper's own description).
+
+Two validity points of the NeurIPS reviews survived the rebuild and are **still open**; a referee
+who reads as carefully as NeurIPS reviewer 3Aye will find them again:
+
+5. **Reused geometries (NA5, NA12, NMR4).** The CC training configurations are a subset of the DFT
+   training configurations, so every LF->HF member has already seen the geometries of its
+   high-fidelity training set, with DFT labels. The paper says so in its Limitations and does not
+   test it. It matters for the central observation: "variance small on training geometries, errors
+   large on unseen ones" is exactly what a model that has seen those geometries twice would show.
+   The control costs only fine-tuning compute, because each split's training pool holds far more
+   CC-labelled configurations than the 5,000 used (155,661 in the pool of system split 0,
+   `data/ani1x-system/split_0/split_summary.json`).
+6. **Calibration of a component has no observable target (NA1, NA9, NMR1).** The submission judges
+   calibration on TU and calls the ENCE of AU and EU a diagnostic, but the mechanism section of the
+   revision (Appendix M.3) is written entirely in terms of the ENCE of AU against the squared error
+   of the *ensemble*. An identifiable version exists and the paper's own appendix names it: each
+   member is a Gaussian predictor, so its variance has a target, that member's own squared error
+   (their averages differ from the ensemble error by EU, the ambiguity decomposition). The cached
+   per-member predictions (`members_*.npz`) allow this for the selected models without new inference.
 
 ## 3. Position in the literature (November 2026)
 
@@ -104,6 +128,13 @@ least expected content (ledger entries of 2026-11-07/08/10, interpretation in `F
 - Training-set AU stays calibrated or conservative in every variant while held-out AU becomes
   overconfident.
 
+Reviewers at three venues summarized the paper back as "aleatoric uncertainty degrades out of
+distribution, epistemic is more reliable", and four of them plus an area chair called that known or
+expected (NY3, NMR6, RL2, G1, Q3). None of the four results above is in that summary, and none is
+what one would predict from the single-fidelity literature: that the *ordering* learned on DFT
+residuals is still the right ordering for CC errors, that it lives in the variance head, and that
+training on the correct labels then *damages* the scale also in distribution.
+
 Together these say one thing: **across a change of fidelity, the ordering of the uncertainty
 transfers and its scale does not.** The submitted paper states four findings side by side; this
 single statement explains all four (better ranking after pretraining, calibration lost in the HF
@@ -113,17 +144,26 @@ what makes an observational paper acceptable at a method-oriented venue.
 
 ## 6. Verdict
 
-- **Validity:** high. The results are reproducible, replicated and honestly qualified.
-- **Novelty:** real but narrow as currently framed; the niche is unoccupied.
+- **Validity:** high after the rebuild, with two open controls (reused geometries; an observable
+  target for the learned variance) that are cheap and should be closed before any resubmission.
+- **Novelty:** real but narrow, and undersold: the claim readers take away is the known one. The
+  niche is unoccupied.
 - **Significance as submitted:** limited by the setting (energies only, independent parents, one
   model) more than by the findings. This is what "informativeness 1-2" at ICLR measures.
 - **Potential:** good. The missing pieces are identifiable, mostly cheap (fine-tuning-scale
   compute), and the most expensive one (forces in pretraining) needs no new data. The work does not
   need a new direction; it needs its setting brought to where the field is, and its best result
   moved from the appendix to the title.
-- **Risk to state plainly:** the two validity tests (forces; a single shared parent) can change the
-  conclusions. If EU's ranking gain disappears with a shared parent, or the AU collapse changes
-  with force-trained parents, the paper's story changes. Both outcomes are publishable and more
-  useful to readers than the current one, but they must be run before the story is rewritten.
+- **Readership:** the evidence of three rounds is consistent. Two panels of general machine-learning
+  reviewers (NeurIPS 2 / 3 / 2, ICLR 1 / 2 / 2) converged on "one dataset, one architecture, not
+  new enough", one of them explicitly on the mismatch between general language and single-domain
+  evidence (NM1). Reviewers near the application accepted an earlier, weaker version as an oral.
+  The natural home is where interatomic-potential practitioners read; a general conference needs
+  breadth that this project cannot cheaply produce.
+- **Risk to state plainly:** three tests (forces; a single shared parent; unseen fine-tuning
+  geometries) can change the conclusions. If EU's ranking gain disappears with a shared parent, or the AU collapse changes
+  with force-trained parents or with fine-tuning geometries the model has never seen, the paper's
+  story changes. All these outcomes are publishable and more
+  useful to readers than the current one, but the tests must be run before the story is rewritten.
 
 The development plan that follows from this is [`PLAN.md`](PLAN.md).

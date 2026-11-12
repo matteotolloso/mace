@@ -10,8 +10,8 @@ rebuttal, is `git show ebeb547:PROGRESS.md`.
 1. **ICLR 2027 discussion, until 2026-11-18.** Responses were posted on 2026-11-10; only replies
    to reviewer follow-ups remain. Start at `papers/iclr27/rebuttal/README.md`.
 2. **Next version of the paper.** Analysis and plan in `papers/strategy/` (start at its
-   `README.md`; the plan is `PLAN.md`). **Nothing of the plan is launched: it waits for the user's
-   decisions D1-D9** (`papers/strategy/PLAN.md` Section 8).
+   `README.md`; the plan is `PLAN.md`, version 2). **Nothing of the plan is launched: it waits for
+   the user's decisions D1-D8** (`papers/strategy/PLAN.md` Section 8).
 
 Other workspaces: `talk/` (oral at the RPS workshop, NeurIPS 2026; own `CLAUDE.md`), `RPS-UQ-MF/`
 (workshop camera-ready), `UQ-MF-Arxiv-/` (arXiv version), `ICLR27-UQ-MF/` (ICLR manuscript and
@@ -52,3 +52,7 @@ was pruned after evaluation (every fifth epoch, each member's best, `.model`).
 - 2026-11-12 — whole-project review: `papers/strategy/` created (assessment against the
   literature, cross-venue review synthesis, development plan, literature file); rebuttal files
   condensed; `FINDINGS.md` and `LEONARDO.md` moved (`papers/strategy/`, `docs/leonardo.md`).
+- 2026-11-12 — NeurIPS 2026 and RPS 2026 reviews received from the user and stored verbatim
+  (`papers/strategy/reviews_{neurips26,rps26}.md`); review synthesis rewritten, assessment and plan
+  revised (version 2: analyses A1, A2 and controls P8 added, acquisition benchmark to Tier 2,
+  default venue a domain journal).
