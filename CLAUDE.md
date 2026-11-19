@@ -3,12 +3,17 @@
 Research fork of MACE: ensembles of MACE models with a mean-variance (MVE) head,
 trained on low-fidelity (DFT), high-fidelity (coupled-cluster) or both
 (pretrain -> fine-tune), studied through the aleatoric/epistemic decomposition under
-distribution shift and during training; ICLR 2027 submission + follow-ups. Two
-workspaces share this root: this repository (code, data, experiments, results) and
-`ICLR27-UQ-MF/` (the manuscript: separate Git repo synced with Overleaf, own CLAUDE.md).
+distribution shift and during training. ICLR 2027 (2 / 2 / 2) withdrawn on 2026-11-19; the
+work now heads for a Q1 journal. This repository holds code, data, experiments and results; the
+manuscripts are separate Git repos synced with Overleaf (`ICLR27-UQ-MF/` = latest full version,
+own CLAUDE.md; `UQ-MF-Arxiv-/`, `RPS-UQ-MF/`).
 
-**Ongoing work:** read `PROGRESS.md` first (state, open questions, next steps of the
-current study); update it as you work.
+**Start at `PROGRESS.md`** (current focus, job registry, finished studies; update it as you work).
+Current front: the journal version. `papers/strategy/` holds the assessment, the cross-venue review
+synthesis (verbatim reviews of NeurIPS 2026, RPS 2026, ICLR 2027), the development plan (`PLAN.md`,
+tasks to claim once the user approves it) and `JOURNAL.md` (Q1 shortlist, improvements in priority
+order). The ICLR rebuttal is condensed in `papers/iclr27/REBUTTAL.md`. Never message other agent
+sessions; coordinate through those files.
 
 ## Orient cheaply (prefer these to reading files)
 
@@ -32,7 +37,8 @@ editable mode (`pip install --no-deps --no-build-isolation -e .` after adding a 
 | `data/<dataset>/` | `dataset.yaml` + `split_<s>/` (xyz/h5 ignored) |
 | `runs/` | ignored, ~650 GB: `<id>/split_<s>/{checkpoints,results,logs,models}`, `active-learning/`, `wandb/` |
 | `results/results.md` | ledger: the only source of citable numbers; `results/tables/` |
-| `papers/iclr27/` | figure scripts (`figures/`, outputs `figures/out/`), `paper_numbers.py`, drafts |
+| `papers/iclr27/` | figure scripts (`figures/`, outputs `figures/out/`), `paper_numbers.py`, drafts, `REBUTTAL.md` |
+| `papers/strategy/` | assessment, review synthesis, development plan, findings, literature (venue-independent) |
 | `mace/`, `tests/` | upstream MACE fork; MVE code only inside `### MVE ###` fences |
 
 ## Non-negotiable
@@ -43,14 +49,16 @@ editable mode (`pip install --no-deps --no-build-isolation -e .` after adding a 
 - LF->HF member (s, m) is fine-tuned from parent member (s, m). Checkpoints are selected
   per member by its own validation loss only (Gaussian NLL for `mace-mve`, energy MSE for
   the `mace-mse` baseline); test sets never select anything.
-- **Never use more than 3 GPUs at the same time**, counting every running job (shared
-  machine; check `nvidia-smi`). `uq train` enforces it; `uq evaluate` uses one GPU.
+- **Never use more than 3 GPUs at the same time on this DGX**, counting every running job (shared
+  machine; check `nvidia-smi`). `uq train` enforces it; `uq evaluate` uses one GPU. CINECA
+  Leonardo has its own queues and budget (`docs/leonardo.md`).
 - Never overwrite, delete, rename or retrain datasets, checkpoints, per-split evaluation
   outputs or results unless the user asks for that exact action.
 - Never claim a result that is not in `results/results.md` (or read from a file an entry
   lists); record new ones with the `record-result` skill.
 - Reportable reliability numbers use the support filter and `trim: 0.0`.
-- Never reset or revert changes you did not make. Do not commit or push unless asked.
+- Never reset or revert changes you did not make. Do not commit or push unless asked; standing
+  exception: commit and push finished work to `main` (since 2026-11-19; `iclr_rebuttal` is merged).
 
 ## Working rules
 
@@ -58,7 +66,7 @@ editable mode (`pip install --no-deps --no-build-isolation -e .` after adding a 
 - Do not open `*_raw.csv` (5k-50k rows), `.npz`, checkpoints or W&B files to "look":
   use `uq summary`, `uq status`, or a pandas one-liner that prints a few numbers.
 - Verify with the narrowest check: `uq check`; `python -m unittest discover -s uq/tests -t .`
-  (49 tests, CPU; they pin every recorded experiment's commands); `uq evaluate <exp> --gpu G
+  (71 tests, CPU; they pin every recorded experiment's commands); `uq evaluate <exp> --gpu G
   --dry-run`; `uq train ... --dry-run`.
 - A change that alters numbers must be followed by `uq aggregate` (CPU) and a ledger entry.
 - GPU inference is not bit-reproducible (EU varies ~5% relative per configuration).

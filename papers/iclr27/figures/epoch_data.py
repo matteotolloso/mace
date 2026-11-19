@@ -88,19 +88,26 @@ def hf_stage(kind, protocol, split):
     return _from_npz("F" if protocol == "HF-only" else "D", split)
 
 
-def lf_to_hf(kind, split, pretrain_epochs=300):
+# LF->HF pair (LF-only parent, fine-tuned child) per split; other pairs (e.g. the MSE
+# ensembles) are passed explicitly as experiment ids.
+LFHF_PAIR = {"system": ("A", "B"), "energy": ("C", "D")}
+
+
+def lf_to_hf(kind, split, pretrain_epochs=300, pair=None):
     """LF->HF over pretraining then fine-tuning; fine-tuning epochs follow pretraining."""
+    parent, child = pair or LFHF_PAIR[kind]
     if kind == "system":
-        path = CACHE("B", split, "epoch_quality_finetune_mixed_ood.csv")
+        path = CACHE(child, split, "epoch_quality_finetune_mixed_ood.csv")
         return {**_from_csv(path, "pretrain"), **_from_csv(path, "finetune", pretrain_epochs)}
-    pre, fine = _from_npz("C", split), _from_npz("D", split, pretrain_epochs)
+    pre, fine = _from_npz(parent, split), _from_npz(child, split, pretrain_epochs)
     if pre is None or fine is None:
         return None
     return {**pre, **fine}
 
 
-def _mixed_cached(kind, split, test, pretrain_epochs=300):
-    path = CACHE("B" if kind == "system" else "D", split, f"epoch_quality_finetune_mixed_{test}.csv")
+def _mixed_cached(kind, split, test, pretrain_epochs=300, pair=None):
+    child = (pair or LFHF_PAIR[kind])[1]
+    path = CACHE(child, split, f"epoch_quality_finetune_mixed_{test}.csv")
     return {**_from_csv(path, "pretrain"), **_from_csv(path, "finetune", pretrain_epochs)}
 
 
@@ -127,11 +134,11 @@ def hf_only(kind, split, test):
     return _from_csv(CACHE(experiment, split, f"epoch_quality_{test}.csv"))
 
 
-def lf_to_hf_any(kind, split, test):
+def lf_to_hf_any(kind, split, test, pair=None):
     """LF->HF over pretraining + fine-tuning on train, ID or OOD (Energy-OOD filtered)."""
     if test == "ood":
-        return lf_to_hf(kind, split)
-    return _mixed_cached(kind, split, test)
+        return lf_to_hf(kind, split, pair=pair)
+    return _mixed_cached(kind, split, test, pair=pair)
 
 
 def across_splits(fetch, key, log=False):

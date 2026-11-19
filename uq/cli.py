@@ -93,7 +93,17 @@ def cmd_train(args) -> int:
         raise SystemExit(f"at most {MAX_GPUS} GPUs may be used at the same time (got {args.gpus})")
     return scheduler.run(args.experiments, gpus=args.gpus, splits=args.splits, members=args.members,
                          jobs_per_gpu=args.jobs_per_gpu, dry_run=args.dry_run,
-                         by_experiment=args.by_experiment, threads_per_job=args.threads_per_job)
+                         by_experiment=args.by_experiment, threads_per_job=args.threads_per_job,
+                         resume=args.resume)
+
+
+def cmd_train_slurm(args) -> int:
+    from uq.training import slurm
+
+    return slurm.run(args.experiments, splits=args.splits, members=args.members, pack=args.pack,
+                     by_experiment=args.by_experiment, resume=args.resume, qos=args.qos, walltime=args.time,
+                     account=args.account, partition=args.partition, out=args.out, submit=args.submit,
+                     dry_run=args.dry_run, after=args.after, after_ok=args.after_ok)
 
 
 def cmd_prune(args) -> int:
@@ -105,7 +115,8 @@ def cmd_prune(args) -> int:
 def cmd_train_member(args) -> int:
     from uq.training import launch
 
-    return launch.train_member(args.experiment, args.split, args.member, args.gpu, dry_run=args.dry_run)
+    return launch.train_member(args.experiment, args.split, args.member, args.gpu, dry_run=args.dry_run,
+                               resume=args.resume)
 
 
 def cmd_evaluate(args) -> int:
@@ -113,6 +124,21 @@ def cmd_evaluate(args) -> int:
 
     return pipeline.evaluate(args.experiment, gpu=args.gpu, splits=args.splits, only_steps=args.steps,
                              aggregate=not args.no_aggregate, dry_run=args.dry_run)
+
+
+def cmd_evaluate_slurm(args) -> int:
+    from uq.evaluation import slurm
+
+    return slurm.run(args.experiments, splits=args.splits, after=args.after, prune=args.prune, qos=args.qos,
+                     walltime=args.time, account=args.account, partition=args.partition, out=args.out,
+                     submit=args.submit, dry_run=args.dry_run)
+
+
+def cmd_sync_back(args) -> int:
+    from uq.training import sync
+
+    return sync.run(args.experiments, args.host, splits=args.splits, remote_root=args.remote_root,
+                    remote_runs=args.remote_runs, checkpoints=args.checkpoints, apply=args.apply)
 
 
 def cmd_aggregate(args) -> int:
@@ -185,7 +211,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-v", "--verbose", action="store_true", help="list incomplete members")
     p.set_defaults(func=cmd_status)
 
-    p = sub.add_parser("train", help="train all missing members on <= 2 GPUs (skips complete ones)")
+    p = sub.add_parser("train", help="train all missing members on <= 3 GPUs (skips complete ones)")
     p.add_argument("experiments", nargs="+")
     p.add_argument("--gpus", type=int, nargs="+", required=True)
     p.add_argument("--splits", type=_ints, help="e.g. 0-4 or 1,3 (default: all of the spec)")
@@ -194,14 +220,39 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--threads-per-job", type=int, default=8, help="CPU threads per member (default 8)")
     p.add_argument("--by-experiment", action="store_true",
                    help="finish experiments in the order given instead of interleaving members")
+    p.add_argument("--resume", action="store_true",
+                   help="continue interrupted members after their latest epoch checkpoint instead of "
+                        "refusing them (their results log is backed up and cut to that epoch)")
     p.add_argument("--dry-run", action="store_true", help="print the plan, run nothing")
     p.set_defaults(func=cmd_train)
+
+    p = sub.add_parser("train-slurm", help="write (and submit) 1-GPU SLURM jobs for the missing members")
+    p.add_argument("experiments", nargs="+")
+    p.add_argument("--splits", type=_ints)
+    p.add_argument("--members", type=_ints)
+    p.add_argument("--pack", type=int, default=1, help="member chains run in parallel on each GPU (default 1)")
+    p.add_argument("--by-experiment", action="store_true")
+    p.add_argument("--resume", action="store_true", help="continue interrupted members")
+    p.add_argument("--qos", default="normal", help="e.g. normal, boost_qos_dbg, boost_qos_lprod")
+    p.add_argument("--time", default="24:00:00", help="walltime per job")
+    p.add_argument("--account", help="default $UQ_SLURM_ACCOUNT")
+    p.add_argument("--partition", help="default $UQ_SLURM_PARTITION or boost_usr_prod")
+    p.add_argument("--out", help="directory for scripts and SLURM output (default runs/_slurm/<time>)")
+    p.add_argument("--submit", action="store_true", help="sbatch the scripts (otherwise only write them)")
+    p.add_argument("--dry-run", action="store_true", help="print the scripts, write nothing")
+    p.add_argument("--after", type=lambda t: [x for x in t.split(",") if x],
+                   help="comma-separated job ids to wait for (afterany); keeps children whose parent they train")
+    p.add_argument("--after-ok", type=lambda t: [x for x in t.split(",") if x],
+                   help="comma-separated job ids that must succeed first (afterok; e.g. prune jobs that free space)")
+    p.set_defaults(func=cmd_train_slurm)
 
     p = sub.add_parser("train-member", help="train one ensemble member (split, member seed)")
     p.add_argument("experiment")
     p.add_argument("split", type=int)
     p.add_argument("member", type=int)
-    p.add_argument("--gpu", type=int, required=True)
+    p.add_argument("--gpu", type=int, default=None,
+                   help="GPU index (default: keep the inherited CUDA_VISIBLE_DEVICES, e.g. under SLURM)")
+    p.add_argument("--resume", action="store_true", help="continue an interrupted member (see uq train --resume)")
     p.add_argument("--dry-run", action="store_true", help="print the command, run nothing")
     p.set_defaults(func=cmd_train_member)
 
@@ -219,6 +270,32 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-aggregate", action="store_true")
     p.add_argument("--dry-run", action="store_true", help="print the commands, run nothing")
     p.set_defaults(func=cmd_evaluate)
+
+    p = sub.add_parser("evaluate-slurm", help="write (and submit) one 1-GPU SLURM evaluation job per split")
+    p.add_argument("experiments", nargs="+")
+    p.add_argument("--splits", type=_ints, help="default: all splits of each spec")
+    p.add_argument("--after", type=lambda t: [x for x in t.split(",") if x],
+                   help="comma-separated SLURM job ids to wait for (afterok)")
+    p.add_argument("--prune", action="store_true",
+                   help="add a CPU job that prunes the epoch checkpoints after all evaluations succeeded")
+    p.add_argument("--qos", default="normal")
+    p.add_argument("--time", default="24:00:00", help="walltime per evaluation job")
+    p.add_argument("--account", help="default $UQ_SLURM_ACCOUNT")
+    p.add_argument("--partition", help="default $UQ_SLURM_PARTITION or boost_usr_prod")
+    p.add_argument("--out", help="directory for scripts and SLURM output (default runs/_slurm/eval-<time>)")
+    p.add_argument("--submit", action="store_true", help="sbatch the scripts (otherwise only write them)")
+    p.add_argument("--dry-run", action="store_true", help="print the scripts, write nothing")
+    p.set_defaults(func=cmd_evaluate_slurm)
+
+    p = sub.add_parser("sync-back", help="copy run and evaluation outputs back from a remote cluster (no overwrite)")
+    p.add_argument("experiments", nargs="+")
+    p.add_argument("--host", required=True, help="ssh host, e.g. leonardo")
+    p.add_argument("--splits", type=_ints)
+    p.add_argument("--remote-root", help="repository clone on the remote (default $UQ_REMOTE_ROOT)")
+    p.add_argument("--remote-runs", help="UQ_RUNS on the remote (default $UQ_REMOTE_RUNS)")
+    p.add_argument("--checkpoints", action="store_true", help="also copy pruned checkpoint folders")
+    p.add_argument("--apply", action="store_true", help="really copy (default: dry run)")
+    p.set_defaults(func=cmd_sync_back)
 
     p = sub.add_parser("aggregate", help="rebuild five-split aggregates from per-split outputs (CPU)")
     p.add_argument("experiments", nargs="*", help="default: all")

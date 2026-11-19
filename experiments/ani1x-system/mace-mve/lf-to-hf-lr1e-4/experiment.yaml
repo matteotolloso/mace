@@ -1,0 +1,20 @@
+# ANI-1x system split | MACE, ensemble of 10 MVE members | lf-to-hf-lr1e-4: B (ani1x-system/mace-mve/lf-to-hf) with lr 0.0001.
+# Rebuttal WP3.5/WP4.3 (G4, Q2LT): slower fine-tuning; base lr 1e-3. Schema: docs/experiments.md.
+dataset: ani1x-system
+model: mace
+uq: mve-ensemble            # AU = mean member variance, EU = variance of member means, TU = AU + EU
+protocol: lf-to-hf
+target: hf                   # fidelity of the training labels (CC)
+parent: ani1x-system/mace-mve/lf-only   # member (s, m) starts from parent member (s, m)
+splits: [0, 1, 2, 3, 4]
+members: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+training:
+  config: config.yaml         # MACE hyperparameters; data/output paths are added by the launcher
+  test_role: id              # file passed as MACE --test_file
+evaluation:                   # steps and order: docs/evaluation.md
+  batch_size: 256
+  trim: 0.0
+  reliability: [id, ood]
+  sets: [id, ood, train]   # epoch quality, LF->HF trajectory, distributions
+  finetune_comparison: true   # parent vs fine-tuned ensemble on HF tests
+  member_predictions: [id, ood]   # per-member predictions -> single model and ensemble size M = 1..10

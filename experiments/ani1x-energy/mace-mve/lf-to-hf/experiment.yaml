@@ -18,5 +18,6 @@ evaluation:                   # steps and order: docs/evaluation.md
   reliability: [id, ood]
   sets: [id, ood, train]   # epoch quality, LF->HF trajectory, distributions
   finetune_comparison: true   # parent vs fine-tuned ensemble on HF tests
+  lf_only_baseline: true      # parent LF-only ensemble on HF tests after E0 refit (rebuttal WP2, 2026-11-07)
   energy_quantiles: true      # AU/EU by within-system energy quantile
   member_predictions: [id, ood]   # per-member predictions -> single model and ensemble size M = 1..10

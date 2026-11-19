@@ -725,3 +725,781 @@ How to use it:
 - **Effect:** deleted 11956 epoch checkpoints, 189.2 GiB; kept every 5th epoch, each member's best
   (validation MSE) and every `.model`; records in `runs/ani1x-system/mace-mse/hf-only/split_<s>/checkpoints/PRUNED.json`.
   Run folder now 49 GB; checkpoint re-selection works on it (selected epochs above).
+
+### 2026-11-07 LF-only (pretrain-only) ensembles on the CC labels, E0 refit (rebuttal WP2; G7, G4)
+
+- **Status:** verified (computed in this task: 5 splits x 10 members for both datasets; the paired table
+  reproduces the five-split aggregates exactly, e.g. Energy-OOD LF-only TU Spearman 0.46713 in both files).
+- **Purpose:** reviewer ge6X G7 / G4 ("pretrain-only" baseline): is the LF-only ensemble, used as is on
+  the CC task, worse than fine-tuning (LF->HF) and than HF-only, in accuracy and in uncertainty?
+- **Code commit:** `5b89bac1a3d20b2cf7467401259e2c66a374abfa` (aggregates, table); per-split predictions
+  with `uq/evaluation/lf_on_hf.py` as committed in `9f8da8b` (D split 0 ran from the identical
+  uncommitted file at 01:54; D s1-4 and B s0-2 on the DGX, B s3-4 on CINECA Leonardo at `c7710ef`, same
+  code); dirty tree: no.
+- **Command(s):** `python -m uq.evaluation.lf_on_hf --experiment D --split 0`;
+  `uq evaluate D --gpu 0 --splits 1-4 --steps lfonly_baseline --no-aggregate`;
+  `uq evaluate B --gpu 0 --steps lfonly_baseline --no-aggregate` (splits 0-2; split 3 hit CUDA OOM on the
+  shared GPU); on Leonardo (job 63721292) `python -m uq evaluate ani1x-system/mace-mve/lf-to-hf --gpu 0
+  --splits 3,4 --steps lfonly_baseline --no-aggregate`, copied back with `uq sync-back B --host leonardo
+  --splits 3,4 --apply`; `uq aggregate D B --only lfonly_`; `python -m uq.evaluation.compare_lf_only`.
+- **Configuration:** members of A (`ani1x-system/mace-mve/lf-only`) and C (`ani1x-energy/mace-mve/lf-only`),
+  each at its best LF validation-NLL checkpoint (the ensembles of their own evaluations), unchanged except
+  a per-member, per-element shift of the atomic reference energies fitted by least squares to the CC
+  residuals of the split's CC training set (`cc_train.xyz`, 5000 configurations); variance heads unchanged.
+  Step `lfonly_baseline`, enabled by `lf_only_baseline: true` in the B and D specs. Shifts and CC-train
+  RMSE before/after per member: `lfonly_e0_refit.json` per split.
+- **Dataset and split:** `data/ani1x-{system,energy}/split_{0..4}/cc_{train,val,test_id,test_ood}.xyz`
+  (key `ccsd(t)_cbs.energy`); training-support filter as in B/D: Energy-OOD 13-16, Energy-ID 0-2,
+  System-ID 0-1, System-OOD 0 configurations removed per split.
+- **Random seeds:** split seeds 0-4; member seeds 0-9 (nothing missing).
+- **Compute:** GPU inference (+ CPU aggregation); no training.
+- **Metrics:** uncalibrated (`nocal`), per atom; five-split mean [95% Student-t interval, df = 4];
+  RMSE (eV/atom) and ENCE as geometric means. Values from
+  `experiments/ani1x-{energy,system}/mace-mve/lf-to-hf/evaluation/lfonly_reliability_<test>_nocal_summary.csv`;
+  paired contrasts (same split, same configurations) from `results/tables/lf_only_vs_hf.csv`
+  (difference for Spearman/AUSE, ratio for RMSE/ENCE, each vs LF-only).
+
+  | Data | Test | LF-only RMSE | LF-only TU Spearman | LF-only TU AUSE | LF-only TU ENCE | LF->HF vs LF-only: RMSE ratio / Spearman diff / AUSE diff / ENCE ratio | HF-only vs LF-only: RMSE ratio / Spearman diff / AUSE diff / ENCE ratio |
+  |---|---|---|---|---|---|---|---|
+  | Energy | ID | 0.01567 [0.01517, 0.0162] | 0.3885 [0.3794, 0.3976] | 0.3038 [0.2956, 0.312] | 1.856 [1.651, 2.086] | 0.5011 [0.4829, 0.52] / 0.06806 [0.04939, 0.08673] / -0.05762 [-0.06462, -0.05062] / 0.2298 [0.1947, 0.2714] | 0.995 [0.9527, 1.039] / -0.07355 [-0.1021, -0.045] / 0.03885 [0.02431, 0.0534] / 0.2393 [0.2085, 0.2747] |
+  | Energy | OOD | 0.05699 [0.05227, 0.06212] | 0.4671 [0.4504, 0.4838] | 0.2291 [0.2215, 0.2366] | 3.244 [2.753, 3.822] | 1.028 [1.018, 1.038] / 0.1729 [0.1578, 0.1881] / -0.08562 [-0.09737, -0.07387] / 0.9152 [0.7298, 1.148] | 1.319 [1.29, 1.348] / 0.08871 [0.06264, 0.1148] / -0.04337 [-0.05517, -0.03156] / 0.5045 [0.3778, 0.6737] |
+  | System | ID | 0.02367 [0.02218, 0.02527] | 0.4147 [0.4004, 0.4291] | 0.2678 [0.2601, 0.2755] | 1.502 [1.42, 1.587] | 0.6703 [0.6034, 0.7446] / 0.08547 [0.07813, 0.09281] / -0.06289 [-0.06662, -0.05916] / 0.2278 [0.1956, 0.2654] | 1.517 [0.9153, 2.513] / -0.03773 [-0.05077, -0.02468] / 0.005032 [-0.008813, 0.01888] / 0.2672 [0.2174, 0.3285] |
+  | System | OOD | 0.03572 [0.02568, 0.04967] | 0.4545 [0.4422, 0.4668] | 0.2216 [0.2083, 0.2349] | 1.624 [1.415, 1.863] | 0.8884 [0.7572, 1.042] / 0.06335 [0.03794, 0.08876] / -0.05902 [-0.07292, -0.04511] / 0.1967 [0.1779, 0.2175] | 0.9492 [0.6824, 1.32] / -0.04318 [-0.09234, 0.005987] / 0.02515 [-0.002564, 0.05286] / 0.2407 [0.178, 0.3256] |
+
+  AU of the LF-only ensemble (same files): ENCE Energy-ID 3.294 [2.993, 3.624], Energy-OOD 6.174
+  [5.391, 7.071], System-ID 2.643 [2.464, 2.835], System-OOD 2.994 [2.62, 3.421]; AU, EU, AUSE and the
+  isotonic (`cal`) variants are in the same summaries and in the table.
+
+- **Output files:** new: `experiments/ani1x-{energy,system}/mace-mve/lf-to-hf/evaluation/split_{0..4}/
+  lfonly_reliability_{id,ood}_{nocal,cal}_{raw,bins}.csv` + `.svg`, `lfonly_e0_refit.json`; aggregates
+  `experiments/ani1x-{energy,system}/mace-mve/lf-to-hf/evaluation/lfonly_reliability_*`;
+  `results/tables/lf_only_vs_hf.csv`. No existing output changed.
+- **Interpretation:** Fine-tuning beats the zero-shot LF ensemble on every uncertainty metric and test
+  (TU Spearman higher, AUSE lower, all intervals exclude 0; ENCE x0.20-0.23 except Energy-OOD, where the
+  ratio interval contains 1), and is more accurate in-distribution (RMSE x0.50 Energy-ID, x0.67 System-ID);
+  out of distribution its accuracy is the same as or slightly worse than LF-only (Energy-OOD x1.028, System-OOD
+  interval contains 1). Against HF-only, the LF-only ensemble ranks in-distribution errors better (HF-only TU
+  Spearman -0.074 Energy-ID, -0.038 System-ID) and is more accurate on Energy-OOD (HF-only RMSE x1.32),
+  but ranks Energy-OOD errors worse (HF-only +0.089, AUSE -0.043) and is far less calibrated everywhere
+  (HF-only ENCE x0.24-0.50; System-OOD ranking and System accuracy intervals contain 0 / 1). So "pretrain-only" is not a substitute for either
+  protocol on the CC task: its variances, learned on DFT residuals, are miscalibrated for CC errors even
+  after the per-element refit. Caveats: the refit is the most favourable zero-shot use (fitted on the CC
+  training residuals the other protocols train on); other E0 choices (e.g. MACE's `E0s: average`) were not
+  run; B s3-4 were computed on a different GPU type (A100 64 GB), within GPU non-determinism.
+
+### 2026-11-07 Gradient steps per protocol to the selected checkpoints (rebuttal WP4.1; G4 compute matching)
+
+- **Status:** verified (computed in this task from logs and result files; selected epochs reproduce the
+  paper's "HF-only selected after 30-111 of 300 epochs, median 60 system / 67 energy").
+- **Purpose:** reviewer ge6X G4 asks whether the protocols are compute-matched: how many optimizer steps,
+  on which labels, does each protocol use up to the checkpoint that is evaluated?
+- **Code commit:** `ffe0dca257b84122926625093326cf1e41defc6d`; dirty tree: no.
+- **Command(s):** `python -m uq.evaluation.training_steps` (CPU).
+- **Configuration:** `experiments/ani1x-{system,energy}/mace-mve/{lf-only,lf-to-hf,hf-only}` (A-F),
+  `batch_size: 64`; MACE's training loader drops the last incomplete batch, so steps per epoch =
+  floor(training set size / 64); the checkpoint of epoch e is written after e + 1 epochs; checkpoint
+  selection as in the evaluation pipeline (`reliability.select_best_checkpoints`, lowest validation NLL).
+  LF->HF counts add the parent member's steps to its selected checkpoint (fine-tuning starts there).
+- **Dataset and split:** training set sizes from the MACE logs: 50000 DFT configurations (A, C), 5000 CC
+  configurations (B, D, E, F), every split and member.
+- **Random seeds:** split seeds 0-4; member seeds 0-9 (50 members per experiment, none missing).
+- **Compute:** log/file reads only.
+- **Metrics:** median [min, max] over the 50 members, from `results/tables/training_steps.csv`.
+
+  | Exp. | Labels | Steps/epoch | Selected epoch | Steps to selected checkpoint (own stage) | Incl. parent | Steps run (own stage) |
+  |---|---|---|---|---|---|---|
+  | A LF-only, system | DFT | 781 | 137 [78, 213] | 107778 [61699, 167134] | - | 234300 (300 epochs) |
+  | B LF->HF, system | CC | 78 | 2 [1, 3] | 234 [156, 312] | 107973 [61855, 167368] | 7800 (100 epochs) |
+  | E HF-only, system | CC | 78 | 60 [30, 111] | 4758 [2418, 8736] | - | 23400 (300 epochs) |
+  | C LF-only, energy | DFT | 781 | 187.5 [128, 298] | 147218.5 [100749, 233519] | - | 234300 (300 epochs) |
+  | D LF->HF, energy | CC | 78 | 2 [1, 3] | 234 [156, 312] | 147491.5 [100983, 233831] | 7800 (100 epochs) |
+  | F HF-only, energy | CC | 78 | 67 [34, 111] | 5304 [2730, 8736] | - | 23400 (300 epochs) |
+
+- **Output files:** `results/tables/training_steps.csv` (new).
+- **Interpretation:** on CC labels, the evaluated LF->HF members have taken a median of 234 steps
+  (2-3 epochs) and HF-only members about 20 times more (4758 / 5304), out of 23400 available; so LF->HF
+  does not get more compute on the scarce labels, it gets much less, and HF-only is not short of steps
+  (its validation NLL is best long before its budget ends). The extra compute of LF->HF (~1.1-1.5 x 10^5
+  steps) is spent on the 10x larger DFT set. Wall-clock hours per protocol: ledger 2026-09-25. Steps are
+  counted, not timed; members of LF->HF also differ in their parent's selected epoch.
+
+### 2026-11-07 HF-only at lr 1e-3, energy split (rebuttal WP4.2, first of four LR-sweep experiments; G4)
+
+- **Status:** verified for this experiment (5 splits x 10 members, evaluated and aggregated); WP4.2 as a whole is
+  incomplete: `ani1x-energy/mace-mve/hf-only-lr3e-3` and the two system-split twins are trained, evaluated and
+  pruned on Leonardo but not yet copied back (the ssh connection ended at ~09:50, certificate expired).
+- **Purpose:** ge6X G4 ("optimal learning rates"): does the HF-only baseline improve at a lower learning rate,
+  and do the LF->HF vs HF-only conclusions hold against the better-tuned baseline?
+- **Code commit:** `1583dbdc42a55d5c43e22f16a2c4f8cf40fa4433` (aggregate, tables); training on Leonardo from the
+  clone at `b4d07ac`/`c7710ef` (identical training command; `c7710ef` only adds a default-off fork option),
+  evaluation there at `016dbb6`; dirty tree: no.
+- **Command(s):** on Leonardo (`UQ_RUNS=/leonardo_scratch/fast/IscrC_UQ-MF/uq-mf/runs`):
+  `uq train-slurm ani1x-energy/mace-mve/hf-only-lr1e-3 ani1x-energy/mace-mve/hf-only-lr3e-3 --pack 3 --time 08:00:00 --submit`,
+  `uq evaluate-slurm ... --after <training jobs> --prune --submit` (10 evaluation jobs, status 0; prune job
+  63720299 freed 189.7 GiB per experiment); on the DGX `uq sync-back ani1x-energy/mace-mve/hf-only-lr1e-3
+  --host leonardo --checkpoints --apply`, `uq aggregate ani1x-energy/mace-mve/hf-only-lr1e-3`,
+  `python -m uq.evaluation.compare_ablations`; the contrast against D by `compare_ablations.compare(D,
+  hf-only-lr1e-3, ...)` (same functions, called inline).
+- **Configuration:** `experiments/ani1x-energy/mace-mve/hf-only-lr1e-3/{experiment.yaml,config.yaml}`: F with
+  `lr: 0.001` instead of 0.01; three members packed per A100 64 GB GPU.
+- **Dataset and split:** `data/ani1x-energy/split_{0..4}/cc_*.xyz`; support filter as for F (Energy-OOD 13-16,
+  Energy-ID 0-2 configurations removed per split).
+- **Random seeds:** split seeds 0-4; member seeds 0-9 (none missing).
+- **Compute:** retraining (50 members, Leonardo) + GPU inference (Leonardo) + CPU aggregation (DGX).
+- **Metrics:** uncalibrated, per atom; five-split mean [95% t interval, df = 4]; paired per split; RMSE and ENCE
+  geometric (ratios). Values from `experiments/ani1x-energy/mace-mve/hf-only-lr1e-3/evaluation/reliability_*_nocal_summary.csv`
+  and `results/tables/ablations_vs_reference.csv` (vs F); the D rows were computed inline as stated.
+
+  | Test | Metric (TU) | HF-only lr 1e-3 | vs F (lr 1e-2) | D (LF->HF) vs HF-only lr 1e-3 |
+  |---|---|---|---|---|
+  | ID | RMSE (eV/atom) | 0.01555 [0.0153, 0.0158] | x0.997 [0.9638, 1.031] | x0.5052 [0.4831, 0.5282] |
+  | ID | Spearman | 0.3341 [0.3145, 0.3536] | +0.01913 [0.01598, 0.02228] | +0.1225 [0.09017, 0.1548] |
+  | ID | AUSE | 0.3362 [0.3302, 0.3422] | -0.006515 [-0.012, -0.001025] | -0.08996 [-0.1032, -0.07675] |
+  | ID | ENCE | 0.3151 [0.2788, 0.3562] | x0.7095 [0.5939, 0.8475] | x1.354 [1.176, 1.559] |
+  | OOD | RMSE (eV/atom) | 0.07082 [0.06703, 0.07483] | x0.9425 [0.8972, 0.9901] | x0.8271 [0.7784, 0.8789] |
+  | OOD | Spearman | 0.5867 [0.5702, 0.6032] | +0.03087 [0.01505, 0.04669] | +0.05334 [0.02204, 0.08464] |
+  | OOD | AUSE | 0.165 [0.156, 0.174] | -0.02075 [-0.03098, -0.01051] | -0.02151 [-0.0379, -0.005125] |
+  | OOD | ENCE | 2.289 [2.024, 2.589] | x1.399 [1.08, 1.811] | x1.297 [0.8442, 1.993] |
+
+- **Output files:** new: `experiments/ani1x-energy/mace-mve/hf-only-lr1e-3/evaluation/` (per split and
+  aggregates), `runs/ani1x-energy/mace-mve/hf-only-lr1e-3/` (pruned checkpoints, models, logs, results);
+  `results/tables/ablations_vs_reference.csv` (new; only this pair complete so far).
+- **Interpretation:** the lower learning rate makes HF-only slightly better at ranking (TU Spearman +0.02 ID,
+  +0.03 OOD) and slightly more accurate out of distribution (x0.94), better calibrated in distribution
+  (ENCE x0.71) and worse calibrated on Energy-OOD (x1.40). Against this better-tuned baseline, LF->HF (D) is
+  still more accurate (x0.51 ID, x0.83 OOD) and ranks better on both tests (intervals exclude 0), and is still
+  less calibrated in distribution (ENCE x1.35); on Energy-OOD the calibration gap of the paper (D worse) is no
+  longer significant (x1.30, interval contains 1). So the accuracy and ranking conclusions survive this LR;
+  the Energy-OOD calibration contrast weakens. Pending: lr 3e-3 and the system split.
+
+### 2026-11-07 HF-only learning-rate sweep complete: lr 1e-3 and 3e-3, energy and system splits (rebuttal WP4.2; G4)
+
+- **Status:** verified (4 experiments x 5 splits x 10 members, evaluated on Leonardo and aggregated here). The
+  energy lr 1e-3 numbers repeat the entry "HF-only at lr 1e-3, energy split" above (same files, same values).
+- **Purpose:** ge6X G4 ("optimal learning rates"): does HF-only improve at a lower lr than the paper's 1e-2, and do
+  the LF->HF vs HF-only conclusions hold against the best-tuned HF-only baseline on both splits?
+- **Code commit:** `51341ed617f56cbbc1f34b1c6095c6cdef289575` (sync-back, aggregate, tables); training on
+  Leonardo at `b4d07ac` (energy) and `016dbb6` (system), evaluation at `016dbb6`; the training command is the
+  same at both; dirty tree: only the new outputs listed below.
+- **Command(s):** on Leonardo (`UQ_RUNS=/leonardo_scratch/fast/IscrC_UQ-MF/uq-mf/runs`): `uq train-slurm <exps>
+  --pack 3 --time 08:00:00 --submit` (system: `--after-ok 63720299`), `uq evaluate-slurm <exps> --after <training
+  jobs> --prune --submit` (energy eval 63720281-63720298, prune 63720299; system eval 63722482-63722492, prune
+  63722493; all COMPLETED). On the DGX: `UQ_REMOTE_RUNS=/leonardo_scratch/fast/IscrC_UQ-MF/uq-mf/runs uq
+  sync-back <exp> --host leonardo --checkpoints --apply` (`runs/_jobs/sync_morning_2026-11-07.sh`), `uq aggregate
+  <exp>` for each, `python -m uq.evaluation.compare_ablations` (vs F / E); LF->HF vs each tuned HF-only by
+  `compare_ablations.compare(<lf-to-hf>, <hf-only-lrX>, "", test)` (same functions, inline).
+- **Configuration:** `experiments/ani1x-{energy,system}/mace-mve/hf-only-lr{1e-3,3e-3}/{experiment.yaml,config.yaml}`:
+  F / E with `lr` 0.001 or 0.003 instead of 0.01; three members packed per A100 64 GB GPU.
+- **Dataset and split:** `data/ani1x-{energy,system}/split_{0..4}/cc_*.xyz`; support filter as for F / E.
+- **Random seeds:** split seeds 0-4; member seeds 0-9 (none missing).
+- **Compute:** retraining (200 members, Leonardo) + GPU inference (Leonardo) + CPU aggregation (DGX).
+- **Metrics:** uncalibrated, per atom; TU for Spearman/AUSE/ENCE, ensemble-mean RMSE (eV/atom); five-split mean
+  [95% t interval, df = 4], paired per split; RMSE and ENCE geometric (ratios), Spearman and AUSE differences.
+  Sources: `experiments/<exp>/evaluation/reliability_*_nocal_summary.csv`,
+  `results/tables/ablations_vs_reference.csv` (vs paper lr), LF->HF contrasts printed by the inline call.
+
+  Tuned HF-only vs the paper's HF-only (lr 1e-2):
+
+  | Split | lr | Test | RMSE | Spearman | AUSE | ENCE | RMSE ratio | Spearman diff | AUSE diff | ENCE ratio |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | energy | 1e-3 | ID | 0.01555 | 0.3341 | 0.3362 | 0.3151 | 0.997 [0.9638, 1.031] | +0.01913 [0.01598, 0.02228] | -0.006515 [-0.012, -0.001025] | 0.7095 [0.5939, 0.8475] |
+  | energy | 1e-3 | OOD | 0.07082 | 0.5867 | 0.165 | 2.289 | 0.9425 [0.8972, 0.9901] | +0.03087 [0.01505, 0.04669] | -0.02075 [-0.03098, -0.01051] | 1.399 [1.08, 1.811] |
+  | energy | 3e-3 | ID | 0.01549 | 0.328 | 0.3355 | 0.4093 | 0.9931 [0.9766, 1.01] | +0.01301 [-0.01357, 0.03958] | -0.007189 [-0.02513, 0.01076] | 0.9215 [0.7735, 1.098] |
+  | energy | 3e-3 | OOD | 0.07177 | 0.572 | 0.1701 | 1.639 | 0.9551 [0.9077, 1.005] | +0.01621 [0.0006983, 0.03172] | -0.01559 [-0.02447, -0.006698] | 1.001 [0.7896, 1.27] |
+  | system | 1e-3 | ID | 0.0302 | 0.4103 | 0.2579 | 0.3524 | 0.8413 [0.501, 1.413] | +0.0333 [0.02653, 0.04007] | -0.0149 [-0.03029, 0.0004951] | 0.8784 [0.6974, 1.106] |
+  | system | 1e-3 | OOD | 0.03423 | 0.4467 | 0.233 | 0.3528 | 1.01 [0.9631, 1.058] | +0.03534 [0.004943, 0.06574] | -0.01374 [-0.02852, 0.001035] | 0.9028 [0.7914, 1.03] |
+  | system | 3e-3 | ID | 0.02917 | 0.3892 | 0.2724 | 0.3991 | 0.8124 [0.471, 1.401] | +0.01217 [0.002254, 0.02208] | -0.000386 [-0.01802, 0.01725] | 0.9947 [0.9113, 1.086] |
+  | system | 3e-3 | OOD | 0.03204 | 0.4265 | 0.2437 | 0.3931 | 0.9452 [0.9009, 0.9916] | +0.01515 [-0.0179, 0.04819] | -0.00304 [-0.02132, 0.01524] | 1.006 [0.8107, 1.248] |
+
+  LF->HF (D energy, B system; paper settings) vs each tuned HF-only, paired (ratio LF->HF / HF-only, difference LF->HF - HF-only):
+
+  | Split | HF-only lr | Test | RMSE ratio | Spearman diff | AUSE diff | ENCE ratio |
+  |---|---|---|---|---|---|---|
+  | energy | 1e-3 | ID | 0.5052 [0.4831, 0.5282] | +0.1225 [0.09017, 0.1548] | -0.08996 [-0.1032, -0.07675] | 1.354 [1.176, 1.559] |
+  | energy | 1e-3 | OOD | 0.8271 [0.7784, 0.8789] | +0.05334 [0.02204, 0.08464] | -0.02151 [-0.0379, -0.005125] | 1.297 [0.8442, 1.993] |
+  | energy | 3e-3 | ID | 0.5071 [0.4902, 0.5247] | +0.1286 [0.1011, 0.1561] | -0.08929 [-0.1011, -0.07746] | 1.042 [0.9038, 1.202] |
+  | energy | 3e-3 | OOD | 0.8162 [0.766, 0.8696] | +0.068 [0.03903, 0.09697] | -0.02667 [-0.03874, -0.0146] | 1.812 [1.061, 3.093] |
+  | system | 1e-3 | ID | 0.5254 [0.4898, 0.5636] | +0.0899 [0.0768, 0.103] | -0.05302 [-0.06339, -0.04266] | 0.9706 [0.7646, 1.232] |
+  | system | 1e-3 | OOD | 0.927 [0.6196, 1.387] | +0.07119 [0.04916, 0.09321] | -0.07042 [-0.07861, -0.06222] | 0.905 [0.6438, 1.272] |
+  | system | 3e-3 | ID | 0.5441 [0.495, 0.598] | +0.111 [0.09372, 0.1283] | -0.06753 [-0.07955, -0.05552] | 0.8571 [0.7791, 0.9431] |
+  | system | 3e-3 | OOD | 0.9903 [0.6964, 1.408] | +0.09138 [0.06498, 0.1178] | -0.08112 [-0.09403, -0.06821] | 0.8123 [0.6488, 1.017] |
+
+- **Output files:** new: `experiments/ani1x-energy/mace-mve/hf-only-lr3e-3/evaluation/`,
+  `experiments/ani1x-system/mace-mve/hf-only-lr{1e-3,3e-3}/evaluation/` (per split + aggregates),
+  `runs/ani1x-{energy,system}/mace-mve/hf-only-lr*/` (pruned checkpoints, models, logs, results); changed:
+  `results/tables/ablations_vs_reference.csv` (now 8 complete (ablation, test) pairs; the others pending sync).
+- **Interpretation:** a lower lr helps HF-only only a little: ranking improves by +0.012-0.035 Spearman (6 of 8
+  intervals exclude 0), RMSE changes by at most ~6% where the interval excludes 1 (the system-ID RMSE
+  intervals are very wide, 0.47-1.41: heavy-tailed split-level errors, read with care), calibration changes are
+  mostly not significant (energy lr 1e-3: better ID, worse OOD). Against every tuned HF-only, LF->HF stays about
+  2x more accurate in distribution, and ranks better on all 8 (split, lr, test) cells (Spearman and AUSE
+  intervals all exclude 0). The calibration contrast depends on the cell (energy: LF->HF ENCE ratio > 1 in all
+  4 cells, significant in 2; system: ratio < 1 in all 4, significant in 1, system-ID vs lr 3e-3). So the accuracy and ranking conclusions of the
+  paper survive the lr sweep; the calibration statements should be phrased per split/test.
+
+---
+
+### 2026-11-07 Fine-tuning ablations of the AU collapse: variance-head reset, beta-NLL, FT learning rate (rebuttal WP3.2, 3.3, 3.5/4.3; Q1/Q4, G4)
+
+- **Status:** verified for head reset and beta-NLL (both splits) and FT lr 1e-4 / 1e-2 (energy split): each 5
+  splits x 10 members, evaluated on Leonardo and aggregated here. **Draft gap:** FT lr on the system split
+  (`ani1x-system/mace-mve/lf-to-hf-lr1e-{4,2}`) is still being evaluated on Leonardo; not included.
+- **Purpose:** Q2LT Q1/Q4: test the proposed mechanism of AU overconfidence after LF->HF fine-tuning
+  (prediction (b): a re-initialized variance head re-learns the small training residuals, so the collapse
+  re-appears; (c): slower FT; "alternative objectives": beta-NLL); G4: FT learning rate.
+- **Code commit:** `baa2d5ec013b72ba56b58c1f93d5b8f009a9918d` (sync-back, aggregate, table); training on
+  Leonardo at `ac60247` (reset-var, fork flag `mve_reset_variance_head`), `b4d07ac` (FT lr), `c7710ef` (beta-NLL,
+  fork flag `mve_beta_nll`, beta = 0.5); both flags default off, existing commands unchanged (tests); evaluation
+  there from the same clone; dirty tree: only the new outputs.
+- **Command(s):** on Leonardo `uq train-slurm <exps> --pack 3 --submit` and `uq evaluate-slurm <exps> --after <training
+  jobs> --prune --submit` (eval 63720971-63720980 + prune 63720981 reset-var; 63720982-63720991 + 63720992 FT lr energy;
+  63720993-63721009 + 63721011 beta-NLL; all COMPLETED); on the DGX `uq sync-back <exp> --host leonardo --checkpoints
+  --apply` (`runs/_jobs/sync_morning_2026-11-07.sh`, retry `sync_morning_retry.sh`), `uq aggregate <exp>`,
+  `python -m uq.evaluation.compare_ablations`. Direction table below: ratio of the five-split means of `mse` and
+  `mean_variance` per AU bin of `reliability_<test>_nocal_bins.csv` (computed inline in this task).
+- **Configuration:** `experiments/ani1x-{system,energy}/mace-mve/lf-to-hf-{reset-var,beta-nll,lr1e-4,lr1e-2}/`:
+  each is B (system) / D (energy) with one change: variance-specific readout weights (32 per member) re-drawn
+  N(0,1) at FT start (seeded by member seed) / beta-NLL loss with beta = 0.5 (selection still by Gaussian NLL) /
+  FT lr 1e-4 or 1e-2 instead of 1e-3. Same LF parents (A, C) and member seeds.
+- **Dataset and split:** `data/ani1x-{system,energy}/split_{0..4}/cc_*.xyz`; support filter as for B/D.
+- **Random seeds:** split seeds 0-4; member seeds 0-9 (none missing).
+- **Compute:** FT retraining (300 members, Leonardo) + GPU inference (Leonardo) + CPU aggregation (DGX).
+- **Metrics:** uncalibrated, per atom; five-split mean of the ablation, then in parentheses the paired contrast
+  vs its reference (B/D) with 95% t interval (df = 4): ratio (x) for RMSE (eV/atom, ensemble mean) and ENCE,
+  difference for Spearman. AL = AU, TO = TU. Source: `results/tables/ablations_vs_reference.csv` (also has AUSE and EU).
+
+| Ablation | Split | Test | RMSE | Spearman AL | Spearman TO | ENCE AL | ENCE TO |
+|---|---|---|---|---|---|---|---|
+| head reset | system | ID | 0.01584 (x0.9984 [0.9234, 1.079]) | 0.351 (-0.1117 [-0.1349, -0.0884]) | 0.4122 (-0.08799 [-0.114, -0.06194]) | 0.4714 (x1.087 [0.7197, 1.643]) | 0.7108 (x2.078 [1.849, 2.335]) |
+| head reset | system | OOD | 0.03413 (x1.076 [0.9571, 1.209]) | 0.3992 (-0.09061 [-0.1171, -0.06409]) | 0.4526 (-0.06531 [-0.09319, -0.03742]) | 0.5398 (x0.8733 [0.6108, 1.248]) | 0.7172 (x2.246 [2, 2.522]) |
+| head reset | energy | ID | 0.008822 (x1.123 [1.075, 1.174]) | 0.3024 (-0.1177 [-0.1427, -0.09265]) | 0.3837 (-0.07289 [-0.09951, -0.04627]) | 0.4663 (x1.598 [1.431, 1.785]) | 0.7034 (x1.649 [1.576, 1.726]) |
+| head reset | energy | OOD | 0.06199 (x1.058 [1.026, 1.092]) | 0.54 (-0.08607 [-0.1279, -0.04427]) | 0.6009 (-0.03919 [-0.07168, -0.006706]) | 2.676 (x0.3994 [0.2508, 0.6361]) | 1.1 (x0.3704 [0.232, 0.5914]) |
+| beta-NLL | system | ID | 0.01529 (x0.9639 [0.9461, 0.982]) | 0.4706 (+0.007953 [0.00232, 0.01359]) | 0.5049 (+0.004669 [0.0009791, 0.00836]) | 0.5003 (x1.154 [1.032, 1.291]) | 0.2972 (x0.8687 [0.8192, 0.9213]) |
+| beta-NLL | system | OOD | 0.03158 (x0.9952 [0.981, 1.01]) | 0.492 (+0.002162 [-0.003718, 0.008042]) | 0.5181 (+0.0002636 [-0.007424, 0.007951]) | 0.7475 (x1.209 [1.102, 1.327]) | 0.2872 (x0.8994 [0.7991, 1.012]) |
+| beta-NLL | energy | ID | 0.007714 (x0.9822 [0.9578, 1.007]) | 0.4224 (+0.00231 [-0.001422, 0.006041]) | 0.4602 (+0.003633 [-0.0002097, 0.007475]) | 0.3687 (x1.263 [1.118, 1.427]) | 0.3569 (x0.8366 [0.8011, 0.8736]) |
+| beta-NLL | energy | OOD | 0.05852 (x0.9991 [0.9943, 1.004]) | 0.6247 (-0.001391 [-0.004889, 0.002107]) | 0.638 (-0.002038 [-0.004707, 0.0006305]) | 8.099 (x1.209 [1.153, 1.267]) | 3.411 (x1.149 [1.096, 1.205]) |
+| FT lr 1e-4 | energy | ID | 0.00801 (x1.02 [1.008, 1.032]) | 0.4259 (+0.005872 [0.003851, 0.007893]) | 0.4644 (+0.00787 [0.005917, 0.009824]) | 0.3934 (x1.348 [1.278, 1.423]) | 0.3682 (x0.8632 [0.8473, 0.8793]) |
+| FT lr 1e-4 | energy | OOD | 0.05837 (x0.9965 [0.9946, 0.9984]) | 0.6263 (+0.00021 [-0.005402, 0.005822]) | 0.6396 (-0.0004348 [-0.005134, 0.004264]) | 7.726 (x1.153 [1.115, 1.192]) | 3.127 (x1.053 [1.022, 1.085]) |
+| FT lr 1e-2 | energy | ID | 0.007622 (x0.9705 [0.9469, 0.9946]) | 0.391 (-0.02906 [-0.0444, -0.01373]) | 0.415 (-0.04154 [-0.05268, -0.0304]) | 0.299 (x1.025 [0.9277, 1.132]) | 0.5862 (x1.374 [1.302, 1.45]) |
+| FT lr 1e-2 | energy | OOD | 0.06034 (x1.03 [1.026, 1.034]) | 0.6061 (-0.01999 [-0.03066, -0.009313]) | 0.6182 (-0.02186 [-0.03539, -0.008344]) | 7.376 (x1.101 [0.9457, 1.281]) | 3.475 (x1.171 [1.088, 1.259]) |
+
+  Direction of AU miscalibration (MSE / mean variance per AU bin; > 1 = overconfident):
+
+  | Split | Test | LF->HF: bins with MSE > MV (of 15); MSE/MV range | head reset: same |
+  |---|---|---|---|
+  | system | ID | 10; 0.5-1.9 | 0; 0.25-0.79 |
+  | system | OOD | 11; 0.61-2.8 | 1; 0.29-3.1 |
+  | energy | ID | 8; 0.51-1.5 | 0; 0.35-0.68 |
+  | energy | OOD | 15; 1.1-19 | 15; 1.7-8.8 |
+
+- **Output files:** new: `experiments/ani1x-{system,energy}/mace-mve/lf-to-hf-{reset-var,beta-nll}/evaluation/`,
+  `experiments/ani1x-energy/mace-mve/lf-to-hf-lr1e-{4,2}/evaluation/` (per split + aggregates),
+  `runs/<same ids>/` (pruned checkpoints, models, logs, results); changed: `results/tables/ablations_vs_reference.csv`
+  (20 of 24 (ablation, test) pairs complete).
+- **Interpretation:** (1) **Head reset does not reproduce the collapse, contrary to prediction (b).** With a
+  re-initialized head the AU is *under*confident on System-ID, System-OOD and Energy-ID (MSE/MV < 1 in nearly
+  every bin) and much less overconfident on Energy-OOD (AU ENCE x0.399 [0.251, 0.636]); TU calibration is worse
+  except on Energy-OOD, and ranking is clearly worse everywhere (AU Spearman -0.086 to -0.118, TU -0.039 to -0.088).
+  So, under our 100-epoch FT protocol, much of the AU overconfidence of LF->HF comes with the variance head
+  *inherited* from LF pretraining (its scale and its ranking ability), not only from re-fitting CC training
+  residuals. The mechanism text must be revised (inherited head state; the draft already foresaw this case).
+  Caveat: a reset head starts from large variances and FT is short, so underconfidence may partly be
+  incomplete convergence; selection is by validation NLL as for B/D. (2) **beta-NLL** leaves accuracy and
+  ranking unchanged (Spearman differences within +-0.008) and makes AU calibration slightly worse everywhere
+  (AU ENCE x1.15-1.26, all intervals > 1): the overconfidence is not an NLL-optimization artefact that
+  beta-NLL removes. (3) **FT lr 1e-4** (energy) changes RMSE by <= 2% and Spearman by <= 0.008 and worsens AU ENCE
+  (x1.15-1.35); the final checkpoint does not test "delay" (prediction (c) concerns the dynamics; epoch curves
+  in `epoch_quality_*` not analysed here). **FT lr 1e-2** (energy) is worse in ranking (TU Spearman -0.04 / -0.02)
+  and TU calibration (x1.37 / x1.17): the paper's lr 1e-3 is a sound choice (G4).
+
+---
+
+### 2026-11-07 Correction to "Fine-tuning ablations of the AU collapse": selected epochs (rebuttal WP3.2-3.5)
+
+- **Status:** verified; corrects one caveat of the entry above (its numbers are unchanged).
+- **Purpose:** state at which epoch the evaluated checkpoints were selected (lowest validation loss per member,
+  `reliability.select_best_checkpoints`, as for every experiment), since the interpretation depends on it.
+- **Code commit:** `a6d50d2` (clean tree). **Command:** `uq.evaluation.training_steps.member_rows(exp)` for each
+  experiment (inline; same function as `python -m uq.evaluation.training_steps`), logs and checkpoint names only (CPU).
+- **Data / seeds:** as the entry above; 5 splits x 10 members each.
+- **Metrics:** selected epoch (0-based) of 100 FT epochs, median [min-max] over the 50 members:
+
+  | Experiment | System | Energy |
+  |---|---|---|
+  | LF->HF reference (B / D) | 2 [1-3] | 2 [1-3] |
+  | head reset | 6 [2-19] | 7 [4-15] |
+  | beta-NLL | 2 [1-3] | 3 [2-4] |
+  | FT lr 1e-4 | (pending) | 30 [21-37] |
+  | FT lr 1e-2 | (pending) | 0 [0-22] |
+
+  All members ran 100 epochs.
+- **Output files:** none (printed in the task).
+- **Interpretation:** the evaluated ensembles are early-stopped, not converged: validation NLL is lowest after 2-3
+  FT epochs for LF->HF. The caveat above ("FT is short, so underconfidence may partly be incomplete convergence")
+  is wrong: the reset members select epochs 2-19 of 100, so at their own validation-NLL optimum the re-initialized
+  head still predicts large variances; later epochs shrink AU but raise validation NLL. FT lr 1e-4 moves the
+  selected epoch ~10x later (2 -> 30), consistent with prediction (c) on the time scale, while the final metrics
+  barely change.
+
+---
+
+### 2026-11-07 Head reset: AU calibration along fine-tuning (rebuttal WP3.2; Q1 prediction (b))
+
+- **Status:** verified (five-split aggregates already on disk; read in this task). Complements the two entries above.
+- **Purpose:** does a re-initialized variance head also lose AU calibration during FT (prediction (b)), only later?
+- **Code commit:** `196bc36` (clean). **Command:** pandas read of `experiments/<id>/evaluation/epoch_quality_<test>.csv`
+  (columns `ence_aleatoric_geometric_mean`, `spearman_aleatoric_mean`) for B, D and their `-reset-var` twins.
+  Energy-split OOD curves not used (not support-filtered; `.claude/rules/paper-writing.md`).
+- **Data / seeds:** as above; epochs available: those kept by pruning (every 5th + best), here 0, 5, 10, 20, 40, 60.
+- **Metrics:** AU ENCE (five-split geometric mean) / AU Spearman (mean) per FT epoch:
+
+  | Test | Experiment | ep 0 | ep 5 | ep 10 | ep 20 | ep 40 | ep 60 |
+  |---|---|---|---|---|---|---|---|
+  | System-ID | B (LF->HF) | 0.21 / 0.42 | 1.2 / 0.45 | 3.8 / 0.43 | 11 / 0.42 | 24 / 0.41 | 45 / 0.41 |
+  | System-ID | head reset | 0.95 / 0.17 | 0.49 / 0.34 | 0.24 / 0.37 | 1 / 0.39 | 3.6 / 0.35 | 7.4 / 0.33 |
+  | System-OOD | B (LF->HF) | 0.37 / 0.43 | 1.6 / 0.49 | 4.8 / 0.48 | 13 / 0.47 | 30 / 0.46 | 54 / 0.45 |
+  | System-OOD | head reset | 0.91 / 0.23 | 0.57 / 0.39 | 0.49 / 0.41 | 1.6 / 0.43 | 4.7 / 0.39 | 9.1 / 0.38 |
+  | Energy-ID | D (LF->HF) | 0.12 / 0.37 | 0.7 / 0.42 | 2.4 / 0.41 | 7.8 / 0.40 | 20 / 0.39 | 40 / 0.38 |
+  | Energy-ID | head reset | 0.97 / 0.10 | 0.55 / 0.29 | 0.28 / 0.31 | 0.56 / 0.31 | 2.5 / 0.27 | 4.9 / 0.25 |
+
+  (values printed with 2 significant digits from the CSV columns named above)
+- **Output files:** none new.
+- **Interpretation:** the re-initialized head starts miscalibrated (ENCE ~0.9-1.0, large variances), becomes best
+  calibrated around epoch 10, and then loses calibration steadily (ENCE 1 -> 7.4 on System-ID by epoch 60), the
+  same monotone degradation as the inherited head, only ~5-8x slower at each epoch. So prediction (b) holds for
+  the dynamics: the collapse re-emerges after a reset; the inherited head makes it start from the first epoch,
+  which matches the paper's finding (iii) that calibration is lost faster after pretraining. The reset ensembles'
+  better final AU calibration (entry above) arises because their validation-NLL optimum (epochs 2-19) falls
+  before the collapse has developed. The reset also costs ranking at every epoch (AU Spearman 0.10-0.43 vs
+  0.37-0.49), i.e. part of pretraining's ranking benefit (finding (i)) is carried by the variance head.
+
+---
+
+### 2026-11-07 Fine-tuning learning rate on the system split; completes "Fine-tuning ablations of the AU collapse" (rebuttal WP3.5, WP4.3; Q1 (c), G4)
+
+- **Status:** verified; closes the draft gap of the entry "Fine-tuning ablations of the AU collapse" (FT lr, system
+  split) and the two "(pending)" cells of its correction. Earlier entries unchanged.
+- **Purpose:** as in that entry: prediction (c) (slower FT delays the collapse) and G4 (is the paper's FT lr 1e-3 a
+  sound choice?), now on both splits.
+- **Code commit:** `03e6b946e6f053d730a49bf792a3b403e7ea5525` (sync-back, aggregate, table; clean tree apart from
+  `PLAN.md`/`RUNS.md`); training and evaluation on Leonardo from a clean clone at `016dbb6`.
+- **Command(s):** on Leonardo `uq train-slurm ... --pack 3 --submit` and `uq evaluate-slurm ... --prune --submit`
+  (eval 63722646-63722655, prune 63722656; all COMPLETED); on the DGX `runs/_jobs/sync_ftlr_system_2026-11-07.sh`
+  (log next to it): `uq sync-back <exp> --host leonardo --checkpoints --apply`, `uq aggregate <exp>`,
+  `python -m uq.evaluation.compare_ablations` (24 complete pairs, 0 missing; the 20 earlier pairs byte-identical in
+  `git diff`). Selected epochs: `uq.evaluation.training_steps.member_rows(registry.experiment(exp))` (inline).
+  Direction: ratio of five-split means of `mse` and `mean_variance` per AU / TU bin of
+  `reliability_<test>_nocal_bins.csv` (inline; reproduces the B row of the entry above).
+- **Configuration:** `experiments/ani1x-system/mace-mve/lf-to-hf-lr1e-{4,2}/`: B with FT lr 1e-4 / 1e-2 instead of
+  1e-3; same LF parents (A) and member seeds.
+- **Dataset and split:** `data/ani1x-system/split_{0..4}/cc_*.xyz`; support filter as for B.
+- **Random seeds:** split seeds 0-4; member seeds 0-9 (50/50 members per experiment, 5/5 splits evaluated).
+- **Compute:** FT retraining (100 members, Leonardo) + GPU inference (Leonardo) + CPU aggregation (DGX).
+- **Metrics:** as in the entry above (uncalibrated, per atom; ablation five-split mean, then paired contrast vs B with
+  95% t interval, df = 4). Source: `results/tables/ablations_vs_reference.csv`.
+
+| Ablation | Split | Test | RMSE | Spearman AL | Spearman TO | ENCE AL | ENCE TO |
+|---|---|---|---|---|---|---|---|
+| FT lr 1e-4 | system | ID | 0.016 (x1.008 [0.9903, 1.027]) | 0.4646 (+0.001904 [-1.203e-05, 0.003821]) | 0.5043 (+0.004067 [0.001235, 0.006898]) | 0.5984 (x1.38 [1.262, 1.51]) | 0.2808 (x0.821 [0.7526, 0.8957]) |
+| FT lr 1e-4 | system | OOD | 0.03199 (x1.008 [1.001, 1.015]) | 0.492 (+0.002214 [-0.003282, 0.007711]) | 0.5218 (+0.003926 [-0.0004411, 0.008293]) | 0.8424 (x1.363 [1.315, 1.412]) | 0.2692 (x0.8431 [0.795, 0.8941]) |
+| FT lr 1e-2 | system | ID | 0.0153 (x0.9645 [0.9179, 1.013]) | 0.436 (-0.0267 [-0.05513, 0.001735]) | 0.4558 (-0.04442 [-0.07299, -0.01586]) | 0.2603 (x0.6004 [0.5285, 0.682]) | 0.5333 (x1.559 [1.522, 1.596]) |
+| FT lr 1e-2 | system | OOD | 0.02982 (x0.9398 [0.8872, 0.9955]) | 0.4645 (-0.02535 [-0.03809, -0.0126]) | 0.4821 (-0.03578 [-0.05416, -0.0174]) | 0.3386 (x0.5477 [0.4742, 0.6326]) | 0.4831 (x1.513 [1.283, 1.785]) |
+
+  (values printed with 4 significant digits from the CSV columns `ablation_mean`, `contrast_mean`, `contrast_ci95_*`)
+
+  Selected FT epoch (0-based, of 100; all members ran 100), median [min-max] over 50 members: system lr 1e-4
+  25 [18-40], lr 1e-2 1 [0-24] (B: 2 [1-3]); energy lr 1e-4 29.5 [21-37], lr 1e-2 0 [0-22] (the correction above
+  printed the energy lr 1e-4 median as 30).
+
+  Direction (bins with MSE > MV, of 15; MSE/MV range): AU, system: B ID 10, 0.5-1.9 / OOD 11, 0.61-2.8; lr 1e-4
+  ID 11, 0.59-2.2 / OOD 13, 0.76-3.2; lr 1e-2 ID 5, 0.26-1.2 / OOD 7, 0.4-1.9. TU, lr 1e-2 vs reference: system ID
+  0, 0.21-0.62 (B 0, 0.36-0.89), OOD 0, 0.27-0.96 (B 1, 0.42-1.3); energy ID 0, 0.13-0.56 (D 0, 0.35-0.78), OOD 13,
+  0.49-9.2 (D 12, 0.66-9.9).
+- **Output files:** new: `experiments/ani1x-system/mace-mve/lf-to-hf-lr1e-{4,2}/evaluation/` (per split +
+  aggregates), `runs/<same ids>/` (pruned checkpoints, models, logs, results); changed:
+  `results/tables/ablations_vs_reference.csv` (24 of 24 pairs). Figures reading it (not new numbers):
+  `papers/iclr27/figures/out/figA_{ablations,lr_sensitivity}.*`.
+- **Interpretation:** the system split reproduces the energy-split pattern. (1) **FT lr 1e-4** changes RMSE by
+  <= 0.8% and Spearman by <= 0.004, makes AU more overconfident (AU ENCE x1.38 / x1.36, MSE > MV in 11 / 13 of 15
+  bins) and TU slightly better calibrated (x0.82 / x0.84), and moves the selected epoch from 2 to 25: slower FT
+  shifts the time scale (prediction (c)) without removing the AU overconfidence at the selected checkpoint.
+  (2) **FT lr 1e-2** lowers AU ENCE (x0.60 / x0.55; AU no longer mostly overconfident) but ranks worse (TU Spearman
+  -0.044 / -0.036, AU -0.027 with an interval touching 0 on ID) and makes TU *under*confident in-distribution (TU
+  ENCE x1.56 / x1.51; MSE/MV of TU <= 0.96 in every bin), with members selected at epoch 0-1 (median), i.e.
+  essentially the first FT epoch. RMSE x0.96 ID (interval contains 1), x0.94 OOD. On both splits lr 1e-4 and the
+  paper's 1e-3 give nearly the same accuracy and ranking (1e-4: AU more overconfident, TU slightly better calibrated
+  on three of four tests), while 1e-2 costs ranking and TU calibration: the paper's conclusions do not depend on
+  the FT lr in 1e-4 to 1e-3, and 1e-2 is worse (G4). With the energy entry, the FT-lr rows are now complete for the
+  appendix (items B and C).
+
+---
+
+### 2026-11-08 MSE ensembles after LF->HF fine-tuning, ANI-1x system split (rebuttal WP3.6; Q2LT Q1 "no variance head", Q2)
+
+- **Status:** verified for the system split (computed in this task from complete per-split files: 5 splits x 10
+  members for `ani1x-system/mace-mse/{lf-only,lf-to-hf}`; the HF-only rows of `results/tables/mse_vs_mve.csv` are
+  byte-identical to the 2026-11-04 entry). Energy split pending (evaluating on the DGX), separate entry.
+- **Purpose:** does LF pretraining change the EU of a plain MSE ensemble (no variance head, so no AU to collapse) the
+  way it changes the MVE ensemble's EU/TU? And at LF->HF, how does the MSE-ensemble EU compare with its MVE twin B?
+- **Code commit:** training on CINECA Leonardo at `7e1b998` (LF-only) / `0323ada` (LF->HF); evaluation on Leonardo at
+  `016dbb6` (jobs 63718301-310, printed in each `.out`); sync-back, aggregate and tables on the DGX at
+  `5577d20eaad3d3b2d5111b0f5211bb391e4a5094`, dirty tree: `papers/iclr27/rebuttal/RUNS.md` (notes) and the new
+  `uq/evaluation/compare_uq_protocols.py` (this entry).
+- **Command(s):** on Leonardo `uq train-slurm ani1x-system/mace-mse/lf-only ani1x-system/mace-mse/lf-to-hf --pack 3
+  --submit` (train 63716417-441) and `uq evaluate-slurm ... --prune --submit` (eval 63718301-310, prune 63718311,
+  all COMPLETED 2026-11-08 07:57); on the DGX `runs/_jobs/sync_mse_system_2026-11-08.sh` (`uq sync-back <exp> --host
+  leonardo --checkpoints --apply`, then `uq aggregate <exp>`, log `runs/_jobs/sync_mse_system_2026-11-08.log`);
+  `python -m uq.evaluation.compare_uq`; `python -m uq.evaluation.compare_uq_protocols`.
+- **Configuration:** `experiments/ani1x-system/mace-mse/{lf-only,lf-to-hf}/{experiment.yaml,config.yaml}`: as A / B
+  except `predict_mve: False`, `loss: "energy_only"`; LF->HF member (s, m) fine-tuned from MSE LF-only member (s, m).
+  Selected epochs (validation MSE, `uq.evaluation.training_steps.member_rows`): MSE LF-only median 285, range
+  211-299 of 300; MSE LF->HF median 9.5, range 1-99 of 100 (MVE B: median 2, range 1-3).
+- **Dataset and split:** `data/ani1x-system/split_{0..4}/`; LF-only on `dft_*`, LF->HF on `cc_*.xyz`; support filter
+  as for B/E (the ensemble-size tables are built from `members_<test>.npz`, as in the 2026-11-03/04 entries).
+- **Random seeds:** split seeds 0-4; member seeds 0-9 (50/50 members per experiment; nothing missing).
+- **Compute:** retraining (100 members, Leonardo) + GPU inference (Leonardo) + CPU (DGX).
+- **Metrics:** uncalibrated, per atom; M = 10 unless "single"; five-split mean [95% Student-t, df = 4]; contrasts
+  paired per split: difference for Spearman/AUSE, geometric ratio [log-space interval] for RMSE/ENCE. (1) MSE vs MVE
+  at LF->HF, from `results/tables/mse_vs_mve.csv` (rows `ani1x-system,lf-to-hf`):
+
+  | Test | Metric | MSE EU | MVE EU - MSE EU | MVE TU - MSE EU | single MVE AU - MSE EU |
+  |---|---|---|---|---|---|
+  | OOD | Spearman | 0.383849 [0.364706, 0.402992] | 0.117636 [0.101460, 0.133811] | 0.133991 [0.115563, 0.152418] | 0.078157 [0.060745, 0.095569] |
+  | OOD | AUSE | 0.270191 [0.247562, 0.292821] | -0.095593 [-0.110085, -0.081101] | -0.107613 [-0.119144, -0.096082] | -0.069608 [-0.083307, -0.055910] |
+  | OOD | ENCE (ratio) | 1.917238 [1.313071, 2.799391] | x0.777860 [0.488524, 1.238560] | x0.166871 [0.134028, 0.207762] | x1.141149 [0.685608, 1.899367] |
+  | ID | Spearman | 0.351971 [0.329968, 0.373973] | 0.139945 [0.118109, 0.161782] | 0.148200 [0.125263, 0.171136] | 0.075478 [0.049414, 0.101543] |
+  | ID | AUSE | 0.332668 [0.313315, 0.352021] | -0.115140 [-0.139948, -0.090333] | -0.127812 [-0.153246, -0.102377] | -0.084282 [-0.110850, -0.057714] |
+  | ID | ENCE (ratio) | 1.622512 [1.084572, 2.427265] | x0.737723 [0.583246, 0.933114] | x0.211060 [0.128868, 0.345675] | x0.835977 [0.581798, 1.201202] |
+
+  RMSE (eV/atom), MSE ensemble: OOD 0.031592 [0.021249, 0.046971], ID 0.014243 [0.013763, 0.014741]; ratio MVE
+  ensemble / MSE ensemble: OOD x1.004406 [0.788443, 1.279523], ID x1.113989 [0.930848, 1.333162].
+
+  (2) Effect of pretraining, LF->HF minus HF-only on the same split, from `results/tables/mse_vs_mve_pretraining.csv`
+  (rows `ani1x-system`):
+
+  | Test | Metric | MSE EU | MVE EU | MVE TU |
+  |---|---|---|---|---|
+  | OOD | Spearman | 0.022088 [-0.007000, 0.051176] | 0.131816 [0.100692, 0.162939] | 0.106627 [0.077427, 0.135827] |
+  | OOD | AUSE | -0.031811 [-0.044979, -0.018642] | -0.113318 [-0.141212, -0.085425] | -0.084252 [-0.104822, -0.063682] |
+  | OOD | ENCE (ratio) | x1.299972 [0.928895, 1.819287] | x0.738941 [0.454851, 1.200468] | x0.818863 [0.555936, 1.206140] |
+  | ID | Spearman | 0.030117 [0.017197, 0.043037] | 0.153823 [0.138290, 0.169357] | 0.123222 [0.113173, 0.133271] |
+  | ID | AUSE | -0.018393 [-0.030092, -0.006694] | -0.103572 [-0.131385, -0.075759] | -0.067976 [-0.084179, -0.051772] |
+  | ID | ENCE (ratio) | x1.162340 [0.811730, 1.664391] | x0.546147 [0.420290, 0.709693] | x0.853624 [0.806909, 0.903043] |
+
+  RMSE ratio LF->HF / HF-only, MSE ensemble: OOD x1.150773 [0.840819, 1.574986], ID x0.685133 [0.649926, 0.722247];
+  MVE ensemble: OOD x0.936004 [0.635113, 1.379443], ID x0.441992 [0.256304, 0.762211]. MVE AU after pretraining
+  (same file): ENCE OOD x1.860774 [1.260638, 2.746611], ID x2.005605 [1.627671, 2.471292] (the AU collapse).
+  MSE LF-only on its DFT System-OOD test (`experiments/ani1x-system/mace-mse/lf-only/evaluation/
+  reliability_ood_nocal_summary.csv`, `uq summary ... --test ood`): EU Spearman 0.408 [0.395, 0.421].
+- **Output files:** new `experiments/ani1x-system/mace-mse/{lf-only,lf-to-hf}/evaluation/` (per split + aggregates,
+  synced from Leonardo); `results/tables/mse_vs_mve.csv` regenerated (system LF->HF rows filled; energy LF->HF still
+  missing; all other rows unchanged); new `results/tables/mse_vs_mve_pretraining.csv` and
+  `uq/evaluation/compare_uq_protocols.py`; checkpoints in `runs/ani1x-system/mace-mse/{lf-only,lf-to-hf}/` (pruned on
+  Leonardo by 63718311 before the copy).
+- **Interpretation:** (1) Pretraining helps the MVE ensemble's uncertainty much more than the MSE ensemble's: MVE EU
+  ranking improves by +0.13 to +0.15 Spearman (AUSE -0.10 to -0.11), the MSE-ensemble EU by +0.02 to +0.03 (OOD
+  interval contains 0), and the MSE-ensemble EU calibration does not improve (ENCE ratio intervals contain 1). So the
+  large gain in EU ranking after LF->HF is specific to the MVE members, not a generic ensemble effect of starting
+  from a pretrained model. (2) Consequently, at LF->HF the MVE ensemble beats the MSE ensemble on every ranking metric
+  and test (EU, TU, and even a single member's AU), whereas at HF-only the two EUs ranked alike (2026-11-04 entry);
+  accuracy is now equal (RMSE ratio intervals contain 1; at HF-only the MSE ensemble was more accurate). (3) The MSE
+  ensemble has no AU, so it cannot show the collapse; its EU is not hurt by pretraining, while the MVE AU's
+  calibration worsens ~2x (ENCE) as recorded for B. Caveats: MSE LF->HF members are selected later (median epoch 9.5)
+  than MVE (median 2), so their EU reflects longer FT; one split only until the energy entry is recorded; the
+  ensemble-size tables follow the same filtering as the 2026-11-03/04 MSE entries.
+
+---
+
+### 2026-11-08 AU along fine-tuning for all LF->HF ablations (rebuttal WP3.2, 3.3, 3.5; Q1 (b), (c)); appendix figure
+
+- **Status:** verified (computed in this task from complete five-split aggregates; extends the entry "Head reset: AU
+  calibration along fine-tuning" to beta-NLL and both FT learning rates, and to every 5th epoch).
+- **Purpose:** the per-epoch AU dynamics behind the final-model ablations: does each variant change *when* the AU
+  overconfidence develops, and how far it goes by the end of fine-tuning?
+- **Code commit:** `dcd2a087e5f3dcafb8db7820cbaca89033eacd4d`; dirty tree: yes (the new figure scripts of this entry and
+  the AUSE-for-Spearman change of `figA_ablations.py` / `figA_lr_sensitivity.py`, which change no number).
+- **Command(s):** pandas read of `experiments/ani1x-{system,energy}/mace-mve/<variant>/evaluation/epoch_quality_<test>.csv`
+  (columns `ence_aleatoric_geometric_mean` / `_n`, `ause_aleatoric_mean`), variants `lf-to-hf` (B / D),
+  `lf-to-hf-reset-var`, `lf-to-hf-beta-nll`, `lf-to-hf-lr1e-4`, `lf-to-hf-lr1e-2`; figure
+  `python papers/iclr27/figures/figA_ablation_dynamics.py` (from the per-split files, EMA-smoothed).
+- **Configuration / data / seeds:** as in "Fine-tuning ablations of the AU collapse"; tests System-ID, System-OOD, Energy-ID
+  (cached curves; Energy-OOD per-epoch curves are not support-filtered and are not used); epochs 0-95 every 5; five splits
+  x ten members for every variant and epoch (`_n` = 5 everywhere).
+- **Compute:** CPU (cached per-epoch outputs).
+- **Metrics:** AU ENCE, five-split geometric mean, uncalibrated, per atom: value at FT epoch 0, minimum (epoch), first epoch
+  after the minimum where it exceeds 1, value at epochs 50 and 95 (3 significant digits):
+
+  | Test | Variant | ep 0 | min (ep) | first > 1 | ep 50 | ep 95 |
+  |---|---|---|---|---|---|---|
+  | System-ID | LF->HF (B) | 0.21 | 0.21 (0) | 5 | 31 | 67.2 |
+  | System-ID | head reset | 0.946 | 0.24 (10) | 20 | 4.88 | 12.5 |
+  | System-ID | beta-NLL | 0.442 | 0.442 (0) | 10 | 26.7 | 67 |
+  | System-ID | FT lr 1e-4 | 25.4 | 0.455 (10) | 50 | 1.07 | 2.28 |
+  | System-ID | FT lr 1e-2 | 0.373 | 0.373 (0) | 40 | 1.43 | 3.35 |
+  | System-OOD | LF->HF (B) | 0.374 | 0.374 (0) | 5 | 37.7 | 81.9 |
+  | System-OOD | head reset | 0.911 | 0.495 (10) | 20 | 6.1 | 14.9 |
+  | System-OOD | beta-NLL | 0.71 | 0.71 (0) | 5 | 31.3 | 77.7 |
+  | System-OOD | FT lr 1e-4 | 28.9 | 0.674 (15) | 35 | 1.44 | 2.96 |
+  | System-OOD | FT lr 1e-2 | 0.33 | 0.33 (0) | 25 | 1.87 | 4.17 |
+  | Energy-ID | LF->HF (D) | 0.116 | 0.116 (0) | 10 | 26.6 | 60.5 |
+  | Energy-ID | head reset | 0.969 | 0.192 (15) | 25 | 3.55 | 9.41 |
+  | Energy-ID | beta-NLL | 0.435 | 0.435 (0) | 10 | 21.7 | 57.6 |
+  | Energy-ID | FT lr 1e-4 | 25.7 | 0.294 (15) | 75 | 0.633 | 1.42 |
+  | Energy-ID | FT lr 1e-2 | 0.382 | 0.36 (5) | 35 | 1.23 | 3.02 |
+
+  On the training set (`epoch_quality_train.csv`, AU ENCE geometric mean, epochs 10-95) every variant stays at or below
+  0.909 on both splits (0.755-0.909 at epoch 95), except system lr 1e-2 at its unstable epoch 10 (1.16): AU is not
+  overconfident on the data it is fitted to. At FT epoch 0,
+  lr 1e-4 has a training RMSE of 35.4 (system) / 30.7 (energy) meV/atom (mean over splits) against 14.3 / 9.0 for the
+  paper's lr: after one epoch at the small lr the DFT-to-CC offset is not yet absorbed, hence the overconfident start.
+  The system lr 1e-2 runs show an unstable epoch 10 (mean training RMSE 771.9 meV/atom), recovered by epoch 50 (10.0).
+- **Output files:** new `papers/iclr27/figures/figA_ablation_dynamics.py` -> `papers/iclr27/figures/out/figA_ablation_dynamics.{pdf,svg,png}`.
+- **Interpretation:** (1) With the inherited head (paper, beta-NLL) held-out AU ENCE exceeds 1 within 5-10 FT epochs and
+  reaches 58-82 by epoch 95; beta-NLL follows the paper's curve almost exactly. (2) A re-initialized head starts near 1,
+  is best calibrated at epochs 10-15 and then degrades like the inherited head but ~5x less by epoch 95 (9-15).
+  (3) Both FT learning rates away from the paper's 1e-3 slow the collapse strongly: ENCE first exceeds 1 at epochs 35-75
+  (1e-4) and 25-40 (1e-2) instead of 5-10, and ends at 1.4-4.2 instead of 58-82. For 1e-4 this is the predicted
+  delay (prediction (c), ~10x later); for 1e-2 it is not a slower fit of the training set (training RMSE at epoch 95 is
+  similar: 9.6 vs 9.0 meV/atom system), so the extent of the collapse is not a monotone function of the learning rate.
+  So the statement "the time scale follows the optimization speed" holds for the smaller lr only; the general claim is
+  that the overconfidence is fastest under the paper's setting and develops in every variant, at different rates. In all
+  variants AU stays calibrated or conservative on the training set while it becomes overconfident on held-out data.
+
+---
+
+### 2026-11-08 AU along fine-tuning for the LF->HF ablations on Energy-OOD (support-filtered; completes the previous entry)
+
+- **Status:** verified (computed in this task from complete five-split per-configuration predictions).
+- **Purpose:** the Energy-OOD column of the ablation dynamics (App. M.3 figure), missing from the entry "AU along
+  fine-tuning for all LF->HF ablations" because the cached Energy-OOD curves are not support-filtered.
+- **Code commit:** `85e546e82a47ae9ad4151d2a1c0e250a64ab6ac4`; dirty tree: only untracked evaluation outputs (the new npz below).
+- **Command(s):** `runs/_jobs/abl_epoch_predictions.sh` (DGX GPU 4, user-approved 4th GPU, 2026-11-08 12:54-14:57):
+  `python -m uq.evaluation.epoch_predictions all ani1x-energy/mace-mve/lf-to-hf-{reset-var,beta-nll,lr1e-4,lr1e-2} --gpu 4 --streams 1`;
+  summary: `papers/iclr27/figures/epoch_data._from_npz` (support filter `supported("energy", s, "cc_test_ood")`) +
+  `across_splits(..., log=True)`, as the figure; figure `python papers/iclr27/figures/figA_ablation_dynamics.py`.
+  The paper's LF->HF (D) uses its existing tracked npz (as in Fig. 5).
+- **Configuration / data / seeds:** as in "Fine-tuning ablations of the AU collapse"; test `data/ani1x-energy/split_<s>/cc_test_ood`
+  restricted to the training-support region; FT epochs 0-95 every 5; five splits x ten members for every variant and epoch.
+- **Compute:** GPU inference (new per-epoch predictions, 20 split runs), then CPU.
+- **Metrics:** AU ENCE (five-split geometric mean, uncalibrated, per atom; columns as in the previous entry) and AU AUSE
+  (five-split mean) at epochs 0 and 95, 3 significant digits:
+
+  | Variant | ENCE ep 0 | min (ep) | first > 1 | ep 50 | ep 95 | AUSE ep 0 | AUSE ep 95 |
+  |---|---|---|---|---|---|---|---|
+  | LF->HF (D) | 3.4 | 3.4 (0) | 0 | 98.4 | 207 | 0.175 | 0.133 |
+  | head reset | 0.713 | 0.713 (0) | 5 | 18.4 | 41.2 | 0.537 | 0.174 |
+  | beta-NLL | 4.3 | 4.3 (0) | 0 | 104 | 239 | 0.176 | 0.144 |
+  | FT lr 1e-4 | 22.9 | 5.64 (10) | 10 | 9.79 | 13.9 | 0.262 | 0.139 |
+  | FT lr 1e-2 | 5.68 | 5.68 (0) | 0 | 25.1 | 42.4 | 0.181 | 0.157 |
+
+- **Output files:** `experiments/ani1x-energy/mace-mve/lf-to-hf-{reset-var,beta-nll,lr1e-4,lr1e-2}/evaluation/split_{0..4}/epoch_predictions_cc_test_ood.{npz,log}`;
+  `papers/iclr27/figures/out/figA_ablation_dynamics.{pdf,svg,png}` (now with the Energy-OOD column).
+- **Interpretation:** Under energy extrapolation AU is overconfident from the first FT epoch with the inherited head (paper,
+  beta-NLL, both lrs); only the re-initialized head starts calibrated (0.71) and crosses 1 after 5 epochs. The ordering of the
+  other tests holds: paper and beta-NLL go furthest (207-239 by epoch 95), head reset and lr 1e-2 end ~5x lower (41-42),
+  lr 1e-4 ~15x lower (13.9). Unlike the in-distribution tests, no lr variant is ever calibrated on Energy-OOD, so the
+  "delayed collapse" of the previous entry applies to System-ID/OOD and Energy-ID only. The head reset again ranks worst at
+  every epoch (AUSE 0.537 at epoch 0, 0.174 at 95 vs 0.133).
+
+---
+
+### 2026-11-08 MSE ensembles after LF->HF fine-tuning, ANI-1x energy split (rebuttal WP3.6; Q2LT Q1 "no variance head", Q2)
+
+- **Status:** verified for the final models (computed in this task from complete per-split files: 5 splits x 10 members
+  of `ani1x-energy/mace-mse/lf-to-hf`, steps `member_predictions_{id,ood}` + `ensemble_size_{id,ood}`). The other
+  evaluation steps of the energy MSE experiments (curves, reliability, distributions) and their five-split aggregates are
+  still running on the DGX (`uq-mse-eval3`, `uq-mse-fast`); they do not enter the numbers below. Every other row of
+  `results/tables/mse_vs_mve.csv` is byte-identical to the system entry's version (2 "missing" placeholder rows replaced).
+- **Purpose:** as the system entry: does LF pretraining change the EU of a plain MSE ensemble the way it changes the MVE
+  ensemble's EU/TU, and how does the MSE-ensemble EU compare with its MVE twin D at LF->HF?
+- **Code commit:** training on the DGX at `30afae8` (LF-only) / `c7fa140` (LF->HF); evaluation and tables at
+  `4363236` (clean tracked tree; new script `runs/_jobs/mse_energy_fast.sh`, not tracked).
+- **Command(s):** `runs/_jobs/mse_energy_fast.sh 4` (unit `uq-mse-fast`, DGX GPU 4, user-approved 4th GPU, 2026-11-08
+  17:03-17:09): per split `python -m uq evaluate ani1x-energy/mace-mse/lf-to-hf --gpu 4 --splits <s> --no-aggregate --steps
+  member_predictions_id ensemble_size_id member_predictions_ood ensemble_size_ood` (logs
+  `runs/_jobs/mse_energy_fast.ani1x-energy__mace-mse__lf-to-hf_s<s>.log`), then `python -m uq.evaluation.compare_uq`,
+  `python -m uq.evaluation.compare_uq_protocols`, `papers/iclr27/figures/tabA_estimators.py` (log
+  `runs/_jobs/mse_energy_fast.compare.log`); `papers/iclr27/figures/figA_estimators.py`.
+- **Configuration:** `experiments/ani1x-energy/mace-mse/{lf-only,lf-to-hf}/{experiment.yaml,config.yaml}`: as C / D
+  except `predict_mve: False`, `loss: "energy_only"`; LF->HF member (s, m) fine-tuned from MSE LF-only member (s, m).
+  Selected epochs (validation MSE, `uq.evaluation.training_steps.member_rows`): MSE LF-only median 288.5, range 213-299
+  of 300; MSE LF->HF median 11, range 1-92 of 100 (MVE D: median 2, range 1-3).
+- **Dataset and split:** `data/ani1x-energy/split_{0..4}/cc_test_{id,ood}.xyz`; support filter as for D/F (ensemble-size
+  tables from `members_<test>.npz`, as in the 2026-11-03/04 and system entries).
+- **Random seeds:** split seeds 0-4; member seeds 0-9 (50/50 members per experiment; nothing missing).
+- **Compute:** GPU inference (DGX) + CPU.
+- **Metrics:** as the system entry (uncalibrated, per atom, M = 10 unless "single"; five-split mean [95% Student-t, df = 4];
+  paired contrasts). (1) MSE vs MVE at LF->HF, `results/tables/mse_vs_mve.csv` (rows `ani1x-energy,lf-to-hf`):
+
+  | Test | Metric | MSE EU | MVE EU - MSE EU | MVE TU - MSE EU | single MVE AU - MSE EU |
+  |---|---|---|---|---|---|
+  | OOD | Spearman | 0.481625 [0.466860, 0.496390] | 0.107719 [0.084317, 0.131121] | 0.158443 [0.137397, 0.179490] | 0.047083 [0.034789, 0.059377] |
+  | OOD | AUSE | 0.253404 [0.247235, 0.259572] | -0.059281 [-0.070327, -0.048235] | -0.109989 [-0.115209, -0.104769] | -0.020752 [-0.027452, -0.014052] |
+  | OOD | ENCE (ratio) | 13.136982 [11.329509, 15.232813] | x1.012552 [0.880841, 1.163958] | x0.226098 [0.180046, 0.283930] | x1.700718 [1.486494, 1.945815] |
+  | ID | Spearman | 0.315090 [0.287290, 0.342890] | 0.134146 [0.097321, 0.170971] | 0.141349 [0.113609, 0.169090] | 0.081664 [0.062450, 0.100879] |
+  | ID | AUSE | 0.360418 [0.336934, 0.383903] | -0.103137 [-0.124296, -0.081978] | -0.114260 [-0.131102, -0.097418] | -0.076337 [-0.094041, -0.058633] |
+  | ID | ENCE (ratio) | 1.722869 [1.516915, 1.956785] | x0.478566 [0.424859, 0.539061] | x0.247656 [0.208322, 0.294415] | x0.586998 [0.504007, 0.683656] |
+
+  RMSE (eV/atom), MSE ensemble: OOD 0.061919 [0.057454, 0.066731], ID 0.011569 [0.011309, 0.011834]; ratio MVE
+  ensemble / MSE ensemble: OOD x0.945985 [0.912858, 0.980314], ID x0.678857 [0.661398, 0.696776].
+
+  (2) Effect of pretraining, LF->HF minus HF-only on the same split, `results/tables/mse_vs_mve_pretraining.csv`
+  (rows `ani1x-energy`):
+
+  | Test | Metric | MSE EU | MVE EU | MVE TU |
+  |---|---|---|---|---|
+  | OOD | Spearman | 0.043724 [0.014761, 0.072687] | 0.144449 [0.111850, 0.177048] | 0.084285 [0.052136, 0.116434] |
+  | OOD | AUSE | -0.043939 [-0.068402, -0.019475] | -0.104192 [-0.127489, -0.080895] | -0.042301 [-0.059587, -0.025015] |
+  | OOD | ENCE (ratio) | x1.000507 [0.849506, 1.178348] | x0.915157 [0.770007, 1.087668] | x1.815431 [1.150384, 2.864947] |
+  | ID | Spearman | 0.055788 [0.032159, 0.079417] | 0.194543 [0.167040, 0.222045] | 0.141445 [0.107770, 0.175121] |
+  | ID | AUSE | -0.036095 [-0.060767, -0.011423] | -0.138927 [-0.146958, -0.130895] | -0.096478 [-0.113661, -0.079294] |
+  | ID | ENCE (ratio) | x1.138316 [0.927673, 1.396789] | x0.613321 [0.498788, 0.754152] | x0.960570 [0.839446, 1.099171] |
+
+  RMSE ratio LF->HF / HF-only, MSE ensemble: OOD x0.838263 [0.796374, 0.882354], ID x0.751302 [0.732119, 0.770986];
+  MVE ensemble: OOD x0.779554 [0.760295, 0.799301], ID x0.503573 [0.487828, 0.519827]. MVE AU after pretraining (same
+  file): ENCE OOD x2.063844 [1.344754, 3.167460], ID x1.294239 [1.043225, 1.605651].
+- **Output files:** `experiments/ani1x-energy/mace-mse/lf-to-hf/evaluation/split_{0..4}/{members_{id,ood}.npz,ensemble_size_{id,ood}.csv}`;
+  `results/tables/mse_vs_mve.csv` (energy LF->HF rows filled), `results/tables/mse_vs_mve_pretraining.csv` (energy rows
+  filled); `papers/iclr27/figures/out/tabA_estimators_{spearman,ence}.tex`, `papers/iclr27/figures/out/figA_estimators.{pdf,svg,png}`.
+- **Interpretation:** The system-split conclusions hold on the energy split. (1) Pretraining improves the MVE EU ranking
+  2-4x more than the MSE-ensemble EU (AUSE -0.14 / -0.10 vs -0.04 / -0.04, ID / OOD) and leaves the MSE EU calibration
+  unchanged (ENCE intervals contain 1); unlike the system split, the MSE EU ranking gain is significant here, but small.
+  (2) At LF->HF the MVE ensemble beats the MSE ensemble in ranking on both tests with EU, TU and even one member's AU,
+  and its TU is ~4x better calibrated (ENCE x0.23-0.25); it is also more accurate (RMSE x0.68 ID, x0.95 OOD; at HF-only
+  the two were close). (3) Under energy extrapolation both EUs are equally miscalibrated (ENCE ~13, ratio interval
+  contains 1) and one MVE member's AU is worse calibrated than the MSE EU (x1.70): the MVE advantage in calibration there
+  comes from TU, i.e. the ensemble plus AU. Caveat as the system entry: MSE LF->HF members are selected later (median
+  epoch 11) than MVE (median 2).
+
+---
+
+### 2026-11-10 MSE ensembles, ANI-1x energy split: full evaluation, five-split aggregates and training dynamics (rebuttal WP3.6; completes the 2026-11-08 energy entry)
+
+- **Status:** verified (computed in this task from complete per-split files: 5 splits x 10 members of both
+  `ani1x-energy/mace-mse/lf-only` and `ani1x-energy/mace-mse/lf-to-hf`; `uq status`: 10/10 members on every split,
+  5/5 + aggregate). Energy-OOD dynamics are **not** reported here (see Dataset and split).
+- **Purpose:** close WP3.6 on the energy split: the evaluation steps that the 2026-11-08 entry left running (reliability,
+  distributions, Energy-OOD bins, training curves, epoch quality; LF->HF parent + fine-tuning trajectory), their
+  five-split aggregates, and a check that the final-model numbers of the 2026-11-08 entry are unchanged.
+- **Code commit:** training `30afae8` (LF-only) / `c7fa140` (LF->HF); per-split evaluation `5577d20` / `4363236`, resumed at
+  `6b0d568`; aggregate and checks at `747a2e8` (tracked tree clean; untracked: these evaluation outputs and
+  `papers/iclr27/figures/out/figA_estimators_{hf,lfhf}.*`).
+- **Command(s):** DGX, at most 3 GPUs of this user: `runs/_jobs/mse_energy_eval3.sh`, then `runs/_jobs/mse_energy_eval4.sh all
+  "7 2 0"` (unit `uq-mse-eval4`, 2026-11-09), then `runs/_jobs/mse_energy_eval5.sh run` (unit `uq-mse-eval5`, 2026-11-09 23:12 to
+  2026-11-10 08:13; 27/27 steps `.ok`, no `.failed` marker). Each step is `python -m uq evaluate <exp> --gpu <g> --splits <s>
+  --no-aggregate --steps <step>`. The automatic finish ran `python -m uq.evaluation.aggregate --cache-dir
+  experiments/ani1x-energy/mace-mse/<protocol>/evaluation --output-dir experiments/ani1x-energy/mace-mse/<protocol>/evaluation
+  --split-seeds 0 1 2 3 4` for both protocols, then pruned `runs/` (lf-only 189.3 GiB, lf-to-hf 62.7 GiB; logs
+  `runs/_jobs/mse_energy_eval{4,5}.log`). Check (CPU, this task): `python -m uq.evaluation.compare_uq` and `python -m
+  uq.evaluation.compare_uq_protocols` (the output files are byte-identical to `747a2e8`, `git diff` empty).
+- **Configuration:** as the 2026-11-08 energy entry (`experiments/ani1x-energy/mace-mse/{lf-only,lf-to-hf}/{experiment.yaml,config.yaml}`).
+- **Dataset and split:** LF-only on `data/ani1x-energy/split_{0..4}/dft_{train,test_id,test_ood}.xyz` (DFT labels); LF->HF on
+  `cc_{train,test_id,test_ood}.xyz`. The final-model Energy-OOD reliability summaries use the support filter (LF->HF and LF-only
+  alike drop 13/15/16/15/16 of 5000 configurations on splits 0-4). The `epoch_quality_finetune_mixed_ood` aggregate is unfiltered
+  (`docs/evaluation-outputs.md`), so its numbers are not quoted. The mixed curve evaluates epochs 0-295 of the parent MSE LF-only
+  member on the DFT files and labels and epochs 300-395 (= fine-tuning epochs 0-95) on the CC files; every 5th epoch.
+- **Random seeds:** split seeds 0-4; member seeds 0-9 (no gaps; `_n` = 5 at every epoch and metric quoted).
+- **Compute:** GPU inference (DGX) for the per-split steps; CPU for the aggregates and checks. The per-member prediction files
+  (`split_<s>/members_{id,ood}.npz`, `ensemble_size_*.csv`) were not recomputed (timestamps 2026-11-08 17:03-17:04), so every
+  number of the 2026-11-08 energy entry stands.
+- **Metrics:** uncalibrated, energy per atom, ensemble M = 10, EU = TU for an MSE ensemble (there is no AU); five-split mean [95%
+  Student-t, df = 4]; ENCE as the geometric mean; RMSE in eV/atom.
+  (1) Final models, `experiments/ani1x-energy/mace-mse/<protocol>/evaluation/reliability_{id,ood}_nocal_summary.csv`:
+
+  | Protocol | Test | EU AUSE | EU ENCE (geo) | RMSE |
+  |---|---|---|---|---|
+  | lf-only (DFT labels) | ID | 0.334 [0.324, 0.343] | 1.503 [1.331, 1.698] | 9.8 [9.6, 10.0] meV/atom |
+  | lf-only (DFT labels) | OOD (filtered) | 0.205769 [0.180745, 0.230793] | 15.667438 [12.679997, 19.358727] | 0.064955 [0.063506, 0.066404] eV/atom |
+  | lf-to-hf (CC labels) | ID | 0.360 [0.337, 0.384] | 1.724 [1.517, 1.959] | 11.6 [11.3, 11.8] meV/atom |
+  | lf-to-hf (CC labels) | OOD (filtered) | 0.253 [0.247, 0.260] | 13.140 [11.337, 15.230] | 62.0 [57.4, 66.7] meV/atom |
+
+  (values as printed by `uq summary`, except the lf-only OOD AUSE and RMSE, read from the CSV). The LF->HF rows agree with
+  `results/tables/mse_vs_mve.csv` (2026-11-08 entry) up to the third decimal; ENCE differs by at most 0.003 (13.140 vs 13.136982),
+  because the reliability step runs its own GPU inference.
+
+  (2) Dynamics of the LF->HF trajectory (EU), `experiments/ani1x-energy/mace-mse/lf-to-hf/evaluation/epoch_quality_finetune_mixed_{id,train}.csv`
+  (columns `ause_epistemic_*`, `ence_epistemic_geometric_*`, `rmse_e_atom_mean`):
+
+  | Set | Epoch | Phase | EU AUSE | EU ENCE (geo) | RMSE (eV/atom) |
+  |---|---|---|---|---|---|
+  | ID | 150 | pretrain (DFT) | 0.340633 [0.328093, 0.353173] | 0.775378 [0.618578, 0.971924] | 0.011001 |
+  | ID | 295 | pretrain (DFT) | 0.347805 [0.330956, 0.364653] | 0.846456 [0.657241, 1.090144] | 0.009895 |
+  | ID | 300 | fine-tune 0 (CC) | 0.357769 [0.342375, 0.373162] | 2.111967 [1.810995, 2.462958] | 0.012377 |
+  | ID | 310 | fine-tune 10 | 0.364116 [0.345797, 0.382436] | 1.522398 [1.311797, 1.766809] | 0.011669 |
+  | ID | 350 | fine-tune 50 | 0.360978 [0.344355, 0.377602] | 1.088734 [0.874269, 1.355808] | 0.011447 |
+  | ID | 395 | fine-tune 95 | 0.351371 [0.334291, 0.368451] | 0.954062 [0.860764, 1.057473] | 0.011355 |
+  | train | 295 | pretrain (DFT) | 0.371837 [0.355344, 0.388330] | 0.681813 [0.501522, 0.926917] | 0.008655 |
+  | train | 300 | fine-tune 0 (CC) | 0.378218 [0.362043, 0.394394] | 1.788553 [1.699353, 1.882436] | 0.010178 |
+  | train | 310 | fine-tune 10 | 0.428445 [0.403538, 0.453351] | 1.093311 [1.013453, 1.179461] | 0.008372 |
+  | train | 350 | fine-tune 50 | 0.459811 [0.434808, 0.484814] | 0.620248 [0.511353, 0.752334] | 0.006856 |
+  | train | 395 | fine-tune 95 | 0.477045 [0.462856, 0.491233] | 0.496994 [0.479344, 0.515294] | 0.006062 |
+
+- **Output files:** `experiments/ani1x-energy/mace-mse/{lf-only,lf-to-hf}/evaluation/` five-split aggregates (`reliability_{id,ood}_{cal,nocal}_{summary,bins}.csv`,
+  `distribution_{train,id,ood}.csv`, `energy_ood_bins.csv`, `ensemble_size_{id,ood}.csv`, `train_curves.csv`; lf-only
+  `epoch_quality_{train,id,ood}.csv`, `epoch_raw_train.csv`; lf-to-hf `epoch_quality_finetune_mixed_{train,id,ood}.csv`, `finetune.csv`)
+  with their `.svg`, and `split_{0..4}/` per-split files; `runs/ani1x-energy/mace-mse/*/split_*/` pruned. `results/tables/mse_vs_mve*.csv` unchanged.
+- **Interpretation:** WP3.6 is complete on both splits. The final-model conclusions of 2026-11-08 do not change. Dynamics (ID,
+  train): the MSE-ensemble EU ranking (AUSE) does not improve during fine-tuning (ID 0.358 at the fine-tuning start, 0.351
+  after 95 epochs, intervals overlapping); on the training set it gets worse (0.378 -> 0.477) while the RMSE falls, i.e. the
+  members converge on the configurations they fit. EU calibration jumps at the switch to CC labels (ID ENCE 0.85 -> 2.11)
+  and then recovers steadily (0.95 at fine-tuning epoch 95). The checkpoints selected by validation MSE (median fine-tuning
+  epoch 11, 2026-11-08 entry) lie early on that recovery, which is why the final ID ENCE (1.72) is above the end of the
+  curve. Phases 0-295 and 300-395 use different labels (DFT vs CC), so the jump at 300 mixes a target change with the
+  model change (as for B/D). Not covered: Energy-OOD dynamics with the support filter (needs the filtered recomputation used
+  by `papers/iclr27/figures/figA_dynamics_*`); a side-by-side with the MVE twin D along the trajectory.
+
+---
+
+### 2026-11-10 MSE vs MVE ensemble along LF->HF training, both ANI-1x splits, Energy-OOD support-filtered (rebuttal WP3.6, item D dynamics; Q2LT Q1, Q2)
+
+- **Status:** verified (computed in this task; 5 splits x 10 members for every curve and epoch, 80 epochs per curve).
+- **Purpose:** the dynamic counterpart of Fig. 23/24 (`figA_estimators_{hf,lfhf}`): does the MSE-ensemble EU behave like
+  the MVE ensemble along DFT pretraining and CC fine-tuning? Fills the gap left by the previous entry (Energy-OOD dynamics
+  of the energy MSE ensembles were unfiltered).
+- **Code commit:** base `e676a6a` with the tree dirty in `papers/iclr27/figures/epoch_data.py` (optional `pair=` argument for
+  `lf_to_hf`, `_mixed_cached` and `lf_to_hf_any`; defaults A/B, C/D unchanged) and the new script
+  `papers/iclr27/figures/figA_mse_dynamics.py`; both committed together with this entry. Check: after the edit,
+  `paper_numbers.py` output equals `results/tables/iclr27_main_text_numbers.txt` except for the pre-existing path text in
+  the active-learning header (no numeric difference), and the rebuilt PNGs of `fig5_decomposition` and `figA_dynamics_*`
+  are byte-identical.
+- **Command(s):** GPU (DGX, GPU 5 and 6, 2026-11-10 15:32-16:30): `runs/_jobs/mse_epoch_predictions.sh
+  ani1x-energy/mace-mse/lf-only 5 2` and `runs/_jobs/mse_epoch_predictions.sh ani1x-energy/mace-mse/lf-to-hf 6 1` (= `python -m
+  uq.evaluation.epoch_predictions all <exp> --gpu <g> --streams <n>`; units `uq-mse-epochpred-{lfonly,lfhf}`, logs
+  `runs/_jobs/mse_epoch_predictions.<protocol>.log`). CPU: `cd papers/iclr27/figures && python -B figA_mse_dynamics.py`; the
+  values below were printed with `epoch_data.lf_to_hf_any("energy", s, "ood", pair=...)`, `across_splits` and `band`
+  (the functions the figure draws from).
+- **Configuration:** as the 2026-11-08 MSE entries (system, energy) and A/B, C/D.
+- **Dataset and split:** Energy-OOD = `data/ani1x-energy/split_{0..4}/cc_test_ood.xyz` geometries, scored against DFT labels
+  while pretraining (epochs 0-295, parent LF-only members) and CC labels while fine-tuning (300-395), restricted to the
+  training-support region (13/15/16/15/16 of 5000 configurations removed on splits 0-4), as in Fig. 4/5 and `figA_dynamics`.
+  System-ID/OOD and Energy-ID from the cached `epoch_quality_finetune_mixed_{id,ood}.csv` (unfiltered; the filter removes
+  nothing on the system split and at most 2 of 5000 Energy-ID configurations, `epoch_data.py`).
+- **Random seeds:** split seeds 0-4; member seeds 0-9.
+- **Compute:** GPU inference (per-epoch predictions, new files only) + CPU.
+- **Metrics:** uncalibrated, per atom, M = 10; AUSE five-split arithmetic mean, ENCE geometric mean, both with 95% Student-t
+  intervals (df = 4; log space for ENCE). Energy-OOD, per epoch (epoch 300 = fine-tuning epoch 0):
+
+  | Signal | Metric | 150 | 295 | 300 | 310 | 350 | 395 |
+  |---|---|---|---|---|---|---|---|
+  | MSE ens. EU | AUSE | 0.242368 [0.227395, 0.257342] | 0.248174 [0.230636, 0.265712] | 0.252934 [0.237072, 0.268796] | 0.259280 [0.243580, 0.274979] | 0.259300 [0.240860, 0.277740] | 0.253928 [0.246746, 0.261109] |
+  | MVE ens. EU | AUSE | 0.204281 [0.185846, 0.222715] | 0.191602 [0.175547, 0.207658] | 0.230468 [0.206152, 0.254784] | 0.184037 [0.171468, 0.196607] | 0.178331 [0.164581, 0.192081] | 0.178017 [0.165553, 0.190482] |
+  | MVE ens. TU | AUSE | 0.128035 [0.118608, 0.137463] | 0.130915 [0.124167, 0.137663] | 0.171648 [0.162673, 0.180624] | 0.135350 [0.126177, 0.144523] | 0.135081 [0.123565, 0.146597] | 0.137387 [0.126970, 0.147804] |
+  | MSE ens. EU | ENCE | 12.301750 [10.371815, 14.590798] | 14.554843 [13.496306, 15.696401] | 13.878519 [11.940082, 16.131656] | 12.970223 [10.713204, 15.702744] | 10.444782 [9.576930, 11.391278] | 9.307517 [8.384944, 10.331598] |
+  | MVE ens. EU | ENCE | 13.654769 [10.941198, 17.041344] | 15.851218 [11.983387, 20.967455] | 10.005334 [7.017071, 14.266167] | 13.125542 [10.672813, 16.141936] | 11.895787 [8.947574, 15.815432] | 11.854943 [9.004450, 15.607803] |
+  | MVE ens. TU | ENCE | 2.120738 [1.414153, 3.180370] | 3.955717 [2.835857, 5.517800] | 1.541857 [0.967602, 2.456924] | 4.215436 [3.317043, 5.357152] | 5.216540 [4.283831, 6.352325] | 5.723913 [4.657193, 7.034963] |
+
+  The other seven panels (System-ID/OOD, Energy-ID) are drawn from cached curves; their MSE energy ID values are in the
+  previous entry; the MVE curves are read from the same files as `figA_dynamics_{system,energy}_lfhf` (not re-quoted here).
+- **Output files:** `experiments/ani1x-energy/mace-mse/{lf-only,lf-to-hf}/evaluation/split_{0..4}/epoch_predictions_cc_test_ood.{npz,log}`
+  (new); `papers/iclr27/figures/out/figA_mse_dynamics.{pdf,svg,png}` (new). No existing output changed.
+- **Interpretation:** On all four tests the MSE-ensemble EU ranks worse than the MVE-ensemble EU and TU at every epoch of
+  both stages (panels a-d, read from the figure; Energy-OOD values in the table), and its AUSE hardly moves during fine-tuning (Energy-OOD 0.253 -> 0.254; ID see previous
+  entry), whereas the MVE EU and TU improve within the first ~10 fine-tuning epochs after the jump at the label switch.
+  On Energy-OOD both EUs are equally miscalibrated (ENCE ~9-16, intervals overlapping); the MVE TU is far better
+  calibrated (1.5-5.7) but degrades along fine-tuning (1.54 at fine-tuning epoch 0 -> 5.72 at 95), the AU collapse the
+  paper studies; the MSE EU ENCE improves slowly (13.9 -> 9.3) and stays above the MVE TU at every epoch. The figure
+  therefore supports, along training, the final-model statement of the 2026-11-08 entries: the advantage of the MVE
+  ensemble is not specific to the selected checkpoint. Caveat: the per-epoch curves are not checkpoint-selected (MSE
+  LF->HF members are selected at median fine-tuning epoch 11, MVE D at 2).
+
+---

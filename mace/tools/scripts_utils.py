@@ -664,6 +664,7 @@ def get_loss_fn(
             forces_weight=args.forces_weight,
             virials_weight=args.virials_weight,
             stress_weight=args.stress_weight,
+            beta=getattr(args, "mve_beta_nll", 0.0),
         )
 
         if  not args.predict_mve:

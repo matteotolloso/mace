@@ -1,7 +1,8 @@
-# ICLR 2027 oral: slides
+# RPS @ NeurIPS 2026 oral: slides
 
-Talk for *Multi-Fidelity Training Reshapes Uncertainty Decomposition in Atomistic Models*
-(20 minutes): 13 slides + 7 backup slides. The result slides redraw the paper's Figs. 2–6,
+Talk for *Multi-Fidelity Transfer Learning Reshapes Uncertainty Quantification in Atomistic Models*,
+oral at the Representations for the Physical Sciences (RPS) workshop, NeurIPS 2026 (20 minutes):
+13 slides + 7 backup slides. The result slides redraw the paper's Figs. 2–6,
 animated, from the same numbers. Their structure follows the PhD-review deck: the title states
 the finding, the RQ is asked in plain words, numbered findings (teal = good news, orange =
 caveat) appear one per click next to the figure, and a "So:" box closes the slide. Each click

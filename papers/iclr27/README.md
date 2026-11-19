@@ -1,5 +1,9 @@
 # ICLR 2027 submission: figures and drafts
 
+> **ICLR 2027: 2 / 2 / 2 after the rebuttal, withdrawn 2026-11-19.** Rebuttal record:
+> [`REBUTTAL.md`](REBUTTAL.md). Journal version: [`../strategy/`](../strategy/README.md). The figure
+> scripts here remain the source of every figure of the latest manuscript (Appendix M included).
+
 Figures of *Multi-Fidelity Training Reshapes Uncertainty Decomposition in Atomistic
 Models* (submitted; repository state at submission = tag `iclr27-submission`). The
 manuscript is the separate, Overleaf-synced repository cloned at `../../ICLR27-UQ-MF/`;
@@ -33,6 +37,15 @@ TrueType fonts; scale them to `\linewidth` in LaTeX.
 | Appendix | `figA_reliability` → `figA_reliability_{system,energy}[_cal]` | RMSE vs RMV, 15 bins, AU/EU/TU; rows LF-only (DFT labels) / HF-only / LF→HF, columns ID / OOD; `_cal` after isotonic recalibration; corner text = geometric-mean ENCE |
 | Appendix | `figA_dynamics` → `figA_dynamics_{system,energy}_{hf,lfhf}` | per-epoch Spearman, AUSE, ENCE, mean AU/EU variance, RMSE, GNLL (rows) on train / ID / OOD (columns); HF-only (E, F) or LF→HF over pretraining + fine-tuning (A→B, C→D); Energy-OOD support-filtered |
 | Appendix | `figA_train_curves` | training vs validation loss and RMSE; rows system/energy × loss/RMSE, columns LF-only, HF-only, LF→HF fine-tuning |
+| Appendix (rebuttal, revision) | `figA_lr_sensitivity` | item B: RMSE, TU Spearman, TU ENCE vs learning rate, HF-only and LF→HF, rows system/energy; reads aggregate summaries |
+| Appendix (rebuttal, revision) | `figA_ablations` | item C (App. M.3, Fig. 22) as a Fig. 2-style dot plot of raw values: RMSE, AU/TU AUSE and ENCE of LF→HF and the FT ablations (head reset, β-NLL, FT lr 1e-4 / 1e-2), recomputed from the per-split reliability rows (2026-11-09, user: raw values are easier to read) |
+| (not in the paper) | `figA_ablations_contrasts` | the former item-C forest plot of paired contrasts vs LF→HF; reads `results/tables/ablations_vs_reference.csv` |
+| Appendix (rebuttal, revision) | `tabA_lf_only` | item A: LaTeX table LF-only (E0 refit) / HF-only / LF→HF on CC labels; reads `results/tables/lf_only_vs_hf.csv`; writes `out/tabA_lf_only.tex` |
+| Appendix (rebuttal, revision) | `tabA_estimators` | item D: LaTeX tables (Spearman, ENCE) MSE-ensemble EU / MVE-ensemble EU, TU / one MVE model AU, HF-only and LF→HF; reads `results/tables/mse_vs_mve.csv`; writes `out/tabA_estimators_{spearman,ence}.tex` ("pending" for tests not yet evaluated on all five splits) |
+| Appendix (rebuttal, revision) | `figA_pretrain_only` | item A as a Fig. 2-style dot plot (replaces `tabA_lf_only` in the revision): LF-only (E0 refit) / HF-only / LF→HF, RMSE, AUSE, ENCE per signal; recomputed from `lfonly_reliability_*_raw.csv` and the final caches (`dotplot.py`) |
+| Appendix (rebuttal, revision) | `figA_estimators` | item D as Fig. 2-style dot plots (replaces `tabA_estimators`), one per protocol: `figA_estimators_hf` (Fig. 23) and `figA_estimators_lfhf` (Fig. 24), common x ranges, "(ours)" in the legend: MSE ens. EU / MVE ens. EU, TU / one MVE AU; reads `results/tables/mse_vs_mve.csv`; "pending" for tests not on five splits |
+| Appendix (rebuttal, revision) | `figA_mse_dynamics` | item D dynamics, Fig. 5 style: AUSE and ENCE along LF→HF pretraining + fine-tuning of the MSE ensemble (EU) vs the MVE ensemble (EU, TU; A→B, C→D) on System-ID/OOD and Energy-ID/OOD; Energy-OOD support-filtered (`epoch_predictions_cc_test_ood.npz`) |
+| Appendix (rebuttal, revision) | `figA_ablation_dynamics` | item C dynamics, Fig. 5 style: AU AUSE and ENCE along fine-tuning for LF→HF and its ablations (reset, β-NLL, FT lr 1e-4 / 1e-2) on System-ID/OOD and Energy-ID (per-split `epoch_quality_*.csv`) |
 | Water (not in paper) | `figW_final_summary` | CCSDT test set, final models: (a) RMSE, (b) AUSE, (c) ENCE; HF-only (wC) vs LF→HF (wB) |
 | Water (not in paper) | `figW_reliability` | RMSE vs RMV reliability diagrams, 15 equal-count bins: (a) HF-only, (b) LF→HF |
 | Water (not in paper) | `figW_dynamics` | (a, b) AUSE/ENCE during the CCSDT stage, both protocols; LF→HF over BLYP pretraining + CCSDT fine-tuning on (c, d) train and (e, f) test |

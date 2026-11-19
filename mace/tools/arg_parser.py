@@ -35,6 +35,16 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         "--predict_mve", action="store_true",
         help="If set, the model predicts mean and variance (logvar) per head."
     )
+    parser.add_argument(
+        "--mve_reset_variance_head", type=str2bool, default=False,
+        help="Fine-tuning ablation: after loading the foundation model, re-draw the weights of the "
+        "variance outputs of the last readout as at initialization (mean outputs and backbone kept).",
+    )
+    parser.add_argument(
+        "--mve_beta_nll", type=float, default=0.0,
+        help="beta-NLL (Seitzer et al. 2022): weight each configuration's Gaussian NLL gradient by "
+        "stop_grad(variance)**beta; the loss value (validation, checkpoint selection) stays the NLL. 0 = off.",
+    )
     ### /MVE ###
 
     # Name and seed
@@ -883,6 +893,16 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=False,
     )
+    ### MVE ###
+    parser.add_argument(
+        "--resume_exact",
+        help="with --restart_latest: continue an interrupted run after its latest epoch checkpoint "
+        "(next epoch number, learning rate and scheduler state from the checkpoint) instead of "
+        "re-training that epoch with the initial learning rate",
+        action="store_true",
+        default=False,
+    )
+    ### /MVE ###
     parser.add_argument(
         "--save_cpu",
         help="Save a model to be loaded on cpu",
