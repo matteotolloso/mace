@@ -2,9 +2,12 @@
 
 Source: OpenReview author console, printed 2026-11-06 (PDF provided by the user). Text
 copied verbatim from the PDF (ligatures and line breaks normalized). Author names and the
-forum URL are left out on purpose: this tree is mirrored anonymously.
+forum URL are left out on purpose (the tree was mirrored anonymously during review).
 
-**Point IDs** (`G*`, `J*`, `Q*`) are used by `PLAN.md` and `draft_rebuttal.md`. Never renumber
+**Outcome (user, 2026-11-19):** ratings after the discussion 2 / 2 / 2 (ge6X raised 1 -> 2);
+the authors withdraw to prepare the journal version (`README.md` of this folder).
+
+**Point IDs** (`G*`, `J*`, `Q*`) are used by `REVIEWS.md` and `../iclr27/REBUTTAL.md`. Never renumber
 them; add new IDs at the end if a reviewer posts follow-ups.
 
 | Reviewer | Rating | Confidence | Presentation | Informativeness | Soundness |

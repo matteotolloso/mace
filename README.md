@@ -44,8 +44,8 @@ data/           datasets: <dataset>/dataset.yaml + split_<s>/ (large files git-i
 experiments/    <dataset>/<model>-<uq>/<protocol>/{experiment.yaml, config.yaml, evaluation/}
 runs/           checkpoints, logs, W&B, active-learning runs (git-ignored, ~650 GB)
 results/        results.md = ledger of every citable result; tables/, figures/
-papers/iclr27/  figure scripts + outputs of the ICLR 2027 paper, drafts, rebuttal
-papers/strategy/ assessment of the work, review synthesis, development plan
+papers/iclr27/  figure scripts + outputs of the ICLR 2027 paper, drafts, rebuttal record
+papers/strategy/ reviews, assessment, development plan, journal shortlist (JOURNAL.md)
 notebooks/      exploratory analyses
 docs/           documentation (start at docs/README.md)
 mace/ tests/    upstream MACE (+ MVE head) and its tests

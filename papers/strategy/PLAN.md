@@ -215,9 +215,9 @@ such, ledger entry per result. Every job is registered before launch in the Jobs
 
 | When | What | Gate at the end |
 |---|---|---|
-| to 2026-11-18 | ICLR discussion: replies only (`../iclr27/rebuttal/README.md`) | — |
+| to 2026-11-18 | ICLR discussion (done: 2 / 2 / 2, withdrawn 2026-11-19, `../iclr27/REBUTTAL.md`) | — |
 | 2026-11-18 to ~12-15 | CPU: A1, A2. DGX: P2.0, then P8a, P1, P2a-c, P3, P8b. Leonardo: P4 dataset variants, loss, smoke test, pilot. In parallel: choose and wire the second architecture (P5) | **Gate 1**: (i) does disagreement keep its ranking with a shared parent? (ii) does re-estimating the scale restore calibration where predicted? (iii) does the picture hold on fine-tuning geometries the parents never saw, and at matched RMSE? (iv) do force-trained parents change it (pilot)? Freeze the thesis, or rewrite it around what was found |
-| ~12-15 to ~2027-01-31 | P4 on five splits, P5, P6 | **Gate 2** (around the ICLR decision): venue and scope (Section 6) |
+| ~12-15 to ~2027-01-31 | P4 on five splits, P5, P6 | **Gate 2**: target journal and scope (Section 6, `JOURNAL.md`) |
 | 2027-02 to 2027-03 | W1-W4; Tier 2 only if chosen at Gate 2 | submission-ready draft |
 | before 2027-04-29 | all Leonardo work finished and synced back (allocation ends) | — |
 
@@ -241,8 +241,8 @@ protocols until the expected outcome appears.
 
 Facts to verify on the official pages before relying on them: ICML 2027 deadline (a third-party
 site projects late January 2027; the official call was not posted on 2026-11-12); NeurIPS 2027
-deadline (May in recent years); the ICLR 2027 decision date. A paper under review at ICLR cannot
-be submitted elsewhere until the decision or a withdrawal.
+deadline (May in recent years). ICLR 2027: withdrawn 2026-11-19, so nothing blocks a submission;
+Q1 journal shortlist and the priority list for the journal version: [`JOURNAL.md`](JOURNAL.md).
 
 | Route | Fit | Needs | Comment |
 |---|---|---|---|
@@ -290,7 +290,7 @@ fallback with the same manuscript. Do not rush ICML 2027.
 ## 9. Budget
 
 Leonardo `IscrC_UQ-MF`: 80,000 local h, about 73,000 left on 2026-11-08 (~9,100 GPU-h;
-`../iclr27/rebuttal/RUNS.md` Section 4), ends 2027-04-29; exceeding the monthly share lowers
+`docs/leonardo.md`, section Budget), ends 2027-04-29; exceeding the monthly share lowers
 priority, it does not stop jobs (`docs/leonardo.md`). DGX: at most 3 GPUs.
 
 | Package | Training (GPU-h, estimate) | Where |
@@ -320,3 +320,7 @@ is at the low end; measure it first (D6).
   the use of the dynamics (NY2); multi-round acquisition (P7) moved to Tier 2 because no reviewer
   asked for it; data scale renumbered P12; factorial split added as P13 / D6 (NA6); D3 (rename)
   made firm; default venue changed from "decide at the gate" to a domain journal; D9 closed.
+- 2026-11-19 — ICLR 2027 closed at 2 / 2 / 2 after the discussion; the authors withdraw. Route B
+  (domain journal) is now the plan, not only the default: Q1 shortlist and the improvements in
+  priority order in `JOURNAL.md` (which supersedes Sections 1, 4 and 6 where they differ).
+  D7 is answered (B); D1-D6, D8 still wait for the user.

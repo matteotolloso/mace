@@ -1,7 +1,7 @@
 # What the recorded results say (interpretation layer, read before writing)
 
 Created 2026-11-08 during the ICLR 2027 rebuttal after discussing the results with the user; moved
-here from `papers/iclr27/rebuttal/` on 2026-11-12 because it is about the results, not about one
+here from the rebuttal folder on 2026-11-12 because it is about the results, not about one
 venue. This file holds the *interpretation*: what each result supports, where it is risky, and how
 to phrase it. Numbers stay in `results/results.md`; every statement below names its ledger entry.
 Update this file when a result arrives or the user changes the framing. How the findings shape the

@@ -1,8 +1,8 @@
 # CINECA Leonardo: access, rules, our layout, sync protocol
 
-Moved here on 2026-11-12 from `papers/iclr27/rebuttal/LEONARDO.md` (the cluster outlives the
-rebuttal); the sync protocol at the end comes from the rebuttal's `RUNS.md`. Allocation
-`IscrC_UQ-MF` ends **2027-04-29**; budget snapshots: `papers/iclr27/rebuttal/RUNS.md` Section 4.
+How this project uses the cluster (first used for the ICLR 2027 rebuttal campaign, 2026-11-06 to
+11-10). Allocation `IscrC_UQ-MF` ends **2027-04-29**; budget: last section. Environment setup job:
+`docs/leonardo-setup-env.sbatch`.
 
 Facts checked on 2026-11-06 against the CINECA user guide ([Leonardo][leo],
 [filesystems][fs], [accounting and linearization][intro], [scheduler][slurm], [access][acc])
@@ -67,7 +67,7 @@ Nothing is backed up except `$HOME`: anything citable must also come back to the
 | Path | Content |
 |---|---|
 | `$UQ/miniconda3` | our own Miniconda (separate from the other project's), env `mace` from `environment.yml` |
-| `$UQ/mace` | git clone of `iclr_rebuttal` (clean checkouts only; `data/` inside it, copied from the DGX) |
+| `$UQ/mace` | git clone of the working branch (`iclr_rebuttal` until 2026-11-19, then `main`; clean checkouts only; `data/` inside it, copied from the DGX) |
 | `$UQ/runs` | `UQ_RUNS` for all experiments (same layout as the DGX `runs/`) |
 | `$UQ/slurm` | sbatch scripts and SLURM stdout/stderr (`%x_%j.out`) |
 | `$FAST/uq-mf/runs` | overflow `UQ_RUNS` for LF-scale experiments if `$WORK` runs short |
@@ -77,7 +77,9 @@ Nothing is backed up except `$HOME`: anything citable must also come back to the
 UQ_SLURM_ACCOUNT=IscrC_UQ-MF`):** `uq train-slurm <exps> --pack 3 --submit` (training; `--resume --after <ids>` for
 back-up chains), `uq evaluate-slurm <exps> --after <ids> --prune --submit` (one 1-GPU evaluation job per split,
 then pruning, D9). Code arrives as a `git bundle` when `git push` from the DGX is not possible:
-`git fetch $UQ/rebuttal.bundle HEAD:refs/remotes/bundle/iclr_rebuttal && git merge --ff-only bundle/iclr_rebuttal`.
+`git fetch $UQ/rebuttal.bundle HEAD:refs/remotes/bundle/iclr_rebuttal && git merge --ff-only bundle/iclr_rebuttal`
+(the rebuttal's form; since 2026-11-19 bundle `main` instead: on Leonardo `git checkout main` once, then
+`git fetch $UQ/<name>.bundle HEAD:refs/remotes/bundle/main && git merge --ff-only bundle/main`).
 **Back on the DGX:** `UQ_REMOTE_ROOT=/leonardo_work/IscrC_UQ-MF/uq-mf/mace UQ_REMOTE_RUNS=/leonardo_work/IscrC_UQ-MF/uq-mf/runs
 uq sync-back <exp> --host leonardo [--checkpoints] [--apply]` (dry run by default; never overwrites a local file;
 `--checkpoints` only for pruned splits), then `uq aggregate <exp>` and the ledger entry.
@@ -138,7 +140,7 @@ user's approval to prune epoch checkpoints after evaluation (every fifth epoch, 
 and the `.model` are kept).
 
 1. One machine per experiment id, written in the job registry before launch (the campaign's `RUNS.md`, or the Jobs table of `PROGRESS.md`).
-2. Leonardo runs clean checkouts of commits of the working branch (`iclr_rebuttal` during the rebuttal) (pull, or `git bundle` with identical hashes); no edits there.
+2. Leonardo runs clean checkouts of commits of the working branch (`iclr_rebuttal` during the rebuttal, `main` since 2026-11-19) (pull, or `git bundle` with identical hashes); no edits there.
 3. Data are copied from the DGX and checked against `data/MANIFEST.sha256`; never `uq data build` on Leonardo.
 4. Members run exactly `uq.training.launch.command()` through `uq train-slurm`; LF->HF children need their parent's `.model`.
 5. Outputs flow Leonardo -> DGX only: evaluate there per split (`uq evaluate-slurm ... --prune`), prune (D9), then on the
@@ -157,3 +159,13 @@ A failed evaluation cancels its prune job (`afterok`): read the `.out`, `uq eval
 A training job at walltime: `uq train-slurm <exps> --resume --pack 3 --submit`.
 
 The `$WORK` / `$FAST` assignment above is that of the rebuttal experiments; a new campaign records its own.
+
+## Budget (local h; 1 GPU-h = 8 local h)
+
+| Date | Consumed | Remaining of 80,000 | Note |
+|---|---|---|---|
+| 2026-11-07 12:00 | `saldo -b`: 0 (daily update lag); **sacct: ~594 GPU-h = ~4,750** (287 GPU jobs) | ~75,250 | ~2,500 more committed by running/queued jobs (system MSE, system FT-lr evaluation) |
+| 2026-11-07 18:55 | `saldo -b`: 0 (still lagging; monthTotal 8,759); **sacct since 11-06: ~773 GPU-h = ~6,180** (297 jobs, running ones counted to now) | **~73,800** | still committed: the rest of the system MSE chain (training ~7 h to walltime, then evaluation ~10 h per split), roughly 1,500-2,500 more |
+| 2026-11-08 11:20 | `saldo -b`: 0 (still lagging; monthTotal 8,759); **sacct since 11-06: ~874 GPU-h = ~6,990** (314 GPU jobs) | **~73,000** | nothing running or queued |
+
+Snapshots taken during the rebuttal; measure again (`saldo -b`, `sacct`) before planning a campaign.

@@ -8,7 +8,7 @@ of them and its diagnosis was wrong in one important respect (Section 3). Verbat
 |---|---|---|
 | NeurIPS 2026, submission 35263 | [`reviews_neurips26.md`](reviews_neurips26.md) | `NM*`, `NY*`, `NA*`, `NMR*` |
 | RPS workshop @ NeurIPS 2026, submission 64 | [`reviews_rps26.md`](reviews_rps26.md) | `RE*`, `RL*`, `RC*`, `RPC` |
-| ICLR 2027, submission 18667 | [`../iclr27/rebuttal/reviews.md`](../iclr27/rebuttal/reviews.md) | `G*`, `J*`, `Q*` |
+| ICLR 2027, submission 18667 | [`reviews_iclr27.md`](reviews_iclr27.md) | `G*`, `J*`, `Q*` |
 
 ## 1. Venues, versions, outcomes
 
@@ -16,7 +16,7 @@ of them and its diagnosis was wrong in one important respect (Section 3). Verbat
 |---|---|---|---|
 | NeurIPS 2026 (reviews June-July 2026) | first draft: one split seed, total-variance trim, both shifts, no acquisition, no ablations | 2 / 3 / 2 (confidence 4 / 3 / 4) | **withdrawn by the authors 2026-07-28** after the meta-review listed "validity-level problems" |
 | RPS workshop (reviews September 2026) | short version, system shift only, still the pre-audit figures | 3 / 4 / 4 of 4 (confidence 2 / 2 / 2) | **accepted, oral**; camera-ready rebuilt on five splits |
-| ICLR 2027 (reviews November 2026) | rebuilt paper: five splits, support filter, calibration judged on TU, acquisition experiment | 1 / 2 / 2 (confidence 3 / 4 / 2) | responses posted 2026-11-10 with new baselines and ablations (Appendix M); discussion until 2026-11-18 |
+| ICLR 2027 (reviews November 2026) | rebuilt paper: five splits, support filter, calibration judged on TU, acquisition experiment | 1 / 2 / 2 (confidence 3 / 4 / 2); **2 / 2 / 2 after the discussion** | responses posted 2026-11-10 with new baselines and ablations (Appendix M); **withdrawn 2026-11-19** for a journal version |
 
 Nine reviewers, one area chair, one set of program chairs.
 
@@ -100,4 +100,6 @@ protocol comparison (row 4). Everything else was asked once or twice, or is fixe
    converged on "narrow and not new enough"; reviewers near the application accepted the work
    and asked for forces and more data. This is evidence about where the paper belongs
    (`PLAN.md` Section 6).
-7. **ICLR outlook:** unchanged; plan for a resubmission whatever the discussion brings.
+7. **ICLR outcome:** 2 / 2 / 2 after the discussion: the new baselines and ablations moved one
+   reviewer by one point and nobody past the acceptance threshold, which confirms that the open
+   concerns are scope and novelty, not validity. Withdrawn; journal version next (`JOURNAL.md`).

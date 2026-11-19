@@ -7,15 +7,15 @@ rebuttal, is `git show ebeb547:PROGRESS.md`.
 
 ## Current focus
 
-1. **ICLR 2027 discussion, until 2026-11-18.** Responses were posted on 2026-11-10; only replies
-   to reviewer follow-ups remain. Start at `papers/iclr27/rebuttal/README.md`.
-2. **Next version of the paper.** Analysis and plan in `papers/strategy/` (start at its
-   `README.md`; the plan is `PLAN.md`, version 2). **Nothing of the plan is launched: it waits for
-   the user's decisions D1-D8** (`papers/strategy/PLAN.md` Section 8).
+**Journal version of the paper.** ICLR 2027 ended at 2 / 2 / 2 after the rebuttal and is being
+withdrawn (decision 2026-11-19); the target is now a Q1 journal. Start at
+`papers/strategy/JOURNAL.md` (journal shortlist, improvements in priority order), then
+`papers/strategy/PLAN.md` (work packages, gates, budget). **Nothing is launched: it waits for the
+user's approval of the priority list and decisions D1-D6, D8** (`PLAN.md` Section 8).
 
 Other workspaces: `talk/` (oral at the RPS workshop, NeurIPS 2026; own `CLAUDE.md`), `RPS-UQ-MF/`
-(workshop camera-ready), `UQ-MF-Arxiv-/` (arXiv version), `ICLR27-UQ-MF/` (ICLR manuscript and
-posted rebuttal).
+(workshop camera-ready), `UQ-MF-Arxiv-/` (arXiv version), `ICLR27-UQ-MF/` (latest full manuscript
+with Appendix M, posted rebuttal). Record of the ICLR rebuttal: `papers/iclr27/REBUTTAL.md`.
 
 ## Jobs
 
@@ -28,7 +28,8 @@ session for the DGX GPUs at a time. Rules: `CLAUDE.md` (3 GPUs on the DGX), `doc
 |---|---|---|---|---|---|---|
 | — | — | — | — | — | — | nothing running or queued for this project (DGX checked 2026-11-10; Leonardo last checked 2026-11-08) |
 
-The jobs of the rebuttal are in the closed registry `papers/iclr27/rebuttal/RUNS.md`.
+The per-job registry of the rebuttal (2026-11-06 to 11-10) is in Git history
+(`git show c35487c:papers/iclr27/rebuttal/RUNS.md`); its results are all in the ledger.
 
 ## Finished studies (results in the ledger)
 
@@ -56,3 +57,7 @@ was pruned after evaluation (every fifth epoch, each member's best, `.model`).
   (`papers/strategy/reviews_{neurips26,rps26}.md`); review synthesis rewritten, assessment and plan
   revised (version 2: analyses A1, A2 and controls P8 added, acquisition benchmark to Tier 2,
   default venue a domain journal).
+- 2026-11-19 — ICLR 2027 closed at 2 / 2 / 2; withdraw decided. Repository cleaned (rebuttal folder
+  condensed into `papers/iclr27/REBUTTAL.md`, ICLR reviews to `papers/strategy/reviews_iclr27.md`,
+  Leonardo setup job to `docs/leonardo-setup-env.sbatch`, budget to `docs/leonardo.md`); `iclr_rebuttal` merged
+  into `main`, which is the working branch from now on. `papers/strategy/JOURNAL.md` written.

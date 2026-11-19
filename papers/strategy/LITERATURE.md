@@ -2,7 +2,7 @@
 
 The maintained literature file of the project (all venues). Sections 1-3 were written during the
 ICLR 2027 rebuttal (2026-11-06 to 11-10) and moved here unchanged on 2026-11-12 from
-`papers/iclr27/rebuttal/draft_rebuttal.md` (its Sections 7, 1 and 6). Section 4 is the landscape
+`papers/iclr27/rebuttal/draft_rebuttal.md` (its Sections 7, 1 and 6; removed 2026-11-19, in Git history). Section 4 is the landscape
 scan of 2026-11-12 behind [`ASSESSMENT.md`](ASSESSMENT.md).
 
 Rules: a statement about prior work in a paper, rebuttal or reply cites a key of Section 1 whose

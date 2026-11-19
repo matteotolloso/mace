@@ -3,16 +3,17 @@
 Research fork of MACE: ensembles of MACE models with a mean-variance (MVE) head,
 trained on low-fidelity (DFT), high-fidelity (coupled-cluster) or both
 (pretrain -> fine-tune), studied through the aleatoric/epistemic decomposition under
-distribution shift and during training; ICLR 2027 submission + follow-ups. Two
-workspaces share this root: this repository (code, data, experiments, results) and
-`ICLR27-UQ-MF/` (the manuscript: separate Git repo synced with Overleaf, own CLAUDE.md).
+distribution shift and during training. ICLR 2027 (2 / 2 / 2) withdrawn on 2026-11-19; the
+work now heads for a Q1 journal. This repository holds code, data, experiments and results; the
+manuscripts are separate Git repos synced with Overleaf (`ICLR27-UQ-MF/` = latest full version,
+own CLAUDE.md; `UQ-MF-Arxiv-/`, `RPS-UQ-MF/`).
 
 **Start at `PROGRESS.md`** (current focus, job registry, finished studies; update it as you work).
-Two fronts since 2026-11-12, both on branch `iclr_rebuttal`: (1) the ICLR 2027 discussion, replies
-only until 2026-11-18 (`papers/iclr27/rebuttal/README.md`; responses were posted on 2026-11-10);
-(2) the next version of the paper: `papers/strategy/` holds the assessment, the cross-venue review
-synthesis and the development plan (`PLAN.md`, tasks to claim once the user approves it). Never
-message other agent sessions; coordinate through those files.
+Current front: the journal version. `papers/strategy/` holds the assessment, the cross-venue review
+synthesis (verbatim reviews of NeurIPS 2026, RPS 2026, ICLR 2027), the development plan (`PLAN.md`,
+tasks to claim once the user approves it) and `JOURNAL.md` (Q1 shortlist, improvements in priority
+order). The ICLR rebuttal is condensed in `papers/iclr27/REBUTTAL.md`. Never message other agent
+sessions; coordinate through those files.
 
 ## Orient cheaply (prefer these to reading files)
 
@@ -36,7 +37,7 @@ editable mode (`pip install --no-deps --no-build-isolation -e .` after adding a 
 | `data/<dataset>/` | `dataset.yaml` + `split_<s>/` (xyz/h5 ignored) |
 | `runs/` | ignored, ~650 GB: `<id>/split_<s>/{checkpoints,results,logs,models}`, `active-learning/`, `wandb/` |
 | `results/results.md` | ledger: the only source of citable numbers; `results/tables/` |
-| `papers/iclr27/` | figure scripts (`figures/`, outputs `figures/out/`), `paper_numbers.py`, drafts, `rebuttal/` |
+| `papers/iclr27/` | figure scripts (`figures/`, outputs `figures/out/`), `paper_numbers.py`, drafts, `REBUTTAL.md` |
 | `papers/strategy/` | assessment, review synthesis, development plan, findings, literature (venue-independent) |
 | `mace/`, `tests/` | upstream MACE fork; MVE code only inside `### MVE ###` fences |
 
@@ -57,7 +58,7 @@ editable mode (`pip install --no-deps --no-build-isolation -e .` after adding a 
   lists); record new ones with the `record-result` skill.
 - Reportable reliability numbers use the support filter and `trim: 0.0`.
 - Never reset or revert changes you did not make. Do not commit or push unless asked; standing
-  exception: commit and push finished work to `iclr_rebuttal` (never to `main`).
+  exception: commit and push finished work to `main` (since 2026-11-19; `iclr_rebuttal` is merged).
 
 ## Working rules
 

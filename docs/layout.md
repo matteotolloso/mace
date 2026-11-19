@@ -20,7 +20,7 @@ page are the only places to update.
 ├── experiments/         one folder per experiment (tracked): experiment.yaml, config.yaml, evaluation/
 ├── runs/                heavy, regenerable artifacts (git-ignored, ~650 GB): checkpoints, W&B, AL runs
 ├── results/             results.md (the ledger of citable results), tables/, figures/
-├── papers/iclr27/       figure scripts and outputs of the ICLR 2027 submission, drafts, rebuttal
+├── papers/iclr27/       figure scripts and outputs of the ICLR 2027 submission, drafts, REBUTTAL.md
 ├── papers/strategy/     assessment of the work, review synthesis, development plan, findings, literature
 ├── notebooks/           exploratory notebooks and one-off analyses
 ├── docs/                documentation (this folder)

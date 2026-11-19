@@ -2,9 +2,9 @@
 # Create the `mace` conda env on Leonardo from environment.yml, install this repository in
 # editable mode and run the CPU checks. Budget-free serial partition (has internet; login nodes
 # kill processes after 10 min of CPU). Submit from $WORK/uq-mf/slurm:
-#   sbatch $WORK/uq-mf/mace/papers/iclr27/rebuttal/leonardo/setup_env.sbatch
+#   sbatch $WORK/uq-mf/mace/docs/leonardo-setup-env.sbatch
 # Requires the Anaconda ToS for the `defaults` channels to be accepted for our Miniconda
-# (user decision; see LEONARDO.md).
+# (user decision; see docs/leonardo.md).
 #SBATCH --account=IscrC_UQ-MF
 #SBATCH --partition=lrd_all_serial
 #SBATCH --time=04:00:00
