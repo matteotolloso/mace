@@ -84,8 +84,9 @@ Datasets `ani1x-system-forces` and `ani1x-energy-forces` are the two ANI-1x spli
 the same builder arguments and seeds plus `wb97x_tz.forces` in the DFT files (verified frame by
 frame against the original splits; CC files and geometry caches identical). The LF parents train
 on DFT energies **and forces**: loss = Gaussian NLL on energies + `forces_weight` x force MSE
-(`WeightedGaussianNLLLoss`, no fork change), `compute_forces: True`; `forces_weight` was chosen by
-a labelled pilot (`PROGRESS.md`). Everything else is the config of A / C. The fine-tuned children
+(`WeightedGaussianNLLLoss`, no fork change), `compute_forces: True`; `forces_weight` was chosen on
+the validation set by a labelled pilot with a rule fixed beforehand (`runs/_jobs/forces/pick_weight.py`);
+the variants `*-fw<alt>` repeat parents and children with a second weight (sensitivity, split 0 first). Everything else is the config of A / C. The fine-tuned children
 use exactly the config of B / D (CC energies only). The HF-only baselines are the existing E / F
 (identical CC files). Checkpoints are still selected by each member's own validation loss, which
 for the parents now includes the force term. The uncertainty is still that of the energy.

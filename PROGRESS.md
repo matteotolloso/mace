@@ -30,7 +30,7 @@ session for the DGX GPUs at a time. Rules: `CLAUDE.md` (3 GPUs on the DGX), `doc
 | Experiment | Package | Machine | Commit | Job / unit | Owner | Status |
 |---|---|---|---|---|---|---|
 | PILOT forces_weight 1/10/100 (`ani1x-system-forces` split 0, member 0, 30 epochs; not reportable) | DFT-forces pretraining | DGX GPU 6 (user: one GPU, 2026-11-20) | a6d4565 + uncommitted spec | `uq-forces-pilot` (`runs/_pilot/forces-weight/run.sh`) | this session | running |
-| `ani1x-{system,energy}-forces/mace-mve/{lf-only,lf-to-hf}`, splits 0-4 x members 0-9 | DFT-forces pretraining (JOURNAL item 1, PLAN P4) | DGX GPU 6 only, 3 members packed (user: one free GPU, no Leonardo, 2026-11-20) | commit of the forces_weight pick (made by the campaign) | `uq-forces-campaign` (`runs/_jobs/forces/campaign.sh`, log `runs/_jobs/forces/campaign.log`, markers `campaign.<step>.{ok,failed}`; restart = `systemd-run --user --unit=uq-forces-campaign -p KillMode=control-group --working-directory=$PWD -E GPU=6 bash runs/_jobs/forces/campaign.sh` (done steps are skipped; `uq train` skips complete members); user units stop if every login session closes (Linger=no) | this session | running since 2026-11-20 01:01, waiting for the pilot (~05:00); then per split: train -> evaluate -> prune |
+| `ani1x-{system,energy}-forces/mace-mve/{lf-only,lf-to-hf}`, splits 0-4 x members 0-9 | DFT-forces pretraining (JOURNAL item 1, PLAN P4) | DGX GPU 6 only, 3 members packed (user: one free GPU, no Leonardo, 2026-11-20) | commit of the forces_weight pick (made by the campaign) | `uq-forces-campaign` (`runs/_jobs/forces/campaign.sh`, log `runs/_jobs/forces/campaign.log`, markers `campaign.<step>.{ok,failed}`; restart = `systemd-run --user --unit=uq-forces-campaign -p KillMode=control-group --working-directory=$PWD -E GPU=6 bash runs/_jobs/forces/campaign.sh` (done steps are skipped; `uq train` skips complete members); user units stop if every login session closes (Linger=no) | this session | running since 2026-11-20 01:01, restarted 01:15 with the sensitivity arm, waiting for the pilot (~05:00); then per split: train -> evaluate -> prune; after main split 0: sensitivity arm split 0 |
 
 The per-job registry of the rebuttal (2026-11-06 to 11-10) is in Git history
 (`git show c35487c:papers/iclr27/rebuttal/RUNS.md`); its results are all in the ledger.
@@ -72,3 +72,9 @@ was pruned after evaluation (every fifth epoch, each member's best, `.model`).
   (lowest validation energy RMSE per atom at epochs 25-29, largest weight within 5%), commits it,
   then trains / evaluates / prunes split by split. Force-error and force-disagreement evaluation
   is not written yet (to do while training runs; checkpoints are kept: every fifth epoch + best).
+- 2026-11-20 — force weight: user chose option 1 (weight picked on validation by the pre-set rule)
+  plus a **sensitivity arm**: `lf-only-fw<alt>` / `lf-to-hf-fw<alt>` on both designs, created by the
+  campaign at the pick (alt = 1 if the pick is 10, else 10; specs list five splits, split 0 is
+  trained right after the main split 0, before splits 1-4, so the first look at the results can
+  check that the conclusions do not depend on the weight). Early pilot epochs (labelled, not
+  reportable): weight 100 stops energy learning (variance absorbs the energy error).
