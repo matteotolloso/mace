@@ -1,0 +1,19 @@
+# Force-weight sensitivity (user, 2026-11-20): lf-only of ani1x-energy-forces with forces_weight 1
+# in the pretraining instead of 10 (the pilot's pick). Split 0 first; five splits only if asked.
+dataset: ani1x-energy-forces
+model: mace
+uq: mve-ensemble            # AU = mean member variance, EU = variance of member means, TU = AU + EU
+protocol: lf-only
+target: lf                   # fidelity of the training labels (DFT)
+parent: null
+splits: [0, 1, 2, 3, 4]
+members: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+training:
+  config: config.yaml         # MACE hyperparameters; data/output paths are added by the launcher
+  test_role: id              # file passed as MACE --test_file
+evaluation:                   # steps and order: docs/evaluation.md
+  batch_size: 256
+  trim: 0.0
+  reliability: [id, ood]
+  sets: [id, ood, train]   # epoch quality, LF->HF trajectory, distributions
+  energy_quantiles: true      # AU/EU by within-system energy quantile

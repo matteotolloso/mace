@@ -13,7 +13,7 @@ lr: 0.01
 num_channels: 128
 max_L: 1
 r_max: 6.0
-forces_weight: 10.0   # PROVISIONAL: to be fixed by the force-weight pilot (PROGRESS.md) before training
+forces_weight: 10   # chosen by the force-weight pilot (runs/_pilot/forces-weight/DECISION.md)
 device: cuda
 batch_size: 64
 max_num_epochs: 300
