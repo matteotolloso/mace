@@ -1,0 +1,34 @@
+# MACE hyperparameters: those of ani1x-system/mace-mve/lf-only (experiment A) plus DFT forces in the loss
+# (Gaussian NLL on energies + forces_weight * MSE on forces, mace/modules/loss.py WeightedGaussianNLLLoss).
+# Data files, output directories, --wandb_dir and --foundation_model are passed by
+# `uq train-member` (uq/training/launch.py); see docs/experiments.md.
+model: "MACE"
+
+name: "mace"
+
+energy_key: "wb97x_tz.energy"
+forces_key: "wb97x_tz.forces"
+
+lr: 0.01
+num_channels: 128
+max_L: 1
+r_max: 6.0
+forces_weight: 10.0   # PROVISIONAL: to be fixed by the force-weight pilot (PROGRESS.md) before training
+device: cuda
+batch_size: 64
+max_num_epochs: 300
+swa: False
+compute_forces: True
+E0s: "average"
+predict_mve: True
+loss: "gaussian_nll"
+eval_interval: 1
+save_all_checkpoints: True
+log_epoch_outputs: False
+default_dtype: "float32"
+enable_cueq: False
+
+wandb: True
+wandb_entity: "uq-mf"
+wandb_project: "ani1x-system-forces_lf-only"
+

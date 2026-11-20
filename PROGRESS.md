@@ -7,7 +7,10 @@ rebuttal, is `git show ebeb547:PROGRESS.md`.
 
 ## Current focus
 
-**Journal version of the paper.** ICLR 2027 ended at 2 / 2 / 2 after the rebuttal and is being
+**Journal version of the paper.** Running: **pretraining with DFT forces** on one DGX GPU
+(Jobs table; estimate from the pilot's first epoch: ~16 h per LF member with three packed, so
+~2.5-3 months for both designs, five splits, fine-tuning and evaluation; split 0 of both designs
+is complete after ~3-4 weeks and is the first checkpoint for a look at the results). Then: ICLR 2027 ended at 2 / 2 / 2 after the rebuttal and is being
 withdrawn (decision 2026-11-19); the target is now a Q1 journal. Start at
 `papers/strategy/JOURNAL.md` (journal shortlist, improvements in priority order), then
 `papers/strategy/PLAN.md` (work packages, gates, budget). **Nothing is launched: it waits for the
@@ -26,7 +29,8 @@ session for the DGX GPUs at a time. Rules: `CLAUDE.md` (3 GPUs on the DGX), `doc
 
 | Experiment | Package | Machine | Commit | Job / unit | Owner | Status |
 |---|---|---|---|---|---|---|
-| — | — | — | — | — | — | nothing running or queued for this project (DGX checked 2026-11-10; Leonardo last checked 2026-11-08) |
+| PILOT forces_weight 1/10/100 (`ani1x-system-forces` split 0, member 0, 30 epochs; not reportable) | DFT-forces pretraining | DGX GPU 6 (user: one GPU, 2026-11-20) | a6d4565 + uncommitted spec | `uq-forces-pilot` (`runs/_pilot/forces-weight/run.sh`) | this session | running |
+| `ani1x-{system,energy}-forces/mace-mve/{lf-only,lf-to-hf}`, splits 0-4 x members 0-9 | DFT-forces pretraining (JOURNAL item 1, PLAN P4) | DGX GPU 6 only, 3 members packed (user: one free GPU, no Leonardo, 2026-11-20) | commit of the forces_weight pick (made by the campaign) | `uq-forces-campaign` (`runs/_jobs/forces/campaign.sh`, log `runs/_jobs/forces/campaign.log`, markers `campaign.<step>.{ok,failed}`; restart = rerun the unit, done steps are skipped, `uq train` skips complete members) | this session | waiting for the pilot; then per split: train -> evaluate -> prune |
 
 The per-job registry of the rebuttal (2026-11-06 to 11-10) is in Git history
 (`git show c35487c:papers/iclr27/rebuttal/RUNS.md`); its results are all in the ledger.
@@ -61,3 +65,10 @@ was pruned after evaluation (every fifth epoch, each member's best, `.model`).
   condensed into `papers/iclr27/REBUTTAL.md`, ICLR reviews to `papers/strategy/reviews_iclr27.md`,
   Leonardo setup job to `docs/leonardo-setup-env.sbatch`, budget to `docs/leonardo.md`); `iclr_rebuttal` merged
   into `main`, which is the working branch from now on. `papers/strategy/JOURNAL.md` written.
+- 2026-11-20 — DFT-forces pretraining started (user: one GPU, no Leonardo, no hurry): datasets
+  `ani1x-{system,energy}-forces` built and verified against the original splits; four experiments
+  added; force-weight pilot (1 / 10 / 100, 30 epochs, split 0 member 0) on GPU 6; campaign unit
+  `uq-forces-campaign` waits for it, picks the weight by the rule in `runs/_jobs/forces/pick_weight.py`
+  (lowest validation energy RMSE per atom at epochs 25-29, largest weight within 5%), commits it,
+  then trains / evaluates / prunes split by split. Force-error and force-disagreement evaluation
+  is not written yet (to do while training runs; checkpoints are kept: every fifth epoch + best).

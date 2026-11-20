@@ -78,6 +78,25 @@ loss; same `--selection-key loss` code path). Water is not included (not in the 
 | `ani1x-energy/mace-mse/lf-to-hf` | CC (fine-tuned) | `ani1x-energy/mace-mse/lf-only` | D |
 | `ani1x-energy/mace-mse/hf-only` | CC | — | F |
 
+## Pretraining with DFT forces (2026-11, journal version)
+
+Datasets `ani1x-system-forces` and `ani1x-energy-forces` are the two ANI-1x splits rebuilt with
+the same builder arguments and seeds plus `wb97x_tz.forces` in the DFT files (verified frame by
+frame against the original splits; CC files and geometry caches identical). The LF parents train
+on DFT energies **and forces**: loss = Gaussian NLL on energies + `forces_weight` x force MSE
+(`WeightedGaussianNLLLoss`, no fork change), `compute_forces: True`; `forces_weight` was chosen by
+a labelled pilot (`PROGRESS.md`). Everything else is the config of A / C. The fine-tuned children
+use exactly the config of B / D (CC energies only). The HF-only baselines are the existing E / F
+(identical CC files). Checkpoints are still selected by each member's own validation loss, which
+for the parents now includes the force term. The uncertainty is still that of the energy.
+
+| Experiment | Trained on | Parent | Energy-only counterpart |
+|---|---|---|---|
+| `ani1x-system-forces/mace-mve/lf-only` | DFT energies + forces | — | A |
+| `ani1x-system-forces/mace-mve/lf-to-hf` | CC (fine-tuned) | `ani1x-system-forces/mace-mve/lf-only` | B |
+| `ani1x-energy-forces/mace-mve/lf-only` | DFT energies + forces | — | C |
+| `ani1x-energy-forces/mace-mve/lf-to-hf` | CC (fine-tuned) | `ani1x-energy-forces/mace-mve/lf-only` | D |
+
 ## Training
 
 ```bash

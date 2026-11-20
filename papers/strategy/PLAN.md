@@ -147,7 +147,7 @@ such, ledger entry per result. Every job is registered before launch in the Jobs
 
 ### Tier 1b: the setting (new pretraining or new code)
 
-- [ ] **P4 DFT forces in the low-fidelity stage** (ICLR G3; entry ticket for domain journals).
+- [~] (2026-11-20, DGX GPU 6, both designs, five splits; `PROGRESS.md`) **P4 DFT forces in the low-fidelity stage** (ICLR G3; entry ticket for domain journals).
   Protocol of messerly2025multi: LF stage on `wb97x_tz` energies **and forces** (in the raw file
   for all 4.6M TZ configurations; no new labels), HF stage on CC energies as now; HF-only stays
   energy-only because CC forces do not exist. Work: dataset variants that export forces with the
