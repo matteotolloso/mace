@@ -8,9 +8,10 @@ rebuttal, is `git show ebeb547:PROGRESS.md`.
 ## Current focus
 
 **Journal version of the paper.** Running: **pretraining with DFT forces** on one DGX GPU
-(Jobs table; estimate from the pilot's first epoch: ~16 h per LF member with three packed, so
-~2.5-3 months for both designs, five splits, fine-tuning and evaluation; split 0 of both designs
-is complete after ~3-4 weeks and is the first checkpoint for a look at the results). Then: ICLR 2027 ended at 2 / 2 / 2 after the rebuttal and is being
+(Jobs table; measured on split 0: ~9-10 min per epoch with three packed, so ~2 days per LF member
+of 300 epochs and ~2 weeks for the 20 LF members of split 0 alone; split 0 complete with
+fine-tuning, evaluation and the fw1 arm around late December; the whole campaign on one GPU well
+beyond 3 months. User, 2026-11-20: keep one GPU for now, may add GPUs later). Then: ICLR 2027 ended at 2 / 2 / 2 after the rebuttal and is being
 withdrawn (decision 2026-11-19); the target is now a Q1 journal. Start at
 `papers/strategy/JOURNAL.md` (journal shortlist, improvements in priority order), then
 `papers/strategy/PLAN.md` (work packages, gates, budget). **Nothing is launched: it waits for the
@@ -78,3 +79,6 @@ was pruned after evaluation (every fifth epoch, each member's best, `.model`).
   trained right after the main split 0, before splits 1-4, so the first look at the results can
   check that the conclusions do not depend on the weight). Early pilot epochs (labelled, not
   reportable): weight 100 stops energy learning (variance absorbs the energy error).
+- 2026-11-20 — pick done (forces_weight 10, fw1 arm; `1367d1d`); split 0 LF training started
+  06:34. Epochs take ~9-10 min with three packed (pilot estimate was optimistic): ~2 days per member.
+  User keeps one GPU for now, may add GPUs later.
