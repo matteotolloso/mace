@@ -84,3 +84,6 @@ was pruned after evaluation (every fifth epoch, each member's best, `.model`).
   User keeps one GPU for now, may add GPUs later.
 - 2026-11-24 — forces campaign paused by the user (GPU 6 for another project): unit stopped, GPU 6 free.
   Interrupted members resume from their latest epoch checkpoint (`--resume` added to `campaign.sh`).
+- 2026-11-24 — A1 poster figures: `papers/iclr27/figures/poster_figures.py` (CPU, reuses the paper
+  scripts' data/statistics functions; only size/layout/typography change) -> `poster_figures/poster_fig{2..6}.{pdf,png}`
+  (paper Figs. 2-6; Fig. 4 = test panels c-f only). Fig. 1 not produced (Figma export, no source).
