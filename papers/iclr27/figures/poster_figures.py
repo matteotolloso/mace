@@ -8,11 +8,11 @@ epoch_data.across_splits / band / ema, fig6_acquisition.gain_rows / selected_qua
 fig4_rank_vs_calibration.point). Only size, layout and typography differ.
 
 Paper figure -> paper script -> poster file (repository root, poster_figures/):
-  Fig. 2  fig2_final_summary.py        poster_fig2  10.8 x 5.1 in
-  Fig. 3  fig4_rank_vs_calibration.py  poster_fig3   8.7 x 5.1 in
-  Fig. 4  fig5_decomposition.py        poster_fig4   4.9 x 3.9 in  (test panels c-f only)
-  Fig. 5  fig3_hf_dynamics.py          poster_fig5   5.4 x 3.9 in
-  Fig. 6  fig6_acquisition.py          poster_fig6   8.0 x 3.9 in
+  Fig. 2  fig2_final_summary.py        poster_fig2  10.8 x 4.4 in
+  Fig. 3  fig4_rank_vs_calibration.py  poster_fig3   8.7 x 4.4 in
+  Fig. 4  fig5_decomposition.py        poster_fig4   5.7 x 4.4 in  (test panels c-f only)
+  Fig. 5  fig3_hf_dynamics.py          poster_fig5   6.0 x 4.4 in
+  Fig. 6  fig6_acquisition.py          poster_fig6   6.5 x 4.4 in
 Fig. 1 (Workflow.pdf) is a Figma export with no source in the repository: not produced.
 
 Each figure is drawn at its final printed size (figsize), laid out by matplotlib's
@@ -59,7 +59,7 @@ def style():
         "axes.spines.right": False, "axes.grid": True, "grid.color": "#e6e6e6",
         "grid.linewidth": 0.9, "axes.axisbelow": True, "legend.frameon": False,
         "axes.titlepad": 6, "pdf.fonttype": 42, "ps.fonttype": 42, "figure.dpi": 100,
-        "lines.linewidth": LW, "axes.titlelocation": "left",
+        "lines.linewidth": LW, "axes.titlelocation": "left", "legend.borderpad": 0.0,
     })
     return plt
 
@@ -139,7 +139,7 @@ def fig2(plt):
     """Paper Fig. 2 (fig2_final_summary.py): RMSE / AUSE / ENCE dot plot."""
     columns = (("RMSE", "RMSE (meV/atom)  ←", True), ("AUSE", "AUSE  ← (ranking)", False),
                ("ENCE", "ENCE  ← (calibration)", True))
-    fig = figure(plt, (10.8, 5.1), wspace=0.03)
+    fig = figure(plt, (10.8, 4.4), wspace=0.03)
     grid = fig.add_gridspec(1, 3, width_ratios=[0.95, 1, 1.2])
     axes = [fig.add_subplot(grid[0, 0])]
     axes += [fig.add_subplot(grid[0, i], sharey=axes[0]) for i in (1, 2)]
@@ -209,7 +209,7 @@ def fig3(plt):
     """Paper Fig. 3 (fig4_rank_vs_calibration.py): ENCE vs AUSE, ID (hollow) -> OOD (filled)."""
     from fig4_rank_vs_calibration import point
 
-    fig = figure(plt, (8.7, 5.1), wspace=0.02)
+    fig = figure(plt, (8.7, 4.4), wspace=0.02)
     grid = fig.add_gridspec(1, 2)
     plane = [fig.add_subplot(grid[0, 0])]
     plane.append(fig.add_subplot(grid[0, 1], sharex=plane[0], sharey=plane[0]))
@@ -281,7 +281,7 @@ def fig4(plt):
     """Paper Fig. 4 (fig5_decomposition.py), test-set panels c-f only."""
     global band_alpha
     band_alpha = 0.13 * BAND
-    fig = figure(plt, (4.9, 3.9), wspace=0.02, hspace=0.02)
+    fig = figure(plt, (5.7, 4.4), wspace=0.02, hspace=0.02)
     axes = fig.subplots(2, 2, sharex=True)
     panels = ((axes[0, 0], "c", "ID test", "AUSE  ←", lf_to_hf_id, "AUSE", False),
               (axes[0, 1], "d", "ID test", "ENCE  ←", lf_to_hf_id, "ENCE", True),
@@ -343,7 +343,7 @@ def fig5(plt):
     band_alpha = 0.10 * BAND
     rows = (("AUSE", "AUSE  ←", False), ("ENCE", "ENCE  ←", True))
     columns = (("system", "System-OOD"), ("energy", "Energy-OOD"))
-    fig = figure(plt, (5.4, 3.9), wspace=0.02, hspace=0.02)
+    fig = figure(plt, (6.0, 4.4), wspace=0.02, hspace=0.02)
     axes = fig.subplots(2, 2, sharex=True, sharey="row")
     for c, (kind, title) in enumerate(columns):
         for r, (metric, ylabel, log) in enumerate(rows):
@@ -375,11 +375,10 @@ def fig5(plt):
     for ax, l in zip(axes.flat, "abcd"):
         letter(ax, l)
 
-    handles = [line_handle(PROTOCOL_COLOR["HF-only"], "HF-only"), line_handle(MUTED, "AU", SIGNAL_LINESTYLE["AU"]),
-               line_handle(PROTOCOL_COLOR["LF→HF"], "LF→HF"), line_handle(MUTED, "EU", SIGNAL_LINESTYLE["EU"]),
-               band_handle("95% CI"), line_handle(MUTED, "TU", SIGNAL_LINESTYLE["TU"])]
-    fig.legend(handles=handles, loc="outside upper center", ncol=3, handlelength=1.6,
-               handletextpad=0.4, columnspacing=1.2, labelspacing=0.25, borderaxespad=LEGEND_PAD)
+    handles = [line_handle(PROTOCOL_COLOR[p], p) for p in PROTOCOLS]
+    handles += [line_handle(MUTED, s, SIGNAL_LINESTYLE[s]) for s in SIGNALS] + [band_handle("95% CI")]
+    fig.legend(handles=handles, loc="outside upper center", ncol=6, handlelength=1.5,
+               handletextpad=0.35, columnspacing=0.9, borderaxespad=LEGEND_PAD)
     save(fig, "poster_fig5")
 
 
@@ -390,8 +389,8 @@ def fig6(plt):
     from fig6_acquisition import RANDOM_COLOR, REGIME, gain_rows, selected_quantiles
 
     rows = gain_rows()
-    fig = figure(plt, (8.0, 3.9), wspace=0.06, hspace=0.03)
-    grid = fig.add_gridspec(2, 2, width_ratios=[1.05, 1.3])
+    fig = figure(plt, (6.5, 4.4), wspace=0.06, hspace=0.03)
+    grid = fig.add_gridspec(2, 2, width_ratios=[0.9, 1.3])
     ax_a = fig.add_subplot(grid[:, 0])
     ax_q = [fig.add_subplot(grid[0, 1])]
     ax_q.append(fig.add_subplot(grid[1, 1], sharex=ax_q[0], sharey=ax_q[0]))
@@ -441,10 +440,10 @@ def fig6(plt):
         ax.set_ylabel("fraction")
         ax.grid(axis="x", visible=False)
     plt.setp(ax_q[0].get_xticklabels(), visible=False)
-    ax_q[1].set_xlabel("within-system energy quantile $q_s(x)$")
+    ax_q[1].set_xlabel("within-system energy\nquantile $q_s(x)$")
     ax_q[0].set_title("Selected configurations")
     ax_q[0].set_xlim(0.55, 1.0)
-    fixed_ticks(ax_q[0].xaxis, (0.6, 0.7, 0.8, 0.9, 1.0), "{:.1f}")
+    fixed_ticks(ax_q[0].xaxis, (0.6, 0.8, 1.0), "{:.1f}")
     from matplotlib.ticker import MaxNLocator
     ax_q[0].yaxis.set_major_locator(MaxNLocator(3))
     letter(ax_q[0], "b")
@@ -452,8 +451,9 @@ def fig6(plt):
     from matplotlib.patches import Patch
     handles = [Patch(facecolor="#e9e9e7", edgecolor=RANDOM_COLOR, lw=LW, label="random")]
     handles += [line_handle(SIGNAL_COLOR[s], s, (0, (3, 1)) if s == "EU" else "-") for s in SIGNALS]
-    fig.legend(handles=handles, loc="outside upper right", ncol=4, handlelength=1.6,
-               handletextpad=0.4, columnspacing=1.2, borderaxespad=LEGEND_PAD)
+    handles = [handles[i] for i in (0, 2, 1, 3)]  # two rows, filled by column: random AU / EU TU
+    fig.legend(handles=handles, loc="outside upper right", ncol=2, handlelength=1.6,
+               handletextpad=0.4, columnspacing=1.2, labelspacing=0.25, borderaxespad=LEGEND_PAD)
     save(fig, "poster_fig6")
 
 
