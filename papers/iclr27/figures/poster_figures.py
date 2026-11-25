@@ -8,11 +8,11 @@ epoch_data.across_splits / band / ema, fig6_acquisition.gain_rows / selected_qua
 fig4_rank_vs_calibration.point). Only size, layout and typography differ.
 
 Paper figure -> paper script -> poster file (repository root, poster_figures/):
-  Fig. 2  fig2_final_summary.py        poster_fig2  10.8 x 4.4 in
-  Fig. 3  fig4_rank_vs_calibration.py  poster_fig3   8.7 x 4.4 in
-  Fig. 4  fig5_decomposition.py        poster_fig4   5.7 x 4.4 in  (test panels c-f only)
-  Fig. 5  fig3_hf_dynamics.py          poster_fig5   6.0 x 4.4 in
-  Fig. 6  fig6_acquisition.py          poster_fig6   6.5 x 4.4 in
+  Fig. 2  fig2_final_summary.py        poster_fig2   (sizes: SIZE below)
+  Fig. 3  fig4_rank_vs_calibration.py  poster_fig3
+  Fig. 4  fig5_decomposition.py        poster_fig4   (all six panels, 2 rows x 3 columns)
+  Fig. 5  fig3_hf_dynamics.py          poster_fig5
+  Fig. 6  fig6_acquisition.py          poster_fig6
 Fig. 1 (Workflow.pdf) is a Figma export with no source in the repository: not produced.
 
 Each figure is drawn at its final printed size (figsize), laid out by matplotlib's
@@ -30,9 +30,11 @@ from common import (
     CAL_ALPHA, EXPERIMENT, INK, MUTED, PROTOCOL_COLOR, PROTOCOLS, ROOT, SHIFT_COLOR, SIGNAL_COLOR,
     SIGNAL_LINESTYLE, SIGNAL_MARKER, SIGNALS, TESTS, final_metrics, interval,
 )
-from epoch_data import across_splits, band, ema, hf_stage, lf_to_hf, lf_to_hf_id
+from epoch_data import across_splits, band, ema, hf_stage, lf_to_hf, lf_to_hf_id, lf_to_hf_train
 
 OUT = ROOT / "poster_figures"
+# Final printed sizes (in). Top poster row: Figs. 2 and 4; bottom row: Figs. 5, 3, 6.
+SIZE = {"fig2": (8.8, 4.4), "fig4": (10.75, 4.4), "fig5": (5.6, 4.1), "fig3": (6.6, 4.1), "fig6": (6.0, 4.1)}
 PAD = 0.05            # in, around the content
 FONT = {"tick": 12.5, "label": 14, "title": 15, "legend": 13, "letter": 16, "note": 12}
 MS = 1.5              # marker scale relative to the paper
@@ -139,8 +141,8 @@ def fig2(plt):
     """Paper Fig. 2 (fig2_final_summary.py): RMSE / AUSE / ENCE dot plot."""
     columns = (("RMSE", "RMSE (meV/atom)  ←", True), ("AUSE", "AUSE  ← (ranking)", False),
                ("ENCE", "ENCE  ← (calibration)", True))
-    fig = figure(plt, (10.8, 4.4), wspace=0.03)
-    grid = fig.add_gridspec(1, 3, width_ratios=[0.95, 1, 1.2])
+    fig = figure(plt, SIZE["fig2"], wspace=0.06)
+    grid = fig.add_gridspec(1, 3, width_ratios=[1.1, 1, 1.15])
     axes = [fig.add_subplot(grid[0, 0])]
     axes += [fig.add_subplot(grid[0, i], sharey=axes[0]) for i in (1, 2)]
 
@@ -209,7 +211,7 @@ def fig3(plt):
     """Paper Fig. 3 (fig4_rank_vs_calibration.py): ENCE vs AUSE, ID (hollow) -> OOD (filled)."""
     from fig4_rank_vs_calibration import point
 
-    fig = figure(plt, (8.7, 4.4), wspace=0.02)
+    fig = figure(plt, SIZE["fig3"], wspace=0.02)
     grid = fig.add_gridspec(1, 2)
     plane = [fig.add_subplot(grid[0, 0])]
     plane.append(fig.add_subplot(grid[0, 1], sharex=plane[0], sharey=plane[0]))
@@ -244,8 +246,10 @@ def fig3(plt):
     handles += [marker_handle(MUTED, SIGNAL_MARKER[s], s, 4 * MS) for s in SIGNALS]
     handles += [marker_handle(MUTED, "o", "ID", 4 * MS, mfc="white", mec=MUTED, mew=1.8),
                 marker_handle(MUTED, "o", "OOD", 4 * MS, mew=1.8)]
-    fig.legend(handles=handles, loc="outside upper center", ncol=7, handletextpad=0.35,
-               columnspacing=1.2, handlelength=1.8, borderaxespad=LEGEND_PAD)
+    # two rows, filled by column: HF-only LF->HF ID OOD / AU EU TU
+    handles = [handles[i] for i in (0, 2, 1, 3, 5, 4, 6)]
+    fig.legend(handles=handles, loc="outside upper center", ncol=4, handletextpad=0.35,
+               columnspacing=1.2, handlelength=1.8, labelspacing=0.25, borderaxespad=LEGEND_PAD)
     save(fig, "poster_fig3")
 
 
@@ -278,61 +282,62 @@ def log_axis(ax, lo, hi):
 # ------------------------------------------------------------------ Fig. 4 (paper)
 
 def fig4(plt):
-    """Paper Fig. 4 (fig5_decomposition.py), test-set panels c-f only."""
+    """Paper Fig. 4 (fig5_decomposition.py), all six panels: columns train / ID test / OOD test,
+    rows AUSE (a, c, e) and ENCE (b, d, f, log y), letters as in the paper."""
     global band_alpha
     band_alpha = 0.13 * BAND
-    fig = figure(plt, (5.7, 4.4), wspace=0.02, hspace=0.02)
-    axes = fig.subplots(2, 2, sharex=True)
-    panels = ((axes[0, 0], "c", "ID test", "AUSE  ←", lf_to_hf_id, "AUSE", False),
-              (axes[0, 1], "d", "ID test", "ENCE  ←", lf_to_hf_id, "ENCE", True),
-              (axes[1, 0], "e", "OOD test", "AUSE  ←", lf_to_hf, "AUSE", False),
-              (axes[1, 1], "f", "OOD test", "ENCE  ←", lf_to_hf, "ENCE", True))
-    for ax, l, title, ylabel, fetch, metric, log in panels:
-        ax.axvspan(PRETRAIN - 2.5, 400, color="#ececea", zorder=0, lw=0)
-        ax.axvline(PRETRAIN - 2.5, color=MUTED, lw=1.2, ls=(0, (3, 2)), zorder=1)
-        ax.grid(axis="x", visible=False)
-        for kind in ("system", "energy"):
-            for s in SIGNALS:
-                epochs, values = across_splits(lambda x: fetch(kind, x), lambda e, s=s: e[(metric, s)], log=log)
-                if epochs is None:
-                    raise RuntimeError(f"missing per-epoch data: {kind} {metric}")
-                cal = metric == "ENCE"
-                curve(ax, epochs, values, log, SHIFT_COLOR[kind], SIGNAL_LINESTYLE[s],
-                      LW_TU if (cal and s == "TU") else LW, CAL_ALPHA[s] if cal else 1.0, phased=True)
-        ax.set_xlim(0, 400)
-        if log:
-            log_axis(ax, *ax.get_ylim())
-        else:
-            from matplotlib.ticker import MaxNLocator
-            ax.yaxis.set_major_locator(MaxNLocator(3))
-        ax.set_title(title)
-        ax.set_ylabel(ylabel)
-        letter(ax, l)
+    fig = figure(plt, SIZE["fig4"], wspace=0.02, hspace=0.02)
+    axes = fig.subplots(2, 3, sharex=True)
+    columns = (("Train", lf_to_hf_train, "ab"), ("ID test", lf_to_hf_id, "cd"), ("OOD test", lf_to_hf, "ef"))
+    rows = (("AUSE", "AUSE  ←", False), ("ENCE", "ENCE  ←", True))  # rotated: "←" renders as ↓
+    for c, (title, fetch, letters) in enumerate(columns):
+        for r, (metric, ylabel, log) in enumerate(rows):
+            ax = axes[r, c]
+            ax.axvspan(PRETRAIN - 2.5, 400, color="#ececea", zorder=0, lw=0)
+            ax.axvline(PRETRAIN - 2.5, color=MUTED, lw=1.2, ls=(0, (3, 2)), zorder=1)
+            ax.grid(axis="x", visible=False)
+            for kind in ("system", "energy"):
+                for s in SIGNALS:
+                    epochs, values = across_splits(lambda x: fetch(kind, x), lambda e, s=s: e[(metric, s)],
+                                                   log=log)
+                    if epochs is None:
+                        raise RuntimeError(f"missing per-epoch data: {title} {kind} {metric}")
+                    cal = metric == "ENCE"
+                    curve(ax, epochs, values, log, SHIFT_COLOR[kind], SIGNAL_LINESTYLE[s],
+                          LW_TU if (cal and s == "TU") else LW, CAL_ALPHA[s] if cal else 1.0, phased=True)
+            ax.set_xlim(0, 400)
+            if log:
+                log_axis(ax, *ax.get_ylim())
+            else:
+                from matplotlib.ticker import MaxNLocator
+                ax.yaxis.set_major_locator(MaxNLocator(3, steps=[1, 2, 5, 10], min_n_ticks=3))
+            if r == 0:  # headroom above the curves for the region labels (axis limit only)
+                lo, hi = ax.get_ylim()
+                ax.set_ylim(lo, hi + 0.3 * (hi - lo))
+                ax.set_title(title)
+            if c == 0:
+                ax.set_ylabel(ylabel)
+            letter(ax, letters[r])
     fixed_ticks(axes[1, 0].xaxis, (0, 100, 200, 300))
     fig.supxlabel("epoch", fontsize=FONT["label"])
-    region_labels(axes)
+    region_labels(axes[0])
 
-    handles = [line_handle(SHIFT_COLOR["system"], "System split"),
-               line_handle(MUTED, "AU", SIGNAL_LINESTYLE["AU"]),
-               line_handle(SHIFT_COLOR["energy"], "Energy split"),
-               line_handle(MUTED, "EU", SIGNAL_LINESTYLE["EU"]),
-               band_handle("95% CI"),
-               line_handle(MUTED, "TU", SIGNAL_LINESTYLE["TU"])]
-    fig.legend(handles=handles, loc="outside upper center", ncol=3, handlelength=1.6,
-               handletextpad=0.4, columnspacing=1.0, labelspacing=0.25, borderaxespad=LEGEND_PAD)
+    handles = [line_handle(SHIFT_COLOR["system"], "System split"), line_handle(SHIFT_COLOR["energy"], "Energy split")]
+    handles += [line_handle(MUTED, s, SIGNAL_LINESTYLE[s]) for s in SIGNALS] + [band_handle("95% CI")]
+    fig.legend(handles=handles, loc="outside upper center", ncol=6, handlelength=1.8,
+               handletextpad=0.4, columnspacing=1.4, borderaxespad=LEGEND_PAD)
     save(fig, "poster_fig4")
 
 
 def region_labels(axes):
-    """'DFT pretrain' / 'CCSD(T) fine-tune' on the top row. The shaded fine-tuning band
-    (epochs 300-400) is ~0.4 in wide, too narrow for 11 pt text, so its label sits on the
-    title line, right-aligned over the band; the pretraining label stays inside the axes."""
-    for ax in axes[0]:
-        ax.text(150, 0.97, "DFT pretrain", transform=ax.get_xaxis_transform(), ha="center", va="top",
+    """'DFT pretrain' / 'CCSD(T) fine-tune' inside the top of each given axes: the pretraining
+    label centred over epochs 0-300, the fine-tuning label on two lines in the shaded band."""
+    for ax in axes:
+        trans = ax.get_xaxis_transform()
+        ax.text(150, 0.97, "DFT pretrain", transform=trans, ha="center", va="top",
                 fontsize=11, color=MUTED, zorder=5)
-        ax.annotate("CCSD(T)\nfine-tune", xy=(1, 1), xycoords="axes fraction", xytext=(0, 3),
-                    textcoords="offset points", ha="right", va="bottom", multialignment="right",
-                    fontsize=11, color=MUTED, linespacing=1.0)
+        ax.text(350, 0.97, "CCSD(T)\nfine-tune", transform=trans, ha="center", va="top",
+                fontsize=11, color=MUTED, linespacing=1.0, zorder=5)
 
 
 # ------------------------------------------------------------------ Fig. 5 (paper)
@@ -343,7 +348,7 @@ def fig5(plt):
     band_alpha = 0.10 * BAND
     rows = (("AUSE", "AUSE  ←", False), ("ENCE", "ENCE  ←", True))
     columns = (("system", "System-OOD"), ("energy", "Energy-OOD"))
-    fig = figure(plt, (6.0, 4.4), wspace=0.02, hspace=0.02)
+    fig = figure(plt, SIZE["fig5"], wspace=0.02, hspace=0.02)
     axes = fig.subplots(2, 2, sharex=True, sharey="row")
     for c, (kind, title) in enumerate(columns):
         for r, (metric, ylabel, log) in enumerate(rows):
@@ -375,10 +380,12 @@ def fig5(plt):
     for ax, l in zip(axes.flat, "abcd"):
         letter(ax, l)
 
-    handles = [line_handle(PROTOCOL_COLOR[p], p) for p in PROTOCOLS]
-    handles += [line_handle(MUTED, s, SIGNAL_LINESTYLE[s]) for s in SIGNALS] + [band_handle("95% CI")]
-    fig.legend(handles=handles, loc="outside upper center", ncol=6, handlelength=1.5,
-               handletextpad=0.35, columnspacing=0.9, borderaxespad=LEGEND_PAD)
+    # two rows, filled by column: HF-only LF->HF 95% CI / AU EU TU
+    handles = [line_handle(PROTOCOL_COLOR["HF-only"], "HF-only"), line_handle(MUTED, "AU", SIGNAL_LINESTYLE["AU"]),
+               line_handle(PROTOCOL_COLOR["LF→HF"], "LF→HF"), line_handle(MUTED, "EU", SIGNAL_LINESTYLE["EU"]),
+               band_handle("95% CI"), line_handle(MUTED, "TU", SIGNAL_LINESTYLE["TU"])]
+    fig.legend(handles=handles, loc="outside upper center", ncol=3, handlelength=1.6,
+               handletextpad=0.4, columnspacing=1.2, labelspacing=0.25, borderaxespad=LEGEND_PAD)
     save(fig, "poster_fig5")
 
 
@@ -389,7 +396,7 @@ def fig6(plt):
     from fig6_acquisition import RANDOM_COLOR, REGIME, gain_rows, selected_quantiles
 
     rows = gain_rows()
-    fig = figure(plt, (6.5, 4.4), wspace=0.06, hspace=0.03)
+    fig = figure(plt, SIZE["fig6"], wspace=0.06, hspace=0.03)
     grid = fig.add_gridspec(2, 2, width_ratios=[0.9, 1.3])
     ax_a = fig.add_subplot(grid[:, 0])
     ax_q = [fig.add_subplot(grid[0, 1])]
@@ -407,10 +414,10 @@ def fig6(plt):
                           mew=0.8, elinewidth=LW, capsize=0, zorder=3)
             ticks.append((x, s))
             x += 1.0
-        x += 0.45
+        x += 0.3
     ax_a.axhline(0, color="#555555", lw=1.2, zorder=1)
     ax_a.set_xticks([t for t, _ in ticks], [s for _, s in ticks])
-    ax_a.set_xlim(-0.6, x - 0.85)
+    ax_a.set_xlim(-0.45, x - 0.85)
     ax_a.grid(axis="x", visible=False)
     for i, p in enumerate(PROTOCOLS):
         center = float(np.mean([t for t, _ in ticks[3 * i:3 * i + 3]]))
@@ -444,8 +451,7 @@ def fig6(plt):
     ax_q[0].set_title("Selected configurations")
     ax_q[0].set_xlim(0.55, 1.0)
     fixed_ticks(ax_q[0].xaxis, (0.6, 0.8, 1.0), "{:.1f}")
-    from matplotlib.ticker import MaxNLocator
-    ax_q[0].yaxis.set_major_locator(MaxNLocator(3))
+    fixed_ticks(ax_q[0].yaxis, (0, 0.1, 0.2, 0.3))
     letter(ax_q[0], "b")
 
     from matplotlib.patches import Patch

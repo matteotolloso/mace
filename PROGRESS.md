@@ -88,3 +88,5 @@ was pruned after evaluation (every fifth epoch, each member's best, `.model`).
   scripts' data/statistics functions; only size/layout/typography change) -> `poster_figures/poster_fig{2..6}.{pdf,png}`
   (paper Figs. 2-6; Fig. 4 = test panels c-f only). Fig. 1 not produced (Figma export, no source).
   Round 2 (same day): all five at 4.4 in height (10.8, 8.7, 5.7, 6.0, 6.5 in wide).
+- 2026-11-25 — poster figures round 3: top row Fig. 2 (8.8 x 4.4) + Fig. 4 with all six panels
+  (10.75 x 4.4, 2 x 3); bottom row Figs. 5, 3, 6 at 4.1 in (5.6, 6.6, 6.0 wide). Sizes: `SIZE` in the script.
