@@ -90,3 +90,5 @@ was pruned after evaluation (every fifth epoch, each member's best, `.model`).
   Round 2 (same day): all five at 4.4 in height (10.8, 8.7, 5.7, 6.0, 6.5 in wide).
 - 2026-11-25 — poster figures round 3: top row Fig. 2 (8.8 x 4.4) + Fig. 4 with all six panels
   (10.75 x 4.4, 2 x 3); bottom row Figs. 5, 3, 6 at 4.1 in (5.6, 6.6, 6.0 wide). Sizes: `SIZE` in the script.
+- 2026-11-26 — poster figures round 4 (wider cards): Fig. 2 10.3 x 4.1, Fig. 3 9.3 x 4.1, Fig. 5 9.3 x 4.1,
+  Fig. 6 10.3 x 4.1; Fig. 4 dropped from the poster (round-3 file kept, not rebuilt by default).

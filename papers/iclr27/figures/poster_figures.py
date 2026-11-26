@@ -19,7 +19,7 @@ Each figure is drawn at its final printed size (figsize), laid out by matplotlib
 constrained layout with 0.05 in padding, and saved without bbox cropping, so the
 file is exactly figsize: PDF (TrueType fonts embedded) and PNG at 600 dpi.
 
-Usage: python poster_figures.py [fig2 fig3 fig4 fig5 fig6]
+Usage: python poster_figures.py [fig2 fig3 fig4 fig5 fig6]   (default: the figures in POSTER)
 """
 
 import sys
@@ -33,8 +33,9 @@ from common import (
 from epoch_data import across_splits, band, ema, hf_stage, lf_to_hf, lf_to_hf_id, lf_to_hf_train
 
 OUT = ROOT / "poster_figures"
-# Final printed sizes (in). Top poster row: Figs. 2 and 4; bottom row: Figs. 5, 3, 6.
-SIZE = {"fig2": (8.8, 4.4), "fig4": (10.75, 4.4), "fig5": (5.6, 4.1), "fig3": (6.6, 4.1), "fig6": (6.0, 4.1)}
+# Final printed sizes (in), one per poster card.
+SIZE = {"fig2": (10.3, 4.1), "fig3": (9.3, 4.1), "fig5": (9.3, 4.1), "fig6": (10.3, 4.1),
+        "fig4": (10.75, 4.4)}  # fig4: round 3, no longer on the poster (not rebuilt by default)
 PAD = 0.05            # in, around the content
 FONT = {"tick": 12.5, "label": 14, "title": 15, "legend": 13, "letter": 16, "note": 12}
 MS = 1.5              # marker scale relative to the paper
@@ -246,10 +247,8 @@ def fig3(plt):
     handles += [marker_handle(MUTED, SIGNAL_MARKER[s], s, 4 * MS) for s in SIGNALS]
     handles += [marker_handle(MUTED, "o", "ID", 4 * MS, mfc="white", mec=MUTED, mew=1.8),
                 marker_handle(MUTED, "o", "OOD", 4 * MS, mew=1.8)]
-    # two rows, filled by column: HF-only LF->HF ID OOD / AU EU TU
-    handles = [handles[i] for i in (0, 2, 1, 3, 5, 4, 6)]
-    fig.legend(handles=handles, loc="outside upper center", ncol=4, handletextpad=0.35,
-               columnspacing=1.2, handlelength=1.8, labelspacing=0.25, borderaxespad=LEGEND_PAD)
+    fig.legend(handles=handles, loc="outside upper center", ncol=7, handletextpad=0.35,
+               columnspacing=1.4, handlelength=1.8, borderaxespad=LEGEND_PAD)
     save(fig, "poster_fig3")
 
 
@@ -380,12 +379,10 @@ def fig5(plt):
     for ax, l in zip(axes.flat, "abcd"):
         letter(ax, l)
 
-    # two rows, filled by column: HF-only LF->HF 95% CI / AU EU TU
-    handles = [line_handle(PROTOCOL_COLOR["HF-only"], "HF-only"), line_handle(MUTED, "AU", SIGNAL_LINESTYLE["AU"]),
-               line_handle(PROTOCOL_COLOR["LF→HF"], "LF→HF"), line_handle(MUTED, "EU", SIGNAL_LINESTYLE["EU"]),
-               band_handle("95% CI"), line_handle(MUTED, "TU", SIGNAL_LINESTYLE["TU"])]
-    fig.legend(handles=handles, loc="outside upper center", ncol=3, handlelength=1.6,
-               handletextpad=0.4, columnspacing=1.2, labelspacing=0.25, borderaxespad=LEGEND_PAD)
+    handles = [line_handle(PROTOCOL_COLOR[p], p) for p in PROTOCOLS]
+    handles += [line_handle(MUTED, s, SIGNAL_LINESTYLE[s]) for s in SIGNALS] + [band_handle("95% CI")]
+    fig.legend(handles=handles, loc="outside upper center", ncol=6, handlelength=1.8,
+               handletextpad=0.4, columnspacing=1.4, borderaxespad=LEGEND_PAD)
     save(fig, "poster_fig5")
 
 
@@ -397,7 +394,7 @@ def fig6(plt):
 
     rows = gain_rows()
     fig = figure(plt, SIZE["fig6"], wspace=0.06, hspace=0.03)
-    grid = fig.add_gridspec(2, 2, width_ratios=[0.9, 1.3])
+    grid = fig.add_gridspec(2, 2, width_ratios=[1.0, 1.3])
     ax_a = fig.add_subplot(grid[:, 0])
     ax_q = [fig.add_subplot(grid[0, 1])]
     ax_q.append(fig.add_subplot(grid[1, 1], sharex=ax_q[0], sharey=ax_q[0]))
@@ -414,10 +411,10 @@ def fig6(plt):
                           mew=0.8, elinewidth=LW, capsize=0, zorder=3)
             ticks.append((x, s))
             x += 1.0
-        x += 0.3
+        x += 0.45
     ax_a.axhline(0, color="#555555", lw=1.2, zorder=1)
     ax_a.set_xticks([t for t, _ in ticks], [s for _, s in ticks])
-    ax_a.set_xlim(-0.45, x - 0.85)
+    ax_a.set_xlim(-0.6, x - 0.85)
     ax_a.grid(axis="x", visible=False)
     for i, p in enumerate(PROTOCOLS):
         center = float(np.mean([t for t, _ in ticks[3 * i:3 * i + 3]]))
@@ -447,7 +444,7 @@ def fig6(plt):
         ax.set_ylabel("fraction")
         ax.grid(axis="x", visible=False)
     plt.setp(ax_q[0].get_xticklabels(), visible=False)
-    ax_q[1].set_xlabel("within-system energy\nquantile $q_s(x)$")
+    ax_q[1].set_xlabel("within-system energy quantile $q_s(x)$")
     ax_q[0].set_title("Selected configurations")
     ax_q[0].set_xlim(0.55, 1.0)
     fixed_ticks(ax_q[0].xaxis, (0.6, 0.8, 1.0), "{:.1f}")
@@ -457,18 +454,18 @@ def fig6(plt):
     from matplotlib.patches import Patch
     handles = [Patch(facecolor="#e9e9e7", edgecolor=RANDOM_COLOR, lw=LW, label="random")]
     handles += [line_handle(SIGNAL_COLOR[s], s, (0, (3, 1)) if s == "EU" else "-") for s in SIGNALS]
-    handles = [handles[i] for i in (0, 2, 1, 3)]  # two rows, filled by column: random AU / EU TU
-    fig.legend(handles=handles, loc="outside upper right", ncol=2, handlelength=1.6,
-               handletextpad=0.4, columnspacing=1.2, labelspacing=0.25, borderaxespad=LEGEND_PAD)
+    fig.legend(handles=handles, loc="outside upper right", ncol=4, handlelength=1.6,
+               handletextpad=0.4, columnspacing=1.4, borderaxespad=LEGEND_PAD)
     save(fig, "poster_fig6")
 
 
 FIGURES = {"fig2": fig2, "fig3": fig3, "fig4": fig4, "fig5": fig5, "fig6": fig6}
+POSTER = ("fig2", "fig3", "fig5", "fig6")  # built when no figure is named
 
 
 def main():
     plt = style()
-    for name in sys.argv[1:] or FIGURES:
+    for name in sys.argv[1:] or POSTER:
         FIGURES[name](plt)
         plt.close("all")
 
